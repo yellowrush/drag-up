@@ -5,6 +5,7 @@
     <!-- #endif -->
     <!-- #ifdef MP-WEIXIN -->
     <canvas
+      type="2d"
       id="gameCanvas"
       class="game-canvas"
       @touchstart="onTouchStart"
@@ -17,23 +18,20 @@
 </template>
 
 <script setup lang="ts">
-  import { shallowRef, ref, onMounted, onUnmounted, getCurrentInstance, markRaw } from 'vue';
+  import { shallowRef, ref, onMounted, onUnmounted, getCurrentInstance } from 'vue';
   import { GameEngine } from '@/utils/game-engine.js';
 
-  const emit = defineEmits<{
-    (e: 'ready', engine: any): void;
-    (e: 'instruction', text: string): void;
-  }>();
+  const emit = defineEmits(['ready', 'instruction']);
 
-  const engine = shallowRef<any>(null);
+  const engine = shallowRef(null);
 
   // Active pointer state for robust cross-device input handling
-  const activePointer = ref<{ id: number; type: 'pointer' | 'mouse' | 'touch' } | null>(null);
+  const activePointer = ref(null);
 
   // Keep track of the real H5 canvas element so listeners can be removed on unmount
-  const h5CanvasNode = shallowRef<HTMLCanvasElement | null>(null);
-  const h5ResizeObserver = shallowRef<ResizeObserver | null>(null);
-  const h5ResizeCallback = shallowRef<(() => void) | null>(null);
+  const h5CanvasNode = shallowRef(null);
+  const h5ResizeObserver = shallowRef(null);
+  const h5ResizeCallback = shallowRef(null);
   const h5LoopActive = ref(true);
 
   onMounted(() => {
@@ -134,7 +132,7 @@
       });
 
       if (!engine.value) {
-        const eng = markRaw(new GameEngine(canvas, ctx));
+        const eng = new GameEngine(canvas, ctx);
         engine.value = eng;
         eng.setupCanvas(w, h);
         eng.loadCurrentLevel();
@@ -185,7 +183,7 @@
         canvasNode.height = res[0].height * dpr;
         ctx.scale(dpr, dpr);
 
-        const eng = markRaw(new GameEngine(canvasNode, ctx));
+        const eng = new GameEngine(canvasNode, ctx);
         engine.value = eng;
         // Pass the actual canvas size (CSS pixels) from the query result
         eng.setupCanvas(res[0].width, res[0].height);
