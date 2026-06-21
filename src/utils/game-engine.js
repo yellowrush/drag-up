@@ -60,9 +60,17 @@ export class GameEngine {
   }
 
   setupCanvas() {
-    var systemInfo = uni.getSystemInfoSync()
-    var screenWidth = systemInfo.windowWidth
-    var screenHeight = systemInfo.windowHeight
+    var screenWidth, screenHeight
+    if (typeof uni !== 'undefined') {
+      // uni-app environment (WeChat Mini Program, App, etc.)
+      var systemInfo = uni.getSystemInfoSync()
+      screenWidth = systemInfo.windowWidth
+      screenHeight = systemInfo.windowHeight
+    } else {
+      // H5 browser: use CSS pixels (canvas context is already DPR-scaled in index.html)
+      screenWidth = window.innerWidth
+      screenHeight = window.innerHeight
+    }
 
     this.canvasSize.width = screenWidth
     this.canvasSize.height = screenHeight
@@ -70,8 +78,7 @@ export class GameEngine {
     // Grid size based on smaller dimension (matches original)
     this.gridSize = Math.min(40, Math.min(screenWidth, screenHeight) / 12)
 
-    // Maze center (matches original: canvasWidth/4, min(gridSize*8, canvasHeight/4))
-    // Original uses /4 because canvas is 2x; we use /2 since we handle DPR in canvas setup
+    // Maze center (matches original: canvasWidth/2, min(gridSize*8, canvasHeight/2))
     this.mazeCenter = {
       x: screenWidth / 2,
       y: Math.min(this.gridSize * 8, screenHeight / 2)
@@ -211,7 +218,17 @@ export class GameEngine {
   // ---- pointer handling ----
 
   // Convert event to {pageX, pageY} for cross-platform compatibility
+  // Accepts either a raw DOM event or an already-converted pointer object
   getPointer(event) {
+    // Already a pointer object? (has pageX/pageY, not clientX/clientY)
+    if (event.pageX != null || event.pageY != null) {
+      // Could be a pointer object {pageX, pageY} or a mouse event {clientX, clientY}
+      // Pointer objects use pageX/pageY; mouse events use clientX/clientY
+      var x = event.pageX != null ? event.pageX : (event.clientX || 0)
+      var y = event.pageY != null ? event.pageY : (event.clientY || 0)
+      return { pageX: x, pageY: y }
+    }
+    // Raw touch event
     var touch = (event.touches && event.touches[0]) || (event.changedTouches && event.changedTouches[0])
     if (touch) {
       return {
@@ -219,7 +236,7 @@ export class GameEngine {
         pageY: touch.clientY != null ? touch.clientY : (touch.y || 0)
       }
     }
-    // Mouse event
+    // Mouse event (shouldn't reach here if pageX is checked above, but safety)
     if (event.clientX != null) {
       return { pageX: event.clientX, pageY: event.clientY }
     }

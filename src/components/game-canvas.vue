@@ -1,33 +1,33 @@
 <template>
-  <view class="game-wrapper">
+  <div class="game-wrapper">
     <canvas
       id="gameCanvas"
-      type="2d"
       class="game-canvas"
-      @touchstart="onTouchStart"
-      @touchmove="onTouchMove"
-      @touchend="onTouchEnd"
-      @touchcancel="onTouchEnd"
+      @pointerdown="onPointerDown"
+      @pointermove="onPointerMove"
+      @pointerup="onPointerUp"
+      @pointercancel="onPointerUp"
     />
-  </view>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { GameEngine } from '@/utils/game-engine.js'
-import { GameStorage } from '@/utils/storage.js'
 
-const canvas = ref<any>(null)
+const emit = defineEmits<{
+  (e: 'ready', engine: any): void
+  (e: 'instruction', text: string): void
+}>()
+
 const engine = ref<any>(null)
 
 onMounted(() => {
-  // #ifdef H5
-  initH5()
-  // #endif
-
-  // #ifndef H5
-  initUni()
-  // #endif
+  if (typeof uni !== 'undefined') {
+    initUni()
+  } else {
+    initH5()
+  }
 })
 
 function initH5() {
@@ -55,13 +55,15 @@ function initH5() {
 }
 
 function initUni() {
+  // eslint-disable-next-line no-undef
   const query = uni.createSelectorQuery().in(getCurrentInstance())
   query.select('#gameCanvas')
     .fields({ node: true, size: true })
-    .exec((res) => {
+    .exec((res: any[]) => {
       if (!res[0]) return
       const canvasNode = res[0].node
       const ctx = canvasNode.getContext('2d')!
+      // eslint-disable-next-line no-undef
       const dpr = uni.getSystemInfoSync().pixelRatio
       canvasNode.width = res[0].width * dpr
       canvasNode.height = res[0].height * dpr
@@ -81,42 +83,25 @@ function initUni() {
     })
 }
 
-function getPointer(e: any) {
-  // #ifdef H5
-  if (e.touches && e.touches.length > 0) {
-    return { pageX: e.touches[0].clientX, pageY: e.touches[0].clientY }
-  }
-  return { pageX: e.clientX, pageY: e.clientY }
-  // #endif
-
-  // #ifndef H5
-  if (e.touches && e.touches.length > 0) {
-    return { pageX: e.touches[0].x, pageY: e.touches[0].y }
-  }
-  return { pageX: e.x, pageY: e.y }
-  // #endif
+function getPointer(e: PointerEvent) {
+  return { pageX: e.pageX || e.clientX, pageY: e.pageY || e.clientY }
 }
 
-function onTouchStart(e: any) {
+function onPointerDown(e: PointerEvent) {
   if (!engine.value) return
   engine.value.handlePointerDown(getPointer(e))
 }
 
-function onTouchMove(e: any) {
+function onPointerMove(e: PointerEvent) {
   if (!engine.value) return
   e.preventDefault()
   engine.value.handlePointerMove(getPointer(e))
 }
 
-function onTouchEnd(e: any) {
+function onPointerUp(e: PointerEvent) {
   if (!engine.value) return
   engine.value.handlePointerUp(getPointer(e))
 }
-
-const emit = defineEmits<{
-  (e: 'ready', engine: any): void
-  (e: 'instruction', text: string): void
-}>()
 
 defineExpose({ engine })
 </script>

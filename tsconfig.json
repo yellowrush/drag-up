@@ -12,7 +12,7 @@
     "useDefineForClassFields": true,
     "sourceMap": true,
     "baseUrl": ".",
-    "types": ["@dcloudio/types"],
+    "types": [],
     "paths": {
       "@/*": ["./src/*"]
     },

@@ -11,11 +11,11 @@ export const GameStorage = {
     try {
       if (u) {
         u.setStorageSync(key, value)
-      } else {
+      } else if (typeof localStorage !== 'undefined') {
         localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value))
       }
     } catch (e) {
-      console.error('Storage set error:', e)
+      // silent fail
     }
   },
 
@@ -24,13 +24,13 @@ export const GameStorage = {
     try {
       if (u) {
         return u.getStorageSync(key)
-      } else {
+      } else if (typeof localStorage !== 'undefined') {
         const raw = localStorage.getItem(key)
         if (!raw) return null
         try { return JSON.parse(raw) } catch { return raw }
       }
+      return null
     } catch (e) {
-      console.error('Storage get error:', e)
       return null
     }
   },
@@ -40,11 +40,11 @@ export const GameStorage = {
     try {
       if (u) {
         u.removeStorageSync(key)
-      } else {
+      } else if (typeof localStorage !== 'undefined') {
         localStorage.removeItem(key)
       }
     } catch (e) {
-      console.error('Storage remove error:', e)
+      // silent fail
     }
   },
 
@@ -53,11 +53,11 @@ export const GameStorage = {
     try {
       if (u) {
         u.clearStorageSync()
-      } else {
+      } else if (typeof localStorage !== 'undefined') {
         localStorage.clear()
       }
     } catch (e) {
-      console.error('Storage clear error:', e)
+      // silent fail
     }
   },
 

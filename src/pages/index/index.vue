@@ -84,10 +84,10 @@ function onSelectLevel(id: string) {
 
 function onNextLevel() {
   if (!engine.value) return
-  const next = getNextLevel(engine.value.maze.id)
-  if (next) {
-    engine.value.loadLevel(next.id)
-    currentLevelId = next.id
+  const nextId = getNextLevel(engine.value.maze.id)
+  if (nextId) {
+    engine.value.loadLevel(nextId)
+    currentLevelId = nextId
   } else {
     completedLevels.value = GameStorage.getCompletedLevels()
     showLevelSelect.value = true

@@ -1,26 +1,18 @@
-import { defineConfig } from 'vite'
-import { resolve } from 'path'
+import { defineConfig } from 'vite';
+import { resolve } from 'path';
+import vue from '@vitejs/plugin-vue';
 
-// Vite config for the standalone game (index.html)
-// No Vue plugin needed — index.html uses plain JS modules directly
 export default defineConfig({
-  root: '.',           // project root = where index.html lives
+  root: '.',
   base: '/',
+  plugins: [vue()],
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src')
-    }
+      '@': resolve(__dirname, 'src'),
+    },
   },
   server: {
     port: 5173,
-    open: '/index.html'  // open game page on dev start
+    host: '0.0.0.0',
   },
-  build: {
-    outDir: 'dist',
-    rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'index.html')
-      }
-    }
-  }
-})
+});
