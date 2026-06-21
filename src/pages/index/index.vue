@@ -2,8 +2,8 @@
   <view class="page">
     <view class="top-bar">
       <text class="instruction">{{ instruction }}</text>
-      <view class="btn" @tap="onLevelsTap">Levels</view>
-      <view class="btn" @tap="onResetTap">Reset</view>
+      <view class="btn" @tap="onLevelsTap">关卡选择</view>
+      <view class="btn" @tap="onResetTap">重置</view>
     </view>
 
     <game-canvas @ready="onGameReady" @instruction="onInstruction" />
@@ -26,7 +26,7 @@
     </view>
 
     <view v-if="showNext" class="next-btn" @tap="onNextLevel">
-      Next Level
+      下一关
     </view>
   </view>
 </template>

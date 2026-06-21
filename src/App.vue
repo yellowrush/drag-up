@@ -3,8 +3,8 @@
     <!-- 顶部操作栏 -->
     <div class="top-bar">
       <span class="instruction">{{ instruction }}</span>
-      <span class="btn" @click="onLevelsTap">Levels</span>
-      <span class="btn" @click="onResetTap">Reset</span>
+      <span class="btn" @click="onLevelsTap">关卡选择</span>
+      <span class="btn" @click="onResetTap">重置</span>
     </div>
 
     <!-- 游戏画布 -->
@@ -30,7 +30,7 @@
 
     <!-- 下一关按钮 -->
     <div v-if="showNext" class="next-btn" @click="onNextLevel">
-      Next Level
+      下一关
     </div>
   </div>
 </template>

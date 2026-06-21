@@ -5,14 +5,14 @@ export const LEVELS = [
   {
     id: 'intro-fixed1',
     label: '教程 1 · 拖动小熊',
-    blurb: 'Tutorial',
-    text: 'instruction: Drag bear to star\n---\n*=.=.\n    !\n. . .\n    !\n@=.=.'
+    blurb: '教程',
+    text: 'instruction: 拖动小熊到星星\n---\n*=.=.\n    !\n. . .\n    !\n@=.=.'
   },
   {
     id: 'intro-fixed2',
     label: '教程 2 · 旋转网格',
-    blurb: 'Tutorial',
-    text: 'blurb: Tutorial\ninstruction: Drag grid to rotate. Cub and star moves with grid. Orange links stay in place.\n---\n* . .\n    !\n. . .\n    !\n@=.=.'
+    blurb: '教程',
+    text: 'blurb: 教程\ninstruction: 拖动网格旋转。小熊和星星随网格移动。橙色连线保持原地。\n---\n* . .\n    !\n. . .\n    !\n@=.=.'
   },
   {
     id: 'intro-fixed3',
@@ -23,8 +23,8 @@ export const LEVELS = [
   {
     id: 'intro-free1',
     label: '教程 4 · 蓝色连接',
-    blurb: 'Tutorial',
-    text: 'blurb: Tutorial\ninstruction: Blue links move with grid. Rotate grid to connect blue and orange links in different ways.\n---\n@-. .\n!   |\n. . .\n    |\n*-.-.'
+    blurb: '教程',
+    text: 'blurb: 教程\ninstruction: 蓝色连线随网格移动。旋转网格以不同方式连接蓝色和橙色连线。\n---\n@-. .\n!   |\n. . .\n    |\n*-.-.'
   },
   {
     id: 'm3x3-2-med',
@@ -77,14 +77,14 @@ export const LEVELS = [
   {
     id: 'pivot-4x4-intro',
     label: '教程 5 · 绿色枢轴',
-    blurb: 'Tutorial',
-    text: 'instruction: Green links pivot with grid, but point in the same direction\n---\n. .-* .\n  |\n. . . .\n\n. .>. .\n\n. @ . .'
+    blurb: '教程',
+    text: 'instruction: 绿色连线随网格转动，但保持相同方向\n---\n. .-* .\n  |\n. . . .\n\n. .>. .\n\n. @ . .'
   },
   {
     id: 'rotate-tut',
     label: '教程 6 · 红色固定',
-    blurb: 'Tutorial',
-    text: 'instruction: Red links are fixed in place, but rotate with grid\n---\n. . . .\n\n@ .4. .\n  |\n. . .-*\n\n. . . .'
+    blurb: '教程',
+    text: 'instruction: 红色连线固定位置，但随网格旋转\n---\n. . . .\n\n@ .4. .\n  |\n. . .-*\n\n. . . .'
   },
   {
     id: 'm5x5-3',
