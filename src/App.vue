@@ -7,8 +7,9 @@
       <span class="btn" @click="onResetTap">重置</span>
     </div>
 
-    <!-- 游戏画布 -->
-    <game-canvas @ready="onGameReady" @instruction="onInstruction" />
+    <div class="game-area">
+      <game-canvas @ready="onGameReady" @instruction="onInstruction" />
+    </div>
 
     <!-- 关卡选择弹窗 -->
     <div v-if="showLevelSelect" class="modal-mask" @click.self="showLevelSelect = false">
@@ -111,20 +112,25 @@ function onResetTap() {
 .page {
   width: 100vw;
   height: 100vh;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   background: #1a1a2e;
   position: relative;
 }
 .top-bar {
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  z-index: 10;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
   padding-top: calc(env(safe-area-inset-top, 0) + 8px);
   background: rgba(26, 26, 46, 0.85);
+}
+.game-area {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
 }
 .instruction {
   color: #aaa;

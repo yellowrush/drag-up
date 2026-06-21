@@ -13,6 +13,7 @@
     "vue": "^3.4.0"
   },
   "devDependencies": {
+    "@dcloudio/types": "^3.4.8",
     "@dcloudio/uni-h5": "3.0.0-alpha-5010320260611001",
     "@dcloudio/uni-components": "3.0.0-alpha-5010320260611001",
     "@dcloudio/uni-mp-weixin": "3.0.0-alpha-5010320260611001",

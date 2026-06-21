@@ -44,11 +44,11 @@ export class GameEngine {
     this.onLevelLoad = null
     this.onInstructionChange = null
 
-    // Canvas offset (canvas is fullscreen at 0,0)
+    // Canvas offset (will be calculated from canvas element's position)
     this.canvasLeft = 0
     this.canvasTop = 0
 
-    this.init()
+    // Caller is responsible for setupCanvas, loadCurrentLevel, and the render loop
   }
 
   // ---- initialization ----
@@ -59,30 +59,56 @@ export class GameEngine {
     this.startGameLoop()
   }
 
-  setupCanvas() {
-    var screenWidth, screenHeight
-    if (typeof uni !== 'undefined') {
-      // uni-app environment (WeChat Mini Program, App, etc.)
-      var systemInfo = uni.getSystemInfoSync()
-      screenWidth = systemInfo.windowWidth
-      screenHeight = systemInfo.windowHeight
+  setupCanvas(width, height) {
+    // Get actual canvas display size (CSS pixels)
+    var w, h;
+    if (width != null && height != null) {
+      w = width;
+      h = height;
     } else {
-      // H5 browser: use CSS pixels (canvas context is already DPR-scaled in index.html)
-      screenWidth = window.innerWidth
-      screenHeight = window.innerHeight
+      w = this.canvas.clientWidth || 375;
+      h = this.canvas.clientHeight || 667;
     }
 
-    this.canvasSize.width = screenWidth
-    this.canvasSize.height = screenHeight
+    this.canvasSize.width = w;
+    this.canvasSize.height = h;
 
-    // Grid size based on smaller dimension (matches original)
-    this.gridSize = Math.min(40, Math.min(screenWidth, screenHeight) / 12)
+    // Calculate canvas offset relative to the viewport
+    if (typeof this.canvas.getBoundingClientRect === 'function') {
+      var rect = this.canvas.getBoundingClientRect();
+      this.canvasLeft = rect.left;
+      this.canvasTop = rect.top;
+    } else {
+      this.canvasLeft = 0;
+      this.canvasTop = 0;
+    }
 
-    // Maze center (matches original: canvasWidth/2, min(gridSize*8, canvasHeight/2))
+    // Grid size based on smaller dimension
+    this.gridSize = Math.min(40, Math.min(w, h) / 12);
+
+    // Maze center: truly center the game content in the canvas.
+    // Use the maze's actual gridMax when available; otherwise fall back to a
+    // safe default so the initial layout is still centered before the maze loads.
+    var gridMax = (this.maze && this.maze.gridMax) || 6
+    var maxMazeRadius = this.gridSize * (gridMax + 2)
+    var centerY = h / 2
+    // Ensure the maze does not visually escape the canvas: the center must be
+    // at least maxMazeRadius from the top and at least maxMazeRadius from the bottom.
+    var minCenterY = maxMazeRadius
+    var maxCenterY = h - maxMazeRadius
+    if (maxCenterY < minCenterY) {
+      // Canvas is too small to fully fit; keep it centered anyway.
+      centerY = h / 2
+    } else {
+      centerY = Math.max(minCenterY, Math.min(maxCenterY, centerY))
+    }
+
     this.mazeCenter = {
-      x: screenWidth / 2,
-      y: Math.min(this.gridSize * 8, screenHeight / 2)
-    }
+      x: w / 2,
+      y: centerY
+    };
+
+    console.log('[engine] setupCanvas', { width: w, height: h, gridSize: this.gridSize, mazeCenter: this.mazeCenter, canvasLeft: this.canvasLeft, canvasTop: this.canvasTop });
   }
 
   // ---- level loading ----
@@ -109,6 +135,14 @@ export class GameEngine {
     this.maze.id = levelId
     this.maze.loadText(levelData.text)
 
+    // Initialize cub at the maze's start position
+    if (this.maze.startPosition) {
+      this.cub.setPeg(this.maze.startPosition, this.maze.orientation)
+      this.cub.setOffset({ x: 0, y: 0 }, this.maze.orientation)
+    } else {
+      this.cub.reset()
+    }
+
     // Reset drag state
     this.dragAngle = null
     this.cubDragMove = null
@@ -128,6 +162,9 @@ export class GameEngine {
     if (this.onLevelLoad) {
       this.onLevelLoad(levelId)
     }
+
+    // Recalculate centering now that the maze's gridMax is known.
+    this.setupCanvas(this.canvasSize.width, this.canvasSize.height)
   }
 
   // ---- game loop ----
@@ -217,36 +254,30 @@ export class GameEngine {
 
   // ---- pointer handling ----
 
-  // Convert event to {pageX, pageY} for cross-platform compatibility
-  // Accepts either a raw DOM event or an already-converted pointer object
+  // Convert event to {x, y} viewport coordinates for cross-platform compatibility.
+  // Accepts either a raw DOM event or an already-converted pointer object from the component.
   getPointer(event) {
-    // Already a pointer object? (has pageX/pageY, not clientX/clientY)
-    if (event.pageX != null || event.pageY != null) {
-      // Could be a pointer object {pageX, pageY} or a mouse event {clientX, clientY}
-      // Pointer objects use pageX/pageY; mouse events use clientX/clientY
-      var x = event.pageX != null ? event.pageX : (event.clientX || 0)
-      var y = event.pageY != null ? event.pageY : (event.clientY || 0)
-      return { pageX: x, pageY: y }
+    // Already converted object from game-canvas.vue ({x, y, pointerId})
+    if (event.x != null || event.y != null) {
+      return { x: event.x || 0, y: event.y || 0 }
+    }
+    // Native PointerEvent / MouseEvent
+    if (event.clientX != null) {
+      return { x: event.clientX, y: event.clientY }
     }
     // Raw touch event
     var touch = (event.touches && event.touches[0]) || (event.changedTouches && event.changedTouches[0])
-    if (touch) {
-      return {
-        pageX: touch.clientX != null ? touch.clientX : (touch.x || 0),
-        pageY: touch.clientY != null ? touch.clientY : (touch.y || 0)
-      }
+    if (touch && touch.clientX != null) {
+      return { x: touch.clientX, y: touch.clientY }
     }
-    // Mouse event (shouldn't reach here if pageX is checked above, but safety)
-    if (event.clientX != null) {
-      return { pageX: event.clientX, pageY: event.clientY }
-    }
-    return { pageX: 0, pageY: 0 }
+    return { x: 0, y: 0 }
   }
 
   handlePointerDown(event) {
     var pointer = this.getPointer(event)
     var isInsideCub = this.getIsInsideCub(pointer)
     this.pointerBehavior = isInsideCub ? 'cubDrag' : 'mazeRotate'
+    console.log('[engine] pointerDown', { x: pointer.x, y: pointer.y, isInsideCub, behavior: this.pointerBehavior })
 
     if (this.pointerBehavior === 'cubDrag') {
       this.cubDragPointerDown(pointer)
@@ -296,12 +327,27 @@ export class GameEngine {
     var cubDeltaX = Math.abs(position.x - orientPeg.x * this.gridSize)
     var cubDeltaY = Math.abs(position.y - orientPeg.y * this.gridSize)
     var bound = this.gridSize * 1.5
-    return cubDeltaX <= bound && cubDeltaY <= bound
+    var result = cubDeltaX <= bound && cubDeltaY <= bound
+    console.log('[engine] getIsInsideCub', { pointer, position, orientPeg, gridSize: this.gridSize, bound, result })
+    return result
   }
 
   getCanvasMazePosition(pointer) {
-    var canvasX = pointer.pageX - this.canvasLeft
-    var canvasY = pointer.pageY - this.canvasTop
+    // Use live getBoundingClientRect so the offset is correct even after
+    // scrolling, resizing, or when the canvas is inside a flex container.
+    var left = this.canvasLeft
+    var top = this.canvasTop
+    if (typeof this.canvas.getBoundingClientRect === 'function') {
+      try {
+        var rect = this.canvas.getBoundingClientRect()
+        left = rect.left
+        top = rect.top
+      } catch (err) {
+        // fallback to cached values
+      }
+    }
+    var canvasX = pointer.x - left
+    var canvasY = pointer.y - top
     return {
       x: canvasX - this.mazeCenter.x,
       y: canvasY - this.mazeCenter.y
@@ -316,7 +362,7 @@ export class GameEngine {
       return
     }
     this.isCubDragging = true
-    this.dragStartPosition = { x: pointer.pageX, y: pointer.pageY }
+    this.dragStartPosition = { x: pointer.x, y: pointer.y }
     this.dragStartPegPosition = {
       x: this.cub[this.maze.orientation].x * this.gridSize + this.mazeCenter.x,
       y: this.cub[this.maze.orientation].y * this.gridSize + this.mazeCenter.y
@@ -326,9 +372,10 @@ export class GameEngine {
   cubDragPointerMove(pointer) {
     if (!this.isCubDragging) return
     this.cubDragMove = {
-      x: pointer.pageX - this.dragStartPosition.x,
-      y: pointer.pageY - this.dragStartPosition.y
+      x: pointer.x - this.dragStartPosition.x,
+      y: pointer.y - this.dragStartPosition.y
     }
+    console.log('[engine] cubDragMove', this.cubDragMove)
   }
 
   cubDragPointerUp() {
@@ -475,6 +522,7 @@ export class GameEngine {
     this.moveAngle = this.getDragAngle(pointer)
     var deltaAngle = this.moveAngle - this.dragStartAngle
     this.dragAngle = normalizeAngle(this.dragStartMazeAngle + deltaAngle)
+    console.log('[engine] rotateMove', { moveAngle: this.moveAngle, dragAngle: this.dragAngle })
   }
 
   mazeRotatePointerUp() {

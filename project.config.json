@@ -1,0 +1,12 @@
+{
+  "name": "drag-up",
+  "appid": "",
+  "version": "1.0.0",
+  "description": "Drag Up - Physics Puzzle Game",
+  "uni-app": {
+    "scripts": {}
+  },
+  "vueVersion": "v3",
+  "projectPath": "",
+  "packageManager": "npm"
+}

@@ -6,7 +6,9 @@
       <view class="btn" @tap="onResetTap">重置</view>
     </view>
 
-    <game-canvas @ready="onGameReady" @instruction="onInstruction" />
+    <view class="game-area">
+      <game-canvas @ready="onGameReady" @instruction="onInstruction" />
+    </view>
 
     <view v-if="showLevelSelect" class="modal-mask" @tap.self="showLevelSelect = false">
       <view class="modal-box">
@@ -106,16 +108,16 @@ function onResetTap() {
 .page {
   width: 100vw;
   height: 100vh;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   background: #1a1a2e;
-  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
 }
 .top-bar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 10;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -135,6 +137,11 @@ function onResetTap() {
   border: 1rpx solid #444;
   border-radius: 8rpx;
   margin-left: 16rpx;
+}
+.game-area {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
 }
 .modal-mask {
   position: fixed;
