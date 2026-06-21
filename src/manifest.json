@@ -1,0 +1,12 @@
+{
+  "name": "drag-up",
+  "appid": "",
+  "description": "Drag Up - 拖动小熊到达目标",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "transformX": {},
+  "tid": "",
+  "quickapp": {
+    "defaultFontWeight": "normal"
+  }
+}

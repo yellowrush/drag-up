@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>Drag Up</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #1a1a2e;
+      }
+      #gameCanvas {
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+        display: block;
+      }
+      #topBar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 20px;
+        padding-top: max(12px, env(safe-area-inset-top));
+        background: rgba(26, 26, 46, 0.85);
+        color: #aaa;
+        font-size: 14px;
+      }
+      #topBar button {
+        background: none;
+        border: 1px solid #444;
+        border-radius: 8px;
+        color: #aaa;
+        font-size: 13px;
+        padding: 6px 14px;
+        margin-left: 12px;
+        cursor: pointer;
+      }
+      #levelModal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 100;
+        align-items: center;
+        justify-content: center;
+      }
+      #levelModal.open {
+        display: flex;
+      }
+      #levelBox {
+        width: 300px;
+        background: #222;
+        border-radius: 16px;
+        padding: 20px;
+      }
+      #levelBox h3 {
+        color: #fff;
+        font-size: 16px;
+        text-align: center;
+        margin-bottom: 16px;
+      }
+      #levelGrid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+      }
+      .levelCell {
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #333;
+        color: #aaa;
+        border-radius: 8px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      .levelCell.completed {
+        background: #4a3;
+        color: #fff;
+      }
+      #nextBtn {
+        display: none;
+        position: fixed;
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 50;
+        background: #7b2;
+        color: #fff;
+        font-size: 16px;
+        padding: 10px 30px;
+        border-radius: 20px;
+        cursor: pointer;
+        border: none;
+      }
+      #nextBtn.open {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="gameCanvas" type="2d"></canvas>
+
+    <div id="topBar">
+      <span id="instruction"></span>
+      <div>
+        <button id="btnLevels">Levels</button>
+        <button id="btnReset">Reset</button>
+      </div>
+    </div>
+
+    <div id="levelModal">
+      <div id="levelBox">
+        <h3>选择关卡</h3>
+        <div id="levelGrid"></div>
+      </div>
+    </div>
+
+    <button id="nextBtn">Next Level</button>
+
+    <script type="module">
+      import { GameEngine } from './src/utils/game-engine.js';
+      import { GameStorage } from './src/utils/storage.js';
+      import { LEVELS, getNextLevel } from './src/utils/levels-data.js';
+
+      const canvas = document.getElementById('gameCanvas');
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+
+      const engine = new GameEngine(canvas, ctx);
+      let currentLevelId = '';
+
+      engine.loadCurrentLevel();
+      currentLevelId = engine.maze.id;
+      document.getElementById('instruction').textContent =
+        engine.maze.instruction || '';
+
+      engine.onLevelComplete = () => {
+        GameStorage.markLevelCompleted(engine.maze.id);
+        document.getElementById('nextBtn').classList.add('open');
+      };
+
+      engine.onInstructionChange = (text) => {
+        document.getElementById('instruction').textContent = text;
+      };
+
+      function loop() {
+        engine.update();
+        engine.render();
+        requestAnimationFrame(loop);
+      }
+      loop();
+
+      // Touch / mouse handlers
+      function getPointer(e) {
+        if (e.touches && e.touches.length > 0) {
+          return { pageX: e.touches[0].clientX, pageY: e.touches[0].clientY };
+        }
+        return { pageX: e.clientX, pageY: e.clientY };
+      }
+
+      canvas.addEventListener(
+        'touchstart',
+        (e) => {
+          e.preventDefault();
+          engine.handlePointerDown(getPointer(e));
+        },
+        { passive: false },
+      );
+      canvas.addEventListener(
+        'touchmove',
+        (e) => {
+          e.preventDefault();
+          engine.handlePointerMove(getPointer(e));
+        },
+        { passive: false },
+      );
+      canvas.addEventListener('touchend', (e) => {
+        engine.handlePointerUp(getPointer(e));
+      });
+      canvas.addEventListener('mousedown', (e) => {
+        engine.handlePointerDown(getPointer(e));
+      });
+      canvas.addEventListener('mousemove', (e) => {
+        engine.handlePointerMove(getPointer(e));
+      });
+      canvas.addEventListener('mouseup', (e) => {
+        engine.handlePointerUp(getPointer(e));
+      });
+
+      // UI
+      document.getElementById('btnLevels').addEventListener('click', () => {
+        const completed = GameStorage.getCompletedLevels();
+        const grid = document.getElementById('levelGrid');
+        grid.innerHTML = '';
+        LEVELS.forEach((lv) => {
+          const cell = document.createElement('div');
+          cell.className =
+            'levelCell' + (completed.includes(lv.id) ? ' completed' : '');
+          cell.textContent = lv.label;
+          cell.addEventListener('click', () => {
+            engine.loadLevel(lv.id);
+            currentLevelId = lv.id;
+            document.getElementById('levelModal').classList.remove('open');
+            document.getElementById('nextBtn').classList.remove('open');
+          });
+          grid.appendChild(cell);
+        });
+        document.getElementById('levelModal').classList.add('open');
+      });
+
+      document.getElementById('levelModal').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('levelModal')) {
+          document.getElementById('levelModal').classList.remove('open');
+        }
+      });
+
+      document.getElementById('btnReset').addEventListener('click', () => {
+        engine.loadLevel(currentLevelId);
+        document.getElementById('nextBtn').classList.remove('open');
+      });
+
+      document.getElementById('nextBtn').addEventListener('click', () => {
+        const next = getNextLevel(currentLevelId);
+        if (next) {
+          engine.loadLevel(next.id);
+          currentLevelId = next.id;
+        } else {
+          document.getElementById('btnLevels').click();
+        }
+        document.getElementById('nextBtn').classList.remove('open');
+      });
+    </script>
+  </body>
+</html>

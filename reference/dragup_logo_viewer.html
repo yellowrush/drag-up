@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Drag Up - 3D Logo Viewer</title>
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #1a1a2e; 
+      color: #eee;
+      overflow: hidden;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    .header {
+      background: rgba(0,0,0,0.3);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(10px);
+    }
+    .header h1 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      background: linear-gradient(135deg, #a855f7, #ec4899, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .header .hint {
+      font-size: 0.8rem;
+      color: #888;
+    }
+    .viewer-area {
+      flex: 1;
+      display: flex;
+    }
+    model-viewer {
+      width: 100%;
+      height: 100%;
+      --poster-color: transparent;
+    }
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 10;
+    }
+    .controls button {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+      backdrop-filter: blur(10px);
+    }
+    .controls button:hover {
+      background: rgba(255,255,255,0.2);
+    }
+    .controls button.active {
+      background: rgba(168,85,247,0.4);
+      border-color: #a855f7;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎮 Drag Up - 3D Logo</h1>
+      <span class="hint">拖拽旋转 · 滚轮缩放 · 右键平移</span>
+    </div>
+    <div class="viewer-area">
+      <model-viewer 
+        id="model-viewer"
+        src="dragup_logo.glb"
+        camera-controls
+        auto-rotate
+        auto-rotate-delay="0"
+        rotation-per-second="30deg"
+        shadow-intensity="1"
+        exposure="1.2"
+        camera-orbit="45deg 75deg auto"
+        min-camera-orbit="auto auto 0.5m"
+        max-camera-orbit="auto auto 5m"
+        interpolation-decay="200"
+        interaction-prompt="none"
+      >
+      </model-viewer>
+    </div>
+    <div class="controls">
+      <button id="btn-front" onclick="setView('front')">正面</button>
+      <button id="btn-isometric" class="active" onclick="setView('isometric')">立体</button>
+      <button id="btn-top" onclick="setView('top')">俯视</button>
+      <button id="btn-side" onclick="setView('side')">侧面</button>
+    </div>
+  </div>
+
+  <script>
+    const viewer = document.getElementById('model-viewer');
+    
+    function setView(view) {
+      document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+      switch(view) {
+        case 'front':
+          viewer.cameraOrbit = '0deg 90deg auto';
+          document.getElementById('btn-front').classList.add('active');
+          break;
+        case 'isometric':
+          viewer.cameraOrbit = '45deg 75deg auto';
+          document.getElementById('btn-isometric').classList.add('active');
+          break;
+        case 'top':
+          viewer.cameraOrbit = '0deg 0deg auto';
+          document.getElementById('btn-top').classList.add('active');
+          break;
+        case 'side':
+          viewer.cameraOrbit = '0deg 180deg auto';
+          document.getElementById('btn-side').classList.add('active');
+          break;
+      }
+    }
+  </script>
+</body>
+</html>
