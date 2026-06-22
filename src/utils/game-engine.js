@@ -108,7 +108,7 @@ export class GameEngine {
       y: centerY
     };
 
-    console.log('[engine] setupCanvas', { width: w, height: h, gridSize: this.gridSize, mazeCenter: this.mazeCenter, canvasLeft: this.canvasLeft, canvasTop: this.canvasTop });
+    // console.log('[engine] setupCanvas', { width: w, height: h, gridSize: this.gridSize, mazeCenter: this.mazeCenter, canvasLeft: this.canvasLeft, canvasTop: this.canvasTop });
   }
 
   // ---- level loading ----
@@ -126,7 +126,7 @@ export class GameEngine {
   loadLevel(levelId) {
     var levelData = LEVEL_MAP[levelId]
     if (!levelData) {
-      console.error('Level not found:', levelId, '- falling back to', LEVELS[0].id)
+      // console.error('Level not found:', levelId, '- falling back to', LEVELS[0].id)
       levelId = LEVELS[0].id
       levelData = LEVELS[0]
     }
@@ -277,7 +277,7 @@ export class GameEngine {
     var pointer = this.getPointer(event)
     var isInsideCub = this.getIsInsideCub(pointer)
     this.pointerBehavior = isInsideCub ? 'cubDrag' : 'mazeRotate'
-    console.log('[engine] pointerDown', { x: pointer.x, y: pointer.y, isInsideCub, behavior: this.pointerBehavior })
+    // console.log('[engine] pointerDown', { x: pointer.x, y: pointer.y, isInsideCub, behavior: this.pointerBehavior })
 
     if (this.pointerBehavior === 'cubDrag') {
       this.cubDragPointerDown(pointer)
@@ -328,7 +328,7 @@ export class GameEngine {
     var cubDeltaY = Math.abs(position.y - orientPeg.y * this.gridSize)
     var bound = this.gridSize * 1.5
     var result = cubDeltaX <= bound && cubDeltaY <= bound
-    console.log('[engine] getIsInsideCub', { pointer, position, orientPeg, gridSize: this.gridSize, bound, result })
+    // console.log('[engine] getIsInsideCub', { pointer, position, orientPeg, gridSize: this.gridSize, bound, result })
     return result
   }
 
@@ -375,7 +375,7 @@ export class GameEngine {
       x: pointer.x - this.dragStartPosition.x,
       y: pointer.y - this.dragStartPosition.y
     }
-    console.log('[engine] cubDragMove', this.cubDragMove)
+    // console.log('[engine] cubDragMove', this.cubDragMove)
   }
 
   cubDragPointerUp() {
@@ -522,7 +522,7 @@ export class GameEngine {
     this.moveAngle = this.getDragAngle(pointer)
     var deltaAngle = this.moveAngle - this.dragStartAngle
     this.dragAngle = normalizeAngle(this.dragStartMazeAngle + deltaAngle)
-    console.log('[engine] rotateMove', { moveAngle: this.moveAngle, dragAngle: this.dragAngle })
+    // console.log('[engine] rotateMove', { moveAngle: this.moveAngle, dragAngle: this.dragAngle })
   }
 
   mazeRotatePointerUp() {
@@ -533,7 +533,7 @@ export class GameEngine {
   // ---- level completion ----
 
   completeLevel() {
-    console.log('Level complete!')
+    // console.log('Level complete!')
     var cubPosition = this.getCubPosition()
     this.winAnim = new WinAnimation(cubPosition.x, cubPosition.y)
 

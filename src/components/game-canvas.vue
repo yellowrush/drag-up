@@ -95,7 +95,7 @@
     const wrapper = document.querySelector('.game-wrapper') as HTMLElement | null;
     const host = document.getElementById('canvasHost') as HTMLElement | null;
     if (!wrapper || !host) {
-      console.error('[game-canvas] cannot find .game-wrapper or #canvasHost');
+      // console.error('[game-canvas] cannot find .game-wrapper or #canvasHost');
       return;
     }
 
@@ -115,7 +115,7 @@
       const h = rect.height || wrapper.clientHeight || window.innerHeight;
 
       if (!w || !h) {
-        console.warn('[game-canvas] canvas host has zero size, retrying next frame');
+        // console.warn('[game-canvas] canvas host has zero size, retrying next frame');
         requestAnimationFrame(() => createOrResizeCanvas());
         return;
       }
@@ -153,13 +153,13 @@
       ctx.scale(dpr, dpr);
 
       const canvasRect = canvas.getBoundingClientRect();
-      console.log('[game-canvas] H5 init', {
-        w,
-        h,
-        dpr,
-        wrapperRect: { width: rect.width, height: rect.height, left: rect.left, top: rect.top },
-        canvasRect: { width: canvasRect.width, height: canvasRect.height, left: canvasRect.left, top: canvasRect.top }
-      });
+      // console.log('[game-canvas] H5 init', {
+      //   w,
+      //   h,
+      //   dpr,
+      //   wrapperRect: { width: rect.width, height: rect.height, left: rect.left, top: rect.top },
+      //   canvasRect: { width: canvasRect.width, height: canvasRect.height, left: canvasRect.left, top: canvasRect.top }
+      // });
 
       if (!engine.value) {
         const eng = new GameEngine(canvas, ctx);
@@ -278,7 +278,7 @@
     } catch (err) {
       // Ignore
     }
-    console.log('[game-canvas] pointerdown', { x: p.x, y: p.y, id: p.pointerId });
+    // console.log('[game-canvas] pointerdown', { x: p.x, y: p.y, id: p.pointerId });
     engine.value.handlePointerDown(p);
   }
 
@@ -287,7 +287,7 @@
     if (!engine.value || activePointer.value) return;
     activePointer.value = { id: -1, type: 'mouse' };
     const p = getPointer(e);
-    console.log('[game-canvas] mousedown', { x: p.x, y: p.y });
+    // console.log('[game-canvas] mousedown', { x: p.x, y: p.y });
     engine.value.handlePointerDown(p);
   }
 
@@ -296,7 +296,7 @@
     if (activePointer.value.type !== 'pointer' || activePointer.value.id !== e.pointerId) return;
     e.preventDefault();
     const p = getPointer(e);
-    console.log('[game-canvas] pointermove', { x: p.x, y: p.y, id: e.pointerId });
+    // console.log('[game-canvas] pointermove', { x: p.x, y: p.y, id: e.pointerId });
     engine.value.handlePointerMove(p);
   }
 
@@ -304,7 +304,7 @@
     if (!engine.value || !activePointer.value) return;
     if (activePointer.value.type !== 'pointer' || activePointer.value.id !== e.pointerId) return;
     const p = getPointer(e);
-    console.log('[game-canvas] pointerup', { x: p.x, y: p.y, id: e.pointerId });
+    // console.log('[game-canvas] pointerup', { x: p.x, y: p.y, id: e.pointerId });
     engine.value.handlePointerUp(p);
     activePointer.value = null;
   }
@@ -327,7 +327,7 @@
     if (!touch) return;
     activePointer.value = { id: touch.identifier, type: 'touch' };
     const p = getPointer(e);
-    console.log('[game-canvas] touchstart', { x: p.x, y: p.y, id: touch.identifier });
+    // console.log('[game-canvas] touchstart', { x: p.x, y: p.y, id: touch.identifier });
     engine.value.handlePointerDown(p);
   }
 
