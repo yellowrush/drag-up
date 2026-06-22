@@ -1,10 +1,11 @@
 <template>
   <view class="game-wrapper">
     <!-- #ifdef H5 -->
-    <view id="canvasHost" class="canvas-host" />
+    <view v-if="!paused" id="canvasHost" class="canvas-host" />
     <!-- #endif -->
     <!-- #ifdef MP-WEIXIN -->
     <canvas
+      v-if="!paused"
       type="2d"
       id="gameCanvas"
       class="game-canvas"
@@ -18,8 +19,12 @@
 </template>
 
 <script setup lang="ts">
-  import { shallowRef, ref, onMounted, onUnmounted, getCurrentInstance } from 'vue';
+  import { shallowRef, ref, onMounted, onUnmounted, getCurrentInstance, watch, nextTick } from 'vue';
   import { GameEngine } from '@/utils/game-engine.js';
+
+  const props = defineProps({
+    paused: { type: Boolean, default: false }
+  })
 
   const emit = defineEmits(['ready', 'instruction']);
 
@@ -33,6 +38,31 @@
   const h5ResizeObserver = shallowRef(null);
   const h5ResizeCallback = shallowRef(null);
   const h5LoopActive = ref(true);
+
+  // 弹窗开关：暂停时销毁引擎 + 移除 canvas；关闭时重建
+  watch(
+    () => props.paused,
+    (paused) => {
+      if (paused) {
+        // 立即停止游戏循环 + 销毁引擎，确保原生 canvas 层不再渲染
+        h5LoopActive.value = false;
+        if (engine.value) {
+          engine.value.destroy();
+          engine.value = null;
+        }
+        return;
+      }
+      // paused 变为 false（弹窗关闭）：等 v-if 重建 canvas 后再初始化
+      nextTick(() => {
+        // #ifdef H5
+        initH5();
+        // #endif
+        // #ifdef MP-WEIXIN
+        initUni();
+        // #endif
+      });
+    }
+  );
 
   onMounted(() => {
     // #ifdef H5
@@ -138,8 +168,10 @@
         eng.loadCurrentLevel();
         emit('ready', eng);
 
+        // 重新激活动画循环（可能在暂停时被置为 false）
+        h5LoopActive.value = true;
         function loop() {
-          if (!h5LoopActive.value || engine.value !== eng) return;
+          if (!h5LoopActive.value || engine.value !== eng || props.paused) return;
           eng.update();
           eng.render();
           requestAnimationFrame(loop);
@@ -191,6 +223,7 @@
         emit('ready', eng);
 
         function loop() {
+          if (props.paused) return;
           eng.update();
           eng.render();
           if (canvasNode && typeof canvasNode.requestAnimationFrame === 'function') {

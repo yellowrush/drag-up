@@ -1,14 +1,14 @@
 <template>
   <div class="page">
     <!-- 顶部操作栏 -->
-    <div class="top-bar">
+    <div class="top-bar" :style="{ paddingTop: topBarPadding, minHeight: '44px' }">
       <span class="instruction">{{ instruction }}</span>
       <span class="btn" @click="onLevelsTap">关卡选择</span>
       <span class="btn" @click="onResetTap">重置</span>
     </div>
 
     <div class="game-area">
-      <game-canvas @ready="onGameReady" @instruction="onInstruction" />
+      <game-canvas :paused="showLevelSelect" @ready="onGameReady" @instruction="onInstruction" />
     </div>
 
     <!-- 关卡选择弹窗 -->
@@ -48,14 +48,24 @@ const showLevelSelect = ref(false)
 const showNext = ref(false)
 const levels = ref(LEVELS)
 const completedLevels = ref<string[]>([])
+const topBarPadding = ref('56px') // 默认安全值
 let currentLevelId = ''
 
 onMounted(() => {
   completedLevels.value = GameStorage.getCompletedLevels()
+  // 动态获取状态栏高度，没有则用 44px 兜底
+  try {
+    const sH = uni.getSystemInfoSync().statusBarHeight || 44
+    topBarPadding.value = `${sH + 12}px`
+  } catch (e) { /* keep default */ }
 })
 
 function onGameReady(eng: any) {
   engine.value = eng
+  // 如果已有记录当前关卡（组件被 v-if 重建），恢复到该关卡
+  if (currentLevelId && currentLevelId !== eng.maze.id) {
+    eng.loadLevel(currentLevelId)
+  }
   currentLevelId = eng.maze.id
   instruction.value = eng.maze.instruction || ''
 
@@ -123,14 +133,15 @@ function onResetTap() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px;
-  padding-top: calc(env(safe-area-inset-top, 0) + 8px);
-  background: rgba(26, 26, 46, 0.85);
+  padding: 0 16px;
+  background: rgba(26, 26, 46, 0.95);
+  box-sizing: border-box;
 }
 .game-area {
   flex: 1;
   overflow: hidden;
   position: relative;
+  z-index: 1;
 }
 .instruction {
   color: #aaa;
@@ -138,35 +149,46 @@ function onResetTap() {
   flex: 1;
 }
 .btn {
-  color: #aaa;
-  font-size: 14px;
-  padding: 4px 12px;
-  border: 1px solid #444;
-  border-radius: 6px;
+  color: #ccc;
+  font-size: 15px;
+  padding: 8px 16px;
+  border: 1px solid #555;
+  border-radius: 8px;
   margin-left: 10px;
   cursor: pointer;
   user-select: none;
+  min-width: 72px;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.btn:active {
+  background: #444;
+  color: #fff;
 }
 .btn:hover {
   color: #fff;
-  border-color: #666;
+  border-color: #888;
 }
 .modal-mask {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(0,0,0,0.6);
-  z-index: 100;
+  z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .modal-box {
   width: min(360px, 85vw);
-  background: #222;
+  background: #2a2a40;
   border-radius: 14px;
   padding: 28px;
   max-height: 80vh;
   overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 .modal-title {
   color: #fff;
@@ -186,40 +208,50 @@ function onResetTap() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #333;
+  background: #3a3a55;
   color: #bbb;
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
   user-select: none;
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s, transform 0.15s;
   text-align: center;
   line-height: 1.2;
   word-break: break-word;
   padding: 4px;
 }
+.level-cell:active {
+  background: #555;
+  color: #fff;
+  transform: scale(0.95);
+}
 .level-cell:hover {
-  background: #444;
+  background: #555;
   color: #fff;
 }
 .level-cell.completed {
-  background: #4a3;
+  background: #3a6b2a;
   color: #fff;
 }
 .next-btn {
   position: fixed;
-  bottom: calc(env(safe-area-inset-bottom, 0) + 40px);
+  bottom: calc(env(safe-area-inset-bottom, 0) + 48px);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 50;
+  z-index: 1000;
   background: #7b2;
   color: #fff;
   font-size: 18px;
-  padding: 12px 40px;
+  padding: 14px 44px;
   border-radius: 30px;
   cursor: pointer;
   user-select: none;
   transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 16px rgba(119,187,34,0.3);
+}
+.next-btn:active {
+  transform: translateX(-50%) scale(0.95);
+  box-shadow: 0 2px 8px rgba(119,187,34,0.2);
 }
 .next-btn:hover {
   transform: translateX(-50%) scale(1.05);
