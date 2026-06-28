@@ -19,12 +19,21 @@
 </template>
 
 <script setup lang="ts">
-  import { shallowRef, ref, markRaw, onMounted, onUnmounted, getCurrentInstance, watch, nextTick } from 'vue';
+  import {
+    shallowRef,
+    ref,
+    markRaw,
+    onMounted,
+    onUnmounted,
+    getCurrentInstance,
+    watch,
+    nextTick,
+  } from 'vue';
   import { GameEngine } from '@/utils/game-engine.js';
 
   const props = defineProps({
-    paused: { type: Boolean, default: false }
-  })
+    paused: { type: Boolean, default: false },
+  });
 
   const emit = defineEmits(['ready', 'instruction']);
 
@@ -61,7 +70,7 @@
         initUni();
         // #endif
       });
-    }
+    },
   );
 
   onMounted(() => {
@@ -92,7 +101,9 @@
   // ---- H5 initialization ----
 
   function initH5() {
-    const wrapper = document.querySelector('.game-wrapper') as HTMLElement | null;
+    const wrapper = document.querySelector(
+      '.game-wrapper',
+    ) as HTMLElement | null;
     const host = document.getElementById('canvasHost') as HTMLElement | null;
     if (!wrapper || !host) {
       // console.error('[game-canvas] cannot find .game-wrapper or #canvasHost');
@@ -171,7 +182,8 @@
         // 重新激活动画循环（可能在暂停时被置为 false）
         h5LoopActive.value = true;
         function loop() {
-          if (!h5LoopActive.value || engine.value !== eng || props.paused) return;
+          if (!h5LoopActive.value || engine.value !== eng || props.paused)
+            return;
           eng.update();
           eng.render();
           requestAnimationFrame(loop);
@@ -223,6 +235,10 @@
         // (setupCanvas falls back to 0 because MP canvas lacks getBoundingClientRect)
         eng.canvasLeft = res[0].left || 0;
         eng.canvasTop = res[0].top || 0;
+        // Touch hit-testing Y offset: on MP, finger touches land below the
+        // visual target. Shifting hit detection upward makes cub-drag easier
+        // to trigger regardless of drag direction.
+        eng.touchHitOffsetY = -15;
         eng.loadCurrentLevel();
         emit('ready', eng);
 
@@ -230,7 +246,10 @@
           if (props.paused) return;
           eng.update();
           eng.render();
-          if (canvasNode && typeof canvasNode.requestAnimationFrame === 'function') {
+          if (
+            canvasNode &&
+            typeof canvasNode.requestAnimationFrame === 'function'
+          ) {
             canvasNode.requestAnimationFrame(loop);
           } else {
             window.requestAnimationFrame(loop);
@@ -242,7 +261,10 @@
 
   // ---- Pointer / mouse / touch event helpers ----
 
-  function findTouchById(touchList: any[] | undefined, identifier: number): any | null {
+  function findTouchById(
+    touchList: any[] | undefined,
+    identifier: number,
+  ): any | null {
     if (!touchList) return null;
     for (let i = 0; i < touchList.length; i++) {
       if (touchList[i].identifier === identifier) {
@@ -258,15 +280,24 @@
       return { x: e.clientX, y: e.clientY, pointerId: e.pointerId };
     }
     // TouchEvent (native or uni-app wrapped)
-    const touch = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+    const touch =
+      (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
     if (touch && touch.clientX != null) {
-      return { x: touch.clientX, y: touch.clientY, pointerId: touch.identifier };
+      return {
+        x: touch.clientX,
+        y: touch.clientY,
+        pointerId: touch.identifier,
+      };
     }
     // uni-app custom normalized event detail
     if (e.detail) {
       const d = e.detail;
       if (d.clientX != null) {
-        return { x: d.clientX, y: d.clientY, pointerId: d.identifier || d.pointerId };
+        return {
+          x: d.clientX,
+          y: d.clientY,
+          pointerId: d.identifier || d.pointerId,
+        };
       }
       if (d.x != null) {
         return { x: d.x, y: d.y, pointerId: d.identifier || d.pointerId };
@@ -286,7 +317,10 @@
     activePointer.value = { id: p.pointerId, type: 'pointer' };
     try {
       const captureTarget = h5CanvasNode.value || (e.currentTarget as Element);
-      if (captureTarget && typeof captureTarget.setPointerCapture === 'function') {
+      if (
+        captureTarget &&
+        typeof captureTarget.setPointerCapture === 'function'
+      ) {
         captureTarget.setPointerCapture(p.pointerId);
       }
     } catch (err) {
@@ -307,7 +341,11 @@
 
   function onH5PointerMove(e: PointerEvent) {
     if (!engine.value || !activePointer.value) return;
-    if (activePointer.value.type !== 'pointer' || activePointer.value.id !== e.pointerId) return;
+    if (
+      activePointer.value.type !== 'pointer' ||
+      activePointer.value.id !== e.pointerId
+    )
+      return;
     e.preventDefault();
     const p = getPointer(e);
     // console.log('[game-canvas] pointermove', { x: p.x, y: p.y, id: e.pointerId });
@@ -316,7 +354,11 @@
 
   function onH5PointerUp(e: PointerEvent) {
     if (!engine.value || !activePointer.value) return;
-    if (activePointer.value.type !== 'pointer' || activePointer.value.id !== e.pointerId) return;
+    if (
+      activePointer.value.type !== 'pointer' ||
+      activePointer.value.id !== e.pointerId
+    )
+      return;
     const p = getPointer(e);
     // console.log('[game-canvas] pointerup', { x: p.x, y: p.y, id: e.pointerId });
     engine.value.handlePointerUp(p);
@@ -324,13 +366,23 @@
   }
 
   function onWindowMouseMove(e: MouseEvent) {
-    if (!engine.value || !activePointer.value || activePointer.value.type !== 'mouse') return;
+    if (
+      !engine.value ||
+      !activePointer.value ||
+      activePointer.value.type !== 'mouse'
+    )
+      return;
     e.preventDefault();
     engine.value.handlePointerMove(getPointer(e));
   }
 
   function onWindowMouseUp(e: MouseEvent) {
-    if (!engine.value || !activePointer.value || activePointer.value.type !== 'mouse') return;
+    if (
+      !engine.value ||
+      !activePointer.value ||
+      activePointer.value.type !== 'mouse'
+    )
+      return;
     engine.value.handlePointerUp(getPointer(e));
     activePointer.value = null;
   }
@@ -346,13 +398,23 @@
   }
 
   function onWindowTouchMove(e: TouchEvent) {
-    if (!engine.value || !activePointer.value || activePointer.value.type !== 'touch') return;
+    if (
+      !engine.value ||
+      !activePointer.value ||
+      activePointer.value.type !== 'touch'
+    )
+      return;
     e.preventDefault();
     engine.value.handlePointerMove(getPointer(e));
   }
 
   function onWindowTouchEnd(e: TouchEvent) {
-    if (!engine.value || !activePointer.value || activePointer.value.type !== 'touch') return;
+    if (
+      !engine.value ||
+      !activePointer.value ||
+      activePointer.value.type !== 'touch'
+    )
+      return;
     engine.value.handlePointerUp(getPointer(e));
     activePointer.value = null;
   }
@@ -390,14 +452,30 @@
 
   function addH5WindowListeners() {
     window.addEventListener('resize', onWindowResize, { passive: true });
-    window.addEventListener('pointermove', onH5PointerMove as any, { passive: false });
-    window.addEventListener('pointerup', onH5PointerUp as any, { passive: false });
-    window.addEventListener('pointercancel', onH5PointerUp as any, { passive: false });
-    window.addEventListener('mousemove', onWindowMouseMove as any, { passive: false });
-    window.addEventListener('mouseup', onWindowMouseUp as any, { passive: false });
-    window.addEventListener('touchmove', onWindowTouchMove as any, { passive: false });
-    window.addEventListener('touchend', onWindowTouchEnd as any, { passive: false });
-    window.addEventListener('touchcancel', onWindowTouchEnd as any, { passive: false });
+    window.addEventListener('pointermove', onH5PointerMove as any, {
+      passive: false,
+    });
+    window.addEventListener('pointerup', onH5PointerUp as any, {
+      passive: false,
+    });
+    window.addEventListener('pointercancel', onH5PointerUp as any, {
+      passive: false,
+    });
+    window.addEventListener('mousemove', onWindowMouseMove as any, {
+      passive: false,
+    });
+    window.addEventListener('mouseup', onWindowMouseUp as any, {
+      passive: false,
+    });
+    window.addEventListener('touchmove', onWindowTouchMove as any, {
+      passive: false,
+    });
+    window.addEventListener('touchend', onWindowTouchEnd as any, {
+      passive: false,
+    });
+    window.addEventListener('touchcancel', onWindowTouchEnd as any, {
+      passive: false,
+    });
   }
 
   function removeH5WindowListeners() {
@@ -413,17 +491,39 @@
   }
 
   function addH5CanvasListeners(canvas: HTMLCanvasElement) {
-    canvas.addEventListener('pointerdown', onPointerDown as any, { passive: false });
-    canvas.addEventListener('pointermove', onH5PointerMove as any, { passive: false });
-    canvas.addEventListener('pointerup', onH5PointerUp as any, { passive: false });
-    canvas.addEventListener('pointercancel', onH5PointerUp as any, { passive: false });
-    canvas.addEventListener('mousedown', onMouseDown as any, { passive: false });
-    canvas.addEventListener('mousemove', onWindowMouseMove as any, { passive: false });
-    canvas.addEventListener('mouseup', onWindowMouseUp as any, { passive: false });
-    canvas.addEventListener('touchstart', onTouchStart as any, { passive: false });
-    canvas.addEventListener('touchmove', onWindowTouchMove as any, { passive: false });
-    canvas.addEventListener('touchend', onWindowTouchEnd as any, { passive: false });
-    canvas.addEventListener('touchcancel', onWindowTouchEnd as any, { passive: false });
+    canvas.addEventListener('pointerdown', onPointerDown as any, {
+      passive: false,
+    });
+    canvas.addEventListener('pointermove', onH5PointerMove as any, {
+      passive: false,
+    });
+    canvas.addEventListener('pointerup', onH5PointerUp as any, {
+      passive: false,
+    });
+    canvas.addEventListener('pointercancel', onH5PointerUp as any, {
+      passive: false,
+    });
+    canvas.addEventListener('mousedown', onMouseDown as any, {
+      passive: false,
+    });
+    canvas.addEventListener('mousemove', onWindowMouseMove as any, {
+      passive: false,
+    });
+    canvas.addEventListener('mouseup', onWindowMouseUp as any, {
+      passive: false,
+    });
+    canvas.addEventListener('touchstart', onTouchStart as any, {
+      passive: false,
+    });
+    canvas.addEventListener('touchmove', onWindowTouchMove as any, {
+      passive: false,
+    });
+    canvas.addEventListener('touchend', onWindowTouchEnd as any, {
+      passive: false,
+    });
+    canvas.addEventListener('touchcancel', onWindowTouchEnd as any, {
+      passive: false,
+    });
   }
 
   function removeH5CanvasListeners() {
