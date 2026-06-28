@@ -11,7 +11,7 @@
     </view>
 
     <view class="game-area">
-      <game-canvas @ready="onGameReady" @instruction="onInstruction" />
+      <game-canvas :paused="showLevelSelect" @ready="onGameReady" @instruction="onInstruction" />
     </view>
 
     <view
