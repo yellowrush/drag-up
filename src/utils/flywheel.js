@@ -47,11 +47,6 @@ export class FlyWheel {
     this.applyForce(force)
   }
 
-  // Get current angle
-  getAngle() {
-    return this.angle
-  }
-
   // Reset wheel state
   reset() {
     this.angle = 0

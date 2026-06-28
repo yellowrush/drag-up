@@ -377,13 +377,6 @@ LEVELS.forEach(function (level) {
   LEVEL_MAP[level.id] = level;
 });
 
-// Get level ids in order
-export function getLevelIds() {
-  return LEVELS.map(function (l) {
-    return l.id;
-  });
-}
-
 // Get next level id (returns string | null)
 export function getNextLevel(currentId) {
   var index = LEVELS.findIndex(function (l) {

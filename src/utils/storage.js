@@ -35,32 +35,6 @@ export const GameStorage = {
     }
   },
 
-  remove(key) {
-    const u = getUni()
-    try {
-      if (u) {
-        u.removeStorageSync(key)
-      } else if (typeof localStorage !== 'undefined') {
-        localStorage.removeItem(key)
-      }
-    } catch (e) {
-      // silent fail
-    }
-  },
-
-  clear() {
-    const u = getUni()
-    try {
-      if (u) {
-        u.clearStorageSync()
-      } else if (typeof localStorage !== 'undefined') {
-        localStorage.clear()
-      }
-    } catch (e) {
-      // silent fail
-    }
-  },
-
   // Game-specific helpers (all inline, no external references)
   getCurrentLevel() {
     return this.get('currentLevel')

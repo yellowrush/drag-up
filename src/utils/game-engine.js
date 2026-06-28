@@ -4,7 +4,7 @@
 import { Maze } from './maze.js';
 import { Cub } from './cub.js';
 import { GameStorage } from './storage.js';
-import { LEVELS, LEVEL_MAP, getLevelIds, getNextLevel } from './levels-data.js';
+import { LEVELS, LEVEL_MAP } from './levels-data.js';
 
 var TAU = Math.PI * 2;
 
@@ -35,8 +35,7 @@ export class GameEngine {
     this.moveAngle = null;
     this.rotatePointer = null;
 
-    // Animation
-    this.animationId = null;
+    // Win animation
     this.winAnim = null;
 
     // Callbacks
@@ -54,14 +53,6 @@ export class GameEngine {
     this.touchHitOffsetY = 0;
 
     // Caller is responsible for setupCanvas, loadCurrentLevel, and the render loop
-  }
-
-  // ---- initialization ----
-
-  init() {
-    this.setupCanvas();
-    this.loadCurrentLevel();
-    this.startGameLoop();
   }
 
   setupCanvas(width, height) {
@@ -169,25 +160,6 @@ export class GameEngine {
 
     // Recalculate centering now that the maze's gridMax is known.
     this.setupCanvas(this.canvasSize.width, this.canvasSize.height);
-  }
-
-  // ---- game loop ----
-
-  startGameLoop() {
-    var self = this;
-    function loop() {
-      self.update();
-      self.render();
-      self.animationId = requestAnimationFrame(loop);
-    }
-    loop();
-  }
-
-  stopGameLoop() {
-    if (this.animationId) {
-      cancelAnimationFrame(this.animationId);
-      this.animationId = null;
-    }
   }
 
   // ---- update ----
@@ -340,15 +312,6 @@ export class GameEngine {
     this.pointerBehavior = null;
   }
 
-  // Hover detection (for mouse, not touch)
-  handleHover(event) {
-    var pointer = this.getPointer(event);
-    var isInsideCub = this.getIsInsideCub(pointer);
-    if (isInsideCub !== this.isCubHovered) {
-      this.isCubHovered = isInsideCub;
-    }
-  }
-
   // ---- hit testing ----
 
   getIsInsideCub(pointer) {
@@ -359,16 +322,7 @@ export class GameEngine {
     var cubDeltaX = Math.abs(position.x - orientPeg.x * this.gridSize);
     var cubDeltaY = Math.abs(position.y - orientPeg.y * this.gridSize);
     var bound = this.gridSize * 2;
-    var result = cubDeltaX <= bound && cubDeltaY <= bound;
-    console.log('[engine] getIsInsideCub', {
-      pointer,
-      position,
-      orientPeg,
-      gridSize: this.gridSize,
-      bound,
-      result,
-    });
-    return result;
+    return cubDeltaX <= bound && cubDeltaY <= bound;
   }
 
   getCanvasMazePosition(pointer) {
@@ -589,7 +543,6 @@ export class GameEngine {
   // ---- cleanup ----
 
   destroy() {
-    this.stopGameLoop();
     this.maze = null;
     this.cub.reset();
   }

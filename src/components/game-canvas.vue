@@ -442,10 +442,6 @@
     }
   }
 
-  function resizeH5Canvas() {
-    onWindowResize();
-  }
-
   function addH5WindowListeners() {
     window.addEventListener('resize', onWindowResize, { passive: true });
     window.addEventListener('pointermove', onH5PointerMove as any, {

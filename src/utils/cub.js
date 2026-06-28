@@ -77,27 +77,6 @@ Cub.render = function (ctx, mazeCenter, gridSize, angle, isHovered) {
   ctx.restore();
 };
 
-// Get cub's position in canvas coordinates
-Cub.getCanvasPosition = function (mazeCenter, gridSize) {
-  const x = mazeCenter.x + this.peg.x * gridSize + this.offset.x;
-  const y = mazeCenter.y + this.peg.y * gridSize + this.offset.y;
-  return { x, y };
-};
-
-// Check if point is inside cub (for touch detection)
-Cub.isPointInside = function (point, mazeCenter, gridSize, orientation) {
-  var orientPeg = this[orientation];
-  if (!orientPeg) return false;
-  var cubX = orientPeg.x * gridSize + mazeCenter.x;
-  var cubY = orientPeg.y * gridSize + mazeCenter.y;
-
-  var deltaX = Math.abs(point.x - cubX);
-  var deltaY = Math.abs(point.y - cubY);
-
-  var bound = gridSize * 5;
-  return deltaX <= bound && deltaY <= bound;
-};
-
 // Reset cub state
 Cub.reset = function () {
   this.peg = null;
