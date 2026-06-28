@@ -78,14 +78,13 @@ export class GameEngine {
     this.canvasSize.width = w;
     this.canvasSize.height = h;
 
-    // Calculate canvas offset relative to the viewport
+    // Calculate canvas offset relative to the viewport.
+    // H5 canvas is a real DOM element and has getBoundingClientRect.
+    // MP canvas does not, so we keep the values previously set by initUni().
     if (typeof this.canvas.getBoundingClientRect === 'function') {
       var rect = this.canvas.getBoundingClientRect();
       this.canvasLeft = rect.left;
       this.canvasTop = rect.top;
-    } else {
-      this.canvasLeft = 0;
-      this.canvasTop = 0;
     }
 
     // Grid size based on smaller dimension

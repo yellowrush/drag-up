@@ -235,10 +235,6 @@
         // (setupCanvas falls back to 0 because MP canvas lacks getBoundingClientRect)
         eng.canvasLeft = res[0].left || 0;
         eng.canvasTop = res[0].top || 0;
-        // Touch hit-testing Y offset: on MP, finger touches land below the
-        // visual target. Shifting hit detection upward makes cub-drag easier
-        // to trigger regardless of drag direction.
-        eng.touchHitOffsetY = -15;
         eng.loadCurrentLevel();
         emit('ready', eng);
 
