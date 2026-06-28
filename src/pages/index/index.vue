@@ -35,21 +35,21 @@
       </view>
     </view>
 
-    <view v-if="showNext" class="next-btn" @tap="onNextLevel"> 下一关 </view>
+    <view v-show="showNext" class="next-btn" @tap="onNextLevel"> 下一关 </view>
   </view>
 </template>
 
 <script setup lang="ts">
-  import { ref, onMounted } from 'vue';
+  import { ref, shallowRef, markRaw, onMounted } from 'vue';
   import gameCanvas from '@/components/game-canvas.vue';
   import { GameStorage } from '@/utils/storage.js';
   import { LEVELS, getNextLevel } from '@/utils/levels-data.js';
 
-  const engine = ref<any>(null);
+  const engine = shallowRef<any>(null);
   const instruction = ref('');
   const showLevelSelect = ref(false);
   const showNext = ref(false);
-  const levels = ref(LEVELS);
+  const levels = shallowRef(LEVELS);
   const completedLevels = ref<string[]>([]);
   const safeTop = ref(44); // 默认安全值
   let currentLevelId = '';
@@ -66,7 +66,7 @@
   });
 
   function onGameReady(eng: any) {
-    engine.value = eng;
+    engine.value = markRaw(eng);
     currentLevelId = eng.maze.id;
     instruction.value = eng.maze.instruction || '';
 
@@ -205,7 +205,7 @@
   }
   .next-btn {
     position: fixed;
-    bottom: calc(env(safe-area-inset-bottom) + 60rpx);
+    bottom: calc(env(safe-area-inset-bottom, 0) + 60rpx);
     left: 50%;
     transform: translateX(-50%);
     z-index: 50;

@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-  import { shallowRef, ref, onMounted, onUnmounted, getCurrentInstance, watch, nextTick } from 'vue';
+  import { shallowRef, ref, markRaw, onMounted, onUnmounted, getCurrentInstance, watch, nextTick } from 'vue';
   import { GameEngine } from '@/utils/game-engine.js';
 
   const props = defineProps({
@@ -137,7 +137,7 @@
 
         host.innerHTML = '';
         host.appendChild(canvas);
-        h5CanvasNode.value = canvas;
+        h5CanvasNode.value = markRaw(canvas);
 
         addH5CanvasListeners(canvas);
       } else {
@@ -163,7 +163,7 @@
 
       if (!engine.value) {
         const eng = new GameEngine(canvas, ctx);
-        engine.value = eng;
+        engine.value = markRaw(eng);
         eng.setupCanvas(w, h);
         eng.loadCurrentLevel();
         emit('ready', eng);
@@ -193,7 +193,7 @@
     if (typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(() => createOrResizeCanvas());
       ro.observe(host);
-      h5ResizeObserver.value = ro;
+      h5ResizeObserver.value = markRaw(ro);
     }
   }
 
@@ -204,7 +204,7 @@
     const query = uni.createSelectorQuery().in(getCurrentInstance());
     query
       .select('#gameCanvas')
-      .fields({ node: true, size: true })
+      .fields({ node: true, size: true, rect: true })
       .exec((res: any[]) => {
         if (!res[0]) return;
         const canvasNode = res[0].node;
@@ -216,9 +216,13 @@
         ctx.scale(dpr, dpr);
 
         const eng = new GameEngine(canvasNode, ctx);
-        engine.value = eng;
+        engine.value = markRaw(eng);
         // Pass the actual canvas size (CSS pixels) from the query result
         eng.setupCanvas(res[0].width, res[0].height);
+        // Override canvasLeft/canvasTop with the actual viewport offset
+        // (setupCanvas falls back to 0 because MP canvas lacks getBoundingClientRect)
+        eng.canvasLeft = res[0].left || 0;
+        eng.canvasTop = res[0].top || 0;
         eng.loadCurrentLevel();
         emit('ready', eng);
 
@@ -237,6 +241,16 @@
   }
 
   // ---- Pointer / mouse / touch event helpers ----
+
+  function findTouchById(touchList: any[] | undefined, identifier: number): any | null {
+    if (!touchList) return null;
+    for (let i = 0; i < touchList.length; i++) {
+      if (touchList[i].identifier === identifier) {
+        return touchList[i];
+      }
+    }
+    return null;
+  }
 
   function getPointer(e: any) {
     // Native PointerEvent / MouseEvent
@@ -345,14 +359,22 @@
 
   // WeChat canvas component touch events (kept as additional fallback)
   function onTouchMove(e: TouchEvent) {
-    if (!engine.value) return;
+    if (!engine.value || !activePointer.value) return;
+    const touch = findTouchById(e.touches, activePointer.value.id);
+    if (!touch) return;
     e.preventDefault();
-    engine.value.handlePointerMove(getPointer(e));
+    engine.value.handlePointerMove({ x: touch.clientX, y: touch.clientY });
   }
 
   function onTouchEnd(e: TouchEvent) {
-    if (!engine.value) return;
-    engine.value.handlePointerUp(getPointer(e));
+    if (!engine.value || !activePointer.value) return;
+    const touch = findTouchById(e.changedTouches, activePointer.value.id);
+    // Always release the pointer to avoid stuck drag/rotate state
+    if (touch) {
+      engine.value.handlePointerUp({ x: touch.clientX, y: touch.clientY });
+    } else {
+      engine.value.handlePointerUp({ x: 0, y: 0 });
+    }
     activePointer.value = null;
   }
 
@@ -420,7 +442,7 @@
     canvas.removeEventListener('touchcancel', onWindowTouchEnd as any);
   }
 
-  defineExpose({ engine });
+  // engine is passed to parent via @ready emit; no need to expose via template ref
 </script>
 
 <style scoped>
