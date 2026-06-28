@@ -252,29 +252,11 @@ export class GameEngine {
 
   // ---- pointer handling ----
 
-  // Convert event to {x, y} viewport coordinates for cross-platform compatibility.
-  // Accepts either a raw DOM event or an already-converted pointer object from the component.
-  getPointer(event) {
-    // Already converted object from game-canvas.vue ({x, y, pointerId})
-    if (event.x != null || event.y != null) {
-      return { x: event.x || 0, y: event.y || 0 };
-    }
-    // Native PointerEvent / MouseEvent
-    if (event.clientX != null) {
-      return { x: event.clientX, y: event.clientY };
-    }
-    // Raw touch event
-    var touch =
-      (event.touches && event.touches[0]) ||
-      (event.changedTouches && event.changedTouches[0]);
-    if (touch && touch.clientX != null) {
-      return { x: touch.clientX, y: touch.clientY };
-    }
-    return { x: 0, y: 0 };
-  }
+  // Note: The component always normalizes raw DOM events into {x, y} viewport
+  // CSS pixel objects before calling these handlers, so the "event" parameter
+  // is always a pre-normalized pointer object (not a raw DOM event).
 
-  handlePointerDown(event) {
-    var pointer = this.getPointer(event);
+  handlePointerDown(pointer) {
     // For touch devices, shift the hit-test position upward to compensate
     // for finger imprecision (the actual touch point is typically below
     // where the user is looking). Only applied to hit detection, not to
@@ -290,9 +272,7 @@ export class GameEngine {
     }
   }
 
-  handlePointerMove(event) {
-    var pointer = this.getPointer(event);
-
+  handlePointerMove(pointer) {
     if (this.pointerBehavior === 'cubDrag') {
       this.cubDragPointerMove(pointer);
     } else if (this.pointerBehavior === 'mazeRotate') {
@@ -300,9 +280,7 @@ export class GameEngine {
     }
   }
 
-  handlePointerUp(event) {
-    var pointer = this.getPointer(event);
-
+  handlePointerUp(pointer) {
     if (this.pointerBehavior === 'cubDrag') {
       this.cubDragPointerUp(pointer);
     } else if (this.pointerBehavior === 'mazeRotate') {

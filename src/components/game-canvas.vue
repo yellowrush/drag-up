@@ -483,37 +483,15 @@
   }
 
   function addH5CanvasListeners(canvas: HTMLCanvasElement) {
+    // Only start events on the canvas — move/up are tracked on window so
+    // dragging continues even when the pointer leaves the canvas element.
     canvas.addEventListener('pointerdown', onPointerDown as any, {
-      passive: false,
-    });
-    canvas.addEventListener('pointermove', onH5PointerMove as any, {
-      passive: false,
-    });
-    canvas.addEventListener('pointerup', onH5PointerUp as any, {
-      passive: false,
-    });
-    canvas.addEventListener('pointercancel', onH5PointerUp as any, {
       passive: false,
     });
     canvas.addEventListener('mousedown', onMouseDown as any, {
       passive: false,
     });
-    canvas.addEventListener('mousemove', onWindowMouseMove as any, {
-      passive: false,
-    });
-    canvas.addEventListener('mouseup', onWindowMouseUp as any, {
-      passive: false,
-    });
     canvas.addEventListener('touchstart', onTouchStart as any, {
-      passive: false,
-    });
-    canvas.addEventListener('touchmove', onWindowTouchMove as any, {
-      passive: false,
-    });
-    canvas.addEventListener('touchend', onWindowTouchEnd as any, {
-      passive: false,
-    });
-    canvas.addEventListener('touchcancel', onWindowTouchEnd as any, {
       passive: false,
     });
   }
@@ -522,16 +500,8 @@
     const canvas = h5CanvasNode.value;
     if (!canvas) return;
     canvas.removeEventListener('pointerdown', onPointerDown as any);
-    canvas.removeEventListener('pointermove', onH5PointerMove as any);
-    canvas.removeEventListener('pointerup', onH5PointerUp as any);
-    canvas.removeEventListener('pointercancel', onH5PointerUp as any);
     canvas.removeEventListener('mousedown', onMouseDown as any);
-    canvas.removeEventListener('mousemove', onWindowMouseMove as any);
-    canvas.removeEventListener('mouseup', onWindowMouseUp as any);
     canvas.removeEventListener('touchstart', onTouchStart as any);
-    canvas.removeEventListener('touchmove', onWindowTouchMove as any);
-    canvas.removeEventListener('touchend', onWindowTouchEnd as any);
-    canvas.removeEventListener('touchcancel', onWindowTouchEnd as any);
   }
 
   // engine is passed to parent via @ready emit; no need to expose via template ref
