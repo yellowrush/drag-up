@@ -8,5 +8,10 @@
   "tid": "",
   "quickapp": {
     "defaultFontWeight": "normal"
+  },
+  "mp-weixin": {
+    "usingComponents": {
+      "game-canvas": "/components/game-canvas"
+    }
   }
 }

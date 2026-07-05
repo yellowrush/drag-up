@@ -1,48 +1,45 @@
 <template>
-  <div class="page">
-    <!-- 顶部操作栏 -->
-    <div
+  <view class="page">
+    <view
       class="top-bar"
       :style="{ paddingTop: topBarPadding, minHeight: '44px' }"
     >
-      <span class="instruction">{{ instruction }}</span>
-      <span class="btn" @click="onLevelsTap">关卡选择</span>
-      <span class="btn" @click="onResetTap">重置</span>
-    </div>
+      <text class="instruction">{{ instruction }}</text>
+      <text class="btn" @tap="onLevelsTap">关卡选择</text>
+      <text class="btn" @tap="onResetTap">重置</text>
+    </view>
 
-    <div class="game-area">
+    <view class="game-area">
       <game-canvas
         :paused="showLevelSelect"
         @ready="onGameReady"
         @instruction="onInstruction"
       />
-    </div>
+    </view>
 
-    <!-- 关卡选择弹窗 -->
-    <div
+    <view
       v-if="showLevelSelect"
       class="modal-mask"
-      @click.self="showLevelSelect = false"
+      @tap.self="showLevelSelect = false"
     >
-      <div class="modal-box">
-        <div class="modal-title">选择关卡</div>
-        <div class="level-grid">
-          <div
+      <view class="modal-box">
+        <view class="modal-title">选择关卡</view>
+        <view class="level-grid">
+          <view
             v-for="lv in levels"
             :key="lv.id"
             class="level-cell"
             :class="{ completed: completedLevels.includes(lv.id) }"
-            @click="onSelectLevel(lv.id)"
+            @tap="onSelectLevel(lv.id)"
           >
             {{ lv.label }}
-          </div>
-        </div>
-      </div>
-    </div>
+          </view>
+        </view>
+      </view>
+    </view>
 
-    <!-- 下一关按钮 -->
-    <div v-show="showNext" class="next-btn" @click="onNextLevel">下一关</div>
-  </div>
+    <view v-show="showNext" class="next-btn" @tap="onNextLevel">下一关</view>
+  </view>
 </template>
 
 <script setup lang="ts">
@@ -166,24 +163,11 @@
     border: 1px solid #555;
     border-radius: 8px;
     margin-left: 10px;
-    cursor: pointer;
-    user-select: none;
     min-width: 72px;
     text-align: center;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition:
-      background 0.15s,
-      color 0.15s;
-  }
-  .btn:active {
-    background: #444;
-    color: #fff;
-  }
-  .btn:hover {
-    color: #fff;
-    border-color: #888;
   }
   .modal-mask {
     position: fixed;
@@ -198,7 +182,8 @@
     justify-content: center;
   }
   .modal-box {
-    width: min(360px, 85vw);
+    width: 360px;
+    max-width: 85vw;
     background: #2a2a40;
     border-radius: 14px;
     padding: 28px;
@@ -228,25 +213,10 @@
     color: #bbb;
     border-radius: 10px;
     font-size: 12px;
-    cursor: pointer;
-    user-select: none;
-    transition:
-      background 0.15s,
-      color 0.15s,
-      transform 0.15s;
     text-align: center;
     line-height: 1.2;
     word-break: break-word;
     padding: 4px;
-  }
-  .level-cell:active {
-    background: #555;
-    color: #fff;
-    transform: scale(0.95);
-  }
-  .level-cell:hover {
-    background: #555;
-    color: #fff;
   }
   .level-cell.completed {
     background: #3a6b2a;
@@ -254,7 +224,7 @@
   }
   .next-btn {
     position: fixed;
-    bottom: calc(env(safe-area-inset-bottom, 0) + 48px);
+    bottom: 48px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 1000;
@@ -263,19 +233,6 @@
     font-size: 18px;
     padding: 14px 44px;
     border-radius: 30px;
-    cursor: pointer;
-    user-select: none;
-    transition:
-      transform 0.15s,
-      box-shadow 0.15s;
     box-shadow: 0 4px 16px rgba(119, 187, 34, 0.3);
-  }
-  .next-btn:active {
-    transform: translateX(-50%) scale(0.95);
-    box-shadow: 0 2px 8px rgba(119, 187, 34, 0.2);
-  }
-  .next-btn:hover {
-    transform: translateX(-50%) scale(1.05);
-    box-shadow: 0 4px 16px rgba(119, 187, 34, 0.4);
   }
 </style>
