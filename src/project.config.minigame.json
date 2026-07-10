@@ -1,0 +1,35 @@
+{
+  "description": "Drag Up - Physics Puzzle Game",
+  "packOptions": {
+    "ignore": []
+  },
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "postcss": false,
+    "minified": true,
+    "bigPackageSizeSupport": true
+  },
+  "compileType": "game",
+  "libVersion": "3.3.0",
+  "appid": "",
+  "projectname": "drag-up",
+  "condition": {
+    "search": {
+      "current": -1,
+      "list": []
+    },
+    "conversation": {
+      "current": -1,
+      "list": []
+    },
+    "game": {
+      "current": -1,
+      "list": []
+    },
+    "miniprogram": {
+      "current": -1,
+      "list": []
+    }
+  }
+}

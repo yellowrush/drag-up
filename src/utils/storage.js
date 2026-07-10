@@ -1,29 +1,22 @@
-// Storage utility — works in both uni-app and H5 standalone modes
-
-// Safe uni accessor (undefined in pure H5)
-function getUni() {
-  return typeof uni !== 'undefined' ? uni : null
-}
-
 export const GameStorage = {
   set(key, value) {
-    const u = getUni()
     try {
-      if (u) {
-        u.setStorageSync(key, value)
+      if (typeof wx !== 'undefined' && wx.setStorageSync) {
+        wx.setStorageSync(key, value)
+      } else if (typeof uni !== 'undefined' && uni.setStorageSync) {
+        uni.setStorageSync(key, value)
       } else if (typeof localStorage !== 'undefined') {
         localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value))
       }
-    } catch (e) {
-      // silent fail
-    }
+    } catch (e) {}
   },
 
   get(key) {
-    const u = getUni()
     try {
-      if (u) {
-        return u.getStorageSync(key)
+      if (typeof wx !== 'undefined' && wx.getStorageSync) {
+        return wx.getStorageSync(key)
+      } else if (typeof uni !== 'undefined' && uni.getStorageSync) {
+        return uni.getStorageSync(key)
       } else if (typeof localStorage !== 'undefined') {
         const raw = localStorage.getItem(key)
         if (!raw) return null

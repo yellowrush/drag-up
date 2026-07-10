@@ -231,8 +231,10 @@
             typeof canvasNode.requestAnimationFrame === 'function'
           ) {
             canvasNode.requestAnimationFrame(loop);
+          } else if (typeof requestAnimationFrame !== 'undefined') {
+            requestAnimationFrame(loop);
           } else {
-            window.requestAnimationFrame(loop);
+            setTimeout(loop, 16);
           }
         }
         loop();

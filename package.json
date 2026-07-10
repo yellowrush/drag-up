@@ -3,11 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "dev": "node dev-minigame.js",
     "dev:h5": "uni --platform h5",
     "build:h5": "uni build --platform h5",
     "dev:mp-weixin": "uni --platform mp-weixin",
     "build:mp-weixin": "uni build --platform mp-weixin",
+    "dev:minigame": "node dev-minigame.js",
+    "build:minigame": "node build-minigame.js",
     "upload:mp-weixin": "node upload.js",
+    "upload:minigame": "node upload.js minigame",
     "deploy:mp-weixin": "uni build --platform mp-weixin && node upload.js"
   },
   "dependencies": {
