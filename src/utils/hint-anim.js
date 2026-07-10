@@ -74,7 +74,7 @@ export class HintAnimation {
     ctx.save()
     ctx.setLineDash([gridSize * 0.2, gridSize * 0.2])
     ctx.lineWidth = gridSize * 0.08
-    ctx.strokeStyle = 'hsla(280, 80%, 70%, 0.4)'
+    ctx.strokeStyle = 'rgba(204,119,255,0.4)'
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     ctx.beginPath()
@@ -105,7 +105,7 @@ export class HintAnimation {
     ctx.rotate(-angle)
 
     ctx.globalAlpha = 0.5
-    ctx.fillStyle = 'hsla(330, 100%, 65%, 0.6)'
+    ctx.fillStyle = 'rgba(255,82,179,0.6)'
 
     var drawCircle = function (cx, cy, r) {
       ctx.beginPath()

@@ -606,8 +606,8 @@ function renderStar(ctx) {
   ctx.lineWidth = 8;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  ctx.fillStyle = 'hsla(50, 100%, 50%, 1)';
-  ctx.strokeStyle = 'hsla(50, 100%, 50%, 1)';
+  ctx.fillStyle = 'rgba(255,212,0,1)';
+  ctx.strokeStyle = 'rgba(255,212,0,1)';
   ctx.beginPath();
   for (var i = 0; i < 11; i++) {
     var theta = (Math.PI * 2 * i) / 10 + Math.PI / 2;

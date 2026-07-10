@@ -164,7 +164,7 @@ export class Maze {
 
     // axle
     ctx.lineWidth = gridSize * 0.2
-    ctx.strokeStyle = 'hsla(0, 0%, 50%, 0.2)'
+    ctx.strokeStyle = 'rgba(153,153,153,0.25)'
     ctx.save()
     ctx.rotate(Math.PI / 4)
     ctx.strokeRect(-gridSize / 5, -gridSize / 5, gridSize * 2 / 5, gridSize * 2 / 5)
@@ -172,7 +172,7 @@ export class Maze {
 
     // start position
     if (this.startPosition) {
-      ctx.strokeStyle = 'hsla(330, 100%, 50%, 0.3)'
+      ctx.strokeStyle = 'rgba(255,51,153,0.4)'
       ctx.lineWidth = gridSize * 0.15
       var startX = this.startPosition.x * gridSize
       var startY = this.startPosition.y * gridSize
@@ -184,7 +184,7 @@ export class Maze {
       for (var pegX = -gridMax; pegX <= gridMax; pegX += 2) {
         var pegXX = pegX * gridSize
         var pegYY = pegY * gridSize
-        ctx.fillStyle = 'hsla(0, 0%, 50%, 0.6)'
+        ctx.fillStyle = 'rgba(166,166,166,0.7)'
         fillCircle(ctx, pegXX, pegYY, gridSize * 0.15)
       }
     }
@@ -204,8 +204,8 @@ export class Maze {
       var goalX = this.goalPosition.x * gridSize
       var goalY = this.goalPosition.y * gridSize
       ctx.lineWidth = gridSize * 0.3
-      ctx.fillStyle = 'hsla(50, 100%, 50%, 1)'
-      ctx.strokeStyle = 'hsla(50, 100%, 50%, 1)'
+      ctx.fillStyle = 'rgba(255,212,0,1)'
+      ctx.strokeStyle = 'rgba(255,212,0,1)'
       renderGoal(ctx, goalX, goalY, angle, gridSize * 0.6, gridSize * 0.3)
     }
 

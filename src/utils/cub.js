@@ -61,7 +61,7 @@ Cub.render = function (ctx, mazeCenter, gridSize, angle, isHovered) {
   ctx.rotate(-angle);
 
   // Set cub color (purple)
-  ctx.fillStyle = 'hsla(330, 100%, 40%, 1)';
+  ctx.fillStyle = 'rgba(230,77,140,1)';
 
   // Scale up when hovered
   const scale = isHovered ? 1.15 : 1;

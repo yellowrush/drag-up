@@ -30,7 +30,7 @@ export class FreeSegment {
     const bx = this.b.x * gridSize
     const by = this.b.y * gridSize
     
-    ctx.strokeStyle = 'hsla(200, 80%, 50%, 0.7)'
+    ctx.strokeStyle = 'rgba(82,183,230,0.85)'
     ctx.lineWidth = gridSize * 0.6
     ctx.lineCap = 'round'
     ctx.beginPath()
@@ -60,7 +60,7 @@ export class FixedSegment {
     const bx = this.b.x * gridSize
     const by = this.b.y * gridSize
     
-    ctx.strokeStyle = 'hsla(30, 100%, 40%, 0.6)'
+    ctx.strokeStyle = 'rgba(204,85,0,0.8)'
     ctx.lineWidth = gridSize * 0.8
     ctx.lineCap = 'round'
     ctx.beginPath()
@@ -104,7 +104,7 @@ export class PivotSegment {
     ctx.translate(ax, ay)
     ctx.rotate(-mazeAngle)
     
-    const color = 'hsla(150, 100%, 35%, 0.7)'
+    const color = 'rgba(0,191,96,0.85)'
     ctx.strokeStyle = color
     ctx.lineWidth = gridSize * 0.4
     ctx.lineCap = 'round'
@@ -156,7 +156,7 @@ export class RotateSegment {
     ctx.translate(ax, ay)
     ctx.rotate(mazeAngle)
     
-    const color = 'hsla(0, 100%, 50%, 0.6)'
+    const color = 'rgba(204,0,0,0.8)'
     ctx.strokeStyle = color
     ctx.fillStyle = color
     ctx.lineWidth = gridSize * 0.8

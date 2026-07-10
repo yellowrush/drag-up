@@ -220,9 +220,9 @@ function render() {
 }
 
 function drawUI() {
-  ctx.fillStyle = '#1a1a2e'
+  ctx.fillStyle = '#2a2a4a'
   ctx.fillRect(0, 0, W, SAFE_TOP)
-  ctx.fillStyle = 'rgba(26,26,46,0.95)'
+  ctx.fillStyle = 'rgba(42,42,74,0.95)'
   ctx.fillRect(0, SAFE_TOP, W, TOP_BAR)
 
   var bw = 76
@@ -230,34 +230,34 @@ function drawUI() {
   var by = SAFE_TOP + (TOP_BAR - bh) / 2
   var bx = 10
 
-  ctx.strokeStyle = '#555'
+  ctx.strokeStyle = '#778'
   ctx.lineWidth = 1
   ctx.fillStyle = 'transparent'
   drawRoundRect(ctx, bx, by, bw, bh, 5)
   ctx.stroke()
-  ctx.fillStyle = '#ccc'
+  ctx.fillStyle = '#eee'
   ctx.font = '12px sans-serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText('重置', bx + bw / 2, by + bh / 2)
-  ctx.strokeStyle = '#555'
+  ctx.strokeStyle = '#778'
   drawRoundRect(ctx, bx + bw + 6, by, bw, bh, 5)
   ctx.stroke()
-  ctx.fillStyle = '#ccc'
+  ctx.fillStyle = '#eee'
   ctx.fillText('关卡选择', bx + bw + 6 + bw / 2, by + bh / 2)
 
   ctx.save()
   ctx.beginPath()
   ctx.rect(bx + bw * 2 + 12, SAFE_TOP, RIGHT_SAFE - (bx + bw * 2 + 12) - 10, TOP_BAR)
   ctx.clip()
-  ctx.fillStyle = '#aaa'
+  ctx.fillStyle = '#dde'
   ctx.font = '13px sans-serif'
   ctx.textAlign = 'right'
   ctx.textBaseline = 'middle'
   ctx.fillText(instruction, RIGHT_SAFE - 10, SAFE_TOP + TOP_BAR / 2)
   ctx.restore()
   if (showNext) {
-    ctx.fillStyle = '#7b2'
+    ctx.fillStyle = '#5c2'
     var nx = (W - 180) / 2
     var ny = H - 80
     drawRoundRect(ctx, nx, ny, 180, 48, 24)
@@ -278,7 +278,7 @@ function drawModal() {
   ctx.fillRect(0, 0, W, H)
   var mx = (W - MODAL_W) / 2
   var my = (H - MODAL_H) / 2
-  ctx.fillStyle = '#2a2a40'
+  ctx.fillStyle = '#3a3a60'
   drawRoundRect(ctx, mx, my, MODAL_W, MODAL_H, 12)
   ctx.fill()
   ctx.save()
@@ -300,13 +300,13 @@ function drawModal() {
     var cx = startX + col * (MODAL_CELL_W + MODAL_GAP)
     var cy = startY + row * (MODAL_CELL_H + MODAL_GAP) - modalScrollY
     if (completedLevels.includes(lv.id)) {
-      ctx.fillStyle = '#3a6b2a'
+      ctx.fillStyle = '#4a8a3a'
     } else {
-      ctx.fillStyle = '#3a3a55'
+      ctx.fillStyle = '#4a4a75'
     }
     drawRoundRect(ctx, cx, cy, MODAL_CELL_W, MODAL_CELL_H, 8)
     ctx.fill()
-    ctx.fillStyle = completedLevels.includes(lv.id) ? '#fff' : '#bbb'
+    ctx.fillStyle = completedLevels.includes(lv.id) ? '#fff' : '#ddd'
     ctx.font = '12px sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
