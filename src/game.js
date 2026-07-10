@@ -18,7 +18,8 @@ var SAFE_TOP = safeArea.top || sysInfo.statusBarHeight || 20
 var menuBtn = wx.getMenuButtonBoundingClientRect()
 var RIGHT_SAFE = menuBtn ? menuBtn.left - 8 : W
 var TOP_BAR = 52
-var HEADER_H = SAFE_TOP + TOP_BAR
+var TEXT_H = 28
+var HEADER_H = SAFE_TOP + TOP_BAR + TEXT_H
 
 var engine = null
 var currentLevelId = ''
@@ -245,17 +246,15 @@ function drawUI() {
   ctx.stroke()
   ctx.fillStyle = '#eee'
   ctx.fillText('关卡选择', bx + bw + 6 + bw / 2, by + bh / 2)
-
-  ctx.save()
-  ctx.beginPath()
-  ctx.rect(bx + bw * 2 + 12, SAFE_TOP, RIGHT_SAFE - (bx + bw * 2 + 12) - 10, TOP_BAR)
-  ctx.clip()
-  ctx.fillStyle = '#dde'
-  ctx.font = '13px sans-serif'
-  ctx.textAlign = 'right'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(instruction, RIGHT_SAFE - 10, SAFE_TOP + TOP_BAR / 2)
-  ctx.restore()
+  if (instruction) {
+    ctx.fillStyle = 'rgba(42,42,74,0.95)'
+    ctx.fillRect(0, SAFE_TOP + TOP_BAR, W, TEXT_H)
+    ctx.fillStyle = '#dde'
+    ctx.font = '13px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(instruction, W / 2, SAFE_TOP + TOP_BAR + TEXT_H / 2)
+  }
   if (showNext) {
     ctx.fillStyle = '#5c2'
     var nx = (W - 180) / 2
