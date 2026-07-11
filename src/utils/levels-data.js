@@ -5,15 +5,15 @@
 export const LEVELS = [
   {
     id: 'intro-fixed1',
-    label: '教程 1 · 拖动小熊',
+    label: '教程 1 · 拖动小猫',
     blurb: '教程',
-    text: 'instruction: 拖动小熊到星星\n---\n*=.=.\n    !\n. . .\n    !\n@=.=.',
+    text: 'instruction: 拖动小猫到星星\n---\n*=.=.\n    !\n. . .\n    !\n@=.=.',
   },
   {
     id: 'intro-fixed2',
     label: '教程 2 · 旋转网格',
     blurb: '教程',
-    text: 'blurb: 教程\ninstruction: 拖动网格旋转。小熊和星星随网格移动。橙色连线保持原地。\n---\n* . .\n    !\n. . .\n    !\n@=.=.',
+    text: 'blurb: 教程\ninstruction: 拖动网格旋转。小猫和星星随网格移动。橙色连线保持原地。\n---\n* . .\n    !\n. . .\n    !\n@=.=.',
   },
   {
     id: 'intro-fixed3',
