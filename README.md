@@ -6,6 +6,7 @@
 
 - 游戏类型: 旋转网格解谜
 - 原版: https://github.com/mpg-chong-huang/yellowrush/blob/gh-pages/game/dragUp/index.html
+- 灵感来源 / JS 参考: https://codepen.io/desandro/pen/ezNawy (by desandro on CodePen)
 
 ## 游戏玩法
 
@@ -111,7 +112,7 @@ drag-up-game/
 
 ## 许可证
 
-MIT License
+MIT License — 详见 [LICENSE](LICENSE) 文件。
 
 ## 联系方式
 
