@@ -38,6 +38,7 @@ const CAT_FACE = {
 
 const CAT_EXPRESSIONS = {
   idle: {
+    id: 'idle',
     eyeScaleY: 1,
     mouthOffsetY: 0,
     blink: true,
@@ -45,6 +46,7 @@ const CAT_EXPRESSIONS = {
     mouthOpen: false,
   },
   happy: {
+    id: 'happy',
     eyeScaleY: 0.96,
     mouthOffsetY: -1.2,
     blink: true,
@@ -52,11 +54,54 @@ const CAT_EXPRESSIONS = {
     mouthOpen: false,
   },
   dragging: {
+    id: 'dragging',
     eyeScaleY: 1,
     mouthOffsetY: -1.2,
     blink: false,
     rightEyeClosed: true,
     mouthOpen: true,
+  },
+  sleepy: {
+    id: 'sleepy',
+    eyeScaleY: 0.18,
+    mouthOffsetY: -1,
+    blink: false,
+    eyeStyle: 'closed',
+    mouthStyle: 'smile',
+  },
+  joy: {
+    id: 'joy',
+    eyeScaleY: 1.08,
+    mouthOffsetY: -2,
+    blink: false,
+    eyeStyle: 'round',
+    mouthStyle: 'smile',
+    cheek: true,
+  },
+  surprised: {
+    id: 'surprised',
+    eyeScaleY: 1.15,
+    mouthOffsetY: 0,
+    blink: false,
+    eyeStyle: 'wide',
+    mouthStyle: 'o',
+  },
+  angry: {
+    id: 'angry',
+    eyeScaleY: 0.82,
+    mouthOffsetY: 0,
+    blink: false,
+    eyeStyle: 'angry',
+    mouthStyle: 'frown',
+    angryMark: true,
+  },
+  proud: {
+    id: 'proud',
+    eyeScaleY: 0.62,
+    mouthOffsetY: -1,
+    blink: false,
+    eyeStyle: 'side',
+    mouthStyle: 'smirk',
   },
 };
 
@@ -81,8 +126,11 @@ Cub.render = function (ctx, mazeCenter, gridSize, angle, isHovered, options) {
   const x = this.peg.x * gridSize + this.offset.x;
   const y = this.peg.y * gridSize + this.offset.y;
   const t = Date.now() / 1000;
+  const equippedExpression = getEquippedExpression(options?.expressionId);
   const expression = options?.isDragging
     ? CAT_EXPRESSIONS.dragging
+    : equippedExpression
+      ? equippedExpression
     : isHovered
       ? CAT_EXPRESSIONS.happy
       : CAT_EXPRESSIONS.idle;
@@ -101,7 +149,14 @@ Cub.render = function (ctx, mazeCenter, gridSize, angle, isHovered, options) {
   ctx.translate(0, isHovered ? Math.sin(t * 6) * gridSize * 0.025 : 0);
   ctx.scale(scale, scale);
 
-  renderCatIcon(ctx, gridSize, expression, t, lookOffset);
+  renderCatIcon(
+    ctx,
+    gridSize,
+    expression,
+    t,
+    lookOffset,
+    options?.accessoryId,
+  );
 
   ctx.restore();
 };
@@ -116,8 +171,9 @@ Cub.reset = function () {
   this.nine = null;
 };
 
-function renderCatIcon(ctx, gridSize, expression, t, lookOffset) {
+function renderCatIcon(ctx, gridSize, expression, t, lookOffset, accessoryId) {
   const scale = gridSize / 58;
+  const frame = getExpressionFrame(expression, t);
 
   ctx.save();
   ctx.scale(scale, scale);
@@ -129,10 +185,76 @@ function renderCatIcon(ctx, gridSize, expression, t, lookOffset) {
   renderEars(ctx);
   renderHead(ctx);
   renderBodyOutline(ctx);
-  renderEyes(ctx, expression, t, lookOffset);
-  renderNoseAndMouth(ctx, expression);
+  renderEyes(ctx, expression, lookOffset, frame);
+  renderNoseAndMouth(ctx, expression, frame);
+  renderExpressionEffects(ctx, expression, frame);
+  renderAccessory(ctx, accessoryId);
 
   ctx.restore();
+}
+
+function getEquippedExpression(expressionId) {
+  return CAT_EXPRESSIONS[expressionId] || null;
+}
+
+function getExpressionFrame(expression, t) {
+  const frame = {
+    eyeScaleY:
+      expression.blink && Math.sin(t * 3.1) > 0.965
+        ? 0.12
+        : expression.eyeScaleY,
+    eyeOffsetY: 0,
+    pupilOffsetX: 0,
+    pupilOffsetY: 0,
+    closedCurveY: 7,
+    mouthOffsetY: expression.mouthOffsetY,
+    mouthScaleX: 1,
+    mouthScaleY: 1,
+    cheekAlpha: 0.72,
+    effectAlpha: 1,
+    effectScale: 1,
+    effectOffsetX: 0,
+    effectOffsetY: 0,
+    browOffsetY: 0,
+    sideSquint: 0.62,
+    sideLook: 0,
+  };
+
+  if (expression.id === 'sleepy') {
+    const sway = Math.sin(t * 1.45);
+    frame.eyeOffsetY = sway * 0.8;
+    frame.closedCurveY = 6.4 + Math.sin(t * 1.45 + 0.7) * 1.1;
+    frame.mouthOffsetY += Math.sin(t * 1.25) * 0.45;
+  } else if (expression.id === 'joy') {
+    const bounce = Math.sin(t * 5.2);
+    frame.eyeScaleY = Math.sin(t * 2.65) > 0.975 ? 0.18 : 1.08 + bounce * 0.04;
+    frame.pupilOffsetY = -0.4 + bounce * 0.35;
+    frame.mouthOffsetY += bounce * 0.35;
+    frame.cheekAlpha = 0.56 + (Math.sin(t * 4.4) + 1) * 0.14;
+    frame.effectScale = 0.88 + (Math.sin(t * 4.8) + 1) * 0.14;
+    frame.effectOffsetY = Math.sin(t * 4.8) * 1.1;
+  } else if (expression.id === 'surprised') {
+    const pulse = Math.abs(Math.sin(t * 3.2));
+    frame.eyeScaleY = 1.1 + pulse * 0.1;
+    frame.mouthScaleX = 0.96 + pulse * 0.08;
+    frame.mouthScaleY = 0.96 + pulse * 0.16;
+    frame.effectAlpha = 0.72 + pulse * 0.28;
+    frame.effectScale = 0.92 + pulse * 0.12;
+    frame.effectOffsetY = -pulse * 1.4;
+  } else if (expression.id === 'angry') {
+    const jitter = Math.sin(t * 18);
+    frame.browOffsetY = Math.sin(t * 10) * 0.7;
+    frame.effectOffsetX = jitter * 0.75;
+    frame.effectOffsetY = Math.cos(t * 15) * 0.55;
+    frame.effectAlpha = 0.84 + Math.abs(jitter) * 0.16;
+  } else if (expression.id === 'proud') {
+    const glance = Math.sin(t * 1.8);
+    frame.sideSquint = 0.55 + Math.sin(t * 2.3) * 0.045;
+    frame.sideLook = glance * 1.6;
+    frame.mouthOffsetY += Math.sin(t * 2.1) * 0.35;
+  }
+
+  return frame;
 }
 
 function renderShadow(ctx) {
@@ -249,6 +371,234 @@ function renderBodyOutline(ctx) {
   ctx.restore();
 }
 
+function renderAccessory(ctx, accessoryId) {
+  if (accessoryId === 'red-bow') {
+    renderRedBow(ctx);
+  } else if (accessoryId === 'gold-bell') {
+    renderGoldBell(ctx);
+  } else if (accessoryId === 'blue-cap') {
+    renderPawHairpin(ctx);
+  } else if (accessoryId === 'star-crown') {
+    renderStarCrown(ctx);
+  } else if (accessoryId === 'magic-hat') {
+    renderNurseHat(ctx);
+  }
+}
+
+function renderRedBow(ctx) {
+  ctx.save();
+  ctx.translate(39, 43);
+  ctx.rotate(-0.22);
+  ctx.fillStyle = '#e84b5f';
+  ctx.strokeStyle = CAT_FACE.outline;
+  ctx.lineWidth = 3.2;
+  ctx.beginPath();
+  ctx.moveTo(-2, 1);
+  ctx.bezierCurveTo(-23, -13, -28, 13, -4, 12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(8, 0);
+  ctx.bezierCurveTo(29, -13, 32, 13, 9, 12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = '#b82f46';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-10, 4);
+  ctx.quadraticCurveTo(-16, 3, -20, 8);
+  ctx.moveTo(16, 4);
+  ctx.quadraticCurveTo(22, 3, 25, 8);
+  ctx.stroke();
+  ctx.fillStyle = '#ffcad1';
+  ctx.beginPath();
+  ctx.arc(3, 5, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#ffd7de';
+  ctx.beginPath();
+  ctx.ellipse(-10, -2, 4, 2, -0.3, 0, Math.PI * 2);
+  ctx.ellipse(16, -2, 4, 2, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function renderGoldBell(ctx) {
+  ctx.save();
+  ctx.strokeStyle = '#ffffff';
+  ctx.fillStyle = '#f25d6a';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(42, 112);
+  ctx.quadraticCurveTo(64, 122, 86, 112);
+  ctx.stroke();
+  ctx.strokeStyle = '#ffd7de';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(45, 113);
+  ctx.quadraticCurveTo(64, 120, 83, 113);
+  ctx.stroke();
+
+  ctx.fillStyle = '#f7c84b';
+  ctx.strokeStyle = '#8c5b12';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(64, 117, 9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.58)';
+  ctx.beginPath();
+  ctx.ellipse(60, 113, 3, 2, -0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(57, 114);
+  ctx.lineTo(71, 114);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(55, 118);
+  ctx.quadraticCurveTo(64, 121, 73, 118);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(64, 122, 2.5, 0, Math.PI * 2);
+  ctx.fillStyle = '#8c5b12';
+  ctx.fill();
+  ctx.restore();
+}
+
+function renderPawHairpin(ctx) {
+  ctx.save();
+  ctx.translate(92, 51);
+  ctx.rotate(0.34);
+  ctx.strokeStyle = CAT_FACE.outline;
+  ctx.lineWidth = 3.2;
+  ctx.fillStyle = '#8ec5ff';
+  ctx.beginPath();
+  ctx.roundRect?.(-18, -7, 36, 14, 7);
+  if (!ctx.roundRect) {
+    drawLocalRoundRect(ctx, -18, -7, 36, 14, 7);
+  }
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#d9f0ff';
+  ctx.beginPath();
+  ctx.ellipse(-6, -3, 8, 2.6, -0.12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffd6df';
+  ctx.strokeStyle = '#7f4f64';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.arc(4, 1, 4.8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  [
+    { x: -2, y: -3, r: 2.1 },
+    { x: 3, y: -5, r: 2.2 },
+    { x: 8, y: -3, r: 2.1 },
+    { x: 10, y: 2, r: 2 },
+  ].forEach(function (pad) {
+    ctx.beginPath();
+    ctx.arc(pad.x, pad.y, pad.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
+function drawLocalRoundRect(ctx, x, y, w, h, radius) {
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + w - radius, y);
+  ctx.arcTo(x + w, y, x + w, y + radius, radius);
+  ctx.lineTo(x + w, y + h - radius);
+  ctx.arcTo(x + w, y + h, x + w - radius, y + h, radius);
+  ctx.lineTo(x + radius, y + h);
+  ctx.arcTo(x, y + h, x, y + h - radius, radius);
+  ctx.lineTo(x, y + radius);
+  ctx.arcTo(x, y, x + radius, y, radius);
+  ctx.closePath();
+}
+
+function renderStarCrown(ctx) {
+  ctx.save();
+  ctx.fillStyle = '#ffd95c';
+  ctx.strokeStyle = '#8d6418';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(36, 47);
+  ctx.lineTo(44, 25);
+  ctx.quadraticCurveTo(50, 35, 57, 43);
+  ctx.lineTo(64, 20);
+  ctx.lineTo(71, 43);
+  ctx.quadraticCurveTo(78, 35, 84, 25);
+  ctx.lineTo(92, 47);
+  ctx.quadraticCurveTo(64, 56, 36, 47);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#fff1a5';
+  ctx.beginPath();
+  ctx.ellipse(64, 48, 19, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ff7fa0';
+  [44, 64, 84].forEach(function (x) {
+    ctx.beginPath();
+    ctx.arc(x, x === 64 ? 28 : 31, 4.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  });
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(60, 27, 1.4, 0, Math.PI * 2);
+  ctx.arc(80, 31, 1.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function renderNurseHat(ctx) {
+  ctx.save();
+  ctx.translate(64, 40);
+  ctx.strokeStyle = CAT_FACE.outline;
+  ctx.lineWidth = 3.5;
+  ctx.fillStyle = '#fff8f8';
+  ctx.beginPath();
+  ctx.moveTo(-26, 6);
+  ctx.quadraticCurveTo(-17, -18, 0, -12);
+  ctx.quadraticCurveTo(17, -18, 26, 6);
+  ctx.quadraticCurveTo(9, 14, -26, 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#ffdfe6';
+  ctx.beginPath();
+  ctx.ellipse(0, 6, 24, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#e6a3b0';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-21, 5);
+  ctx.quadraticCurveTo(2, 11, 22, 5);
+  ctx.stroke();
+  ctx.fillStyle = '#e4474e';
+  ctx.beginPath();
+  ctx.roundRect?.(-3.5, -8, 7, 17, 2);
+  if (!ctx.roundRect) {
+    drawLocalRoundRect(ctx, -3.5, -8, 7, 17, 2);
+  }
+  ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect?.(-8.5, -3, 17, 7, 2);
+  if (!ctx.roundRect) {
+    drawLocalRoundRect(ctx, -8.5, -3, 17, 7, 2);
+  }
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.beginPath();
+  ctx.ellipse(-10, -4, 5, 2, -0.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function getCubScreenCenter(mazeCenter, x, y, angle) {
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
@@ -278,15 +628,34 @@ function getLookOffset(lookTarget, cubCenter, gridSize) {
   };
 }
 
-function renderEyes(ctx, expression, t, lookOffset) {
-  const blink = expression.blink && Math.sin(t * 3.1) > 0.965;
-  const eyeScaleY = blink ? 0.12 : expression.eyeScaleY;
+function renderEyes(ctx, expression, lookOffset, frame) {
+  if (expression.eyeStyle === 'closed') {
+    renderClosedEye(ctx, 43, 74 + frame.eyeOffsetY, frame.closedCurveY);
+    renderClosedEye(ctx, 85, 74 + frame.eyeOffsetY, frame.closedCurveY);
+    return;
+  }
 
-  renderEye(ctx, 43, 74, eyeScaleY, lookOffset);
+  if (expression.eyeStyle === 'angry') {
+    renderAngryEye(ctx, 43, 74, -1, frame);
+    renderAngryEye(ctx, 85, 74, 1, frame);
+    return;
+  }
+
+  if (expression.eyeStyle === 'side') {
+    renderSideEye(ctx, 43, 74, -1, frame);
+    renderSideEye(ctx, 85, 74, 1, frame);
+    return;
+  }
+
+  const animatedLookOffset = {
+    x: lookOffset.x + frame.pupilOffsetX,
+    y: lookOffset.y + frame.pupilOffsetY,
+  };
+  renderEye(ctx, 43, 74 + frame.eyeOffsetY, frame.eyeScaleY, animatedLookOffset);
   if (expression.rightEyeClosed) {
-    renderClosedEye(ctx, 85, 74);
+    renderClosedEye(ctx, 85, 74 + frame.eyeOffsetY, frame.closedCurveY);
   } else {
-    renderEye(ctx, 85, 74, eyeScaleY, lookOffset);
+    renderEye(ctx, 85, 74 + frame.eyeOffsetY, frame.eyeScaleY, animatedLookOffset);
   }
 }
 
@@ -308,21 +677,63 @@ function renderEye(ctx, x, y, scaleY, lookOffset) {
   ctx.restore();
 }
 
-function renderClosedEye(ctx, x, y) {
+function renderAngryEye(ctx, x, y, direction, frame) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = CAT_FACE.eye;
+  ctx.beginPath();
+  ctx.ellipse(0, 1, 16, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = CAT_FACE.pupil;
+  ctx.beginPath();
+  ctx.arc(4 * direction, 2, 7, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = CAT_FACE.outline;
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  if (direction < 0) {
+    ctx.moveTo(-12, -16 + frame.browOffsetY);
+    ctx.lineTo(12, -8 + frame.browOffsetY);
+  } else {
+    ctx.moveTo(-12, -8 + frame.browOffsetY);
+    ctx.lineTo(12, -16 + frame.browOffsetY);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function renderSideEye(ctx, x, y, direction, frame) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(1, frame.sideSquint);
+  ctx.fillStyle = CAT_FACE.eye;
+  ctx.beginPath();
+  ctx.arc(0, 0, 17, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = CAT_FACE.pupil;
+  ctx.beginPath();
+  ctx.arc(7 * direction + frame.sideLook, 0, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function renderClosedEye(ctx, x, y, curveY) {
   ctx.save();
   ctx.strokeStyle = CAT_FACE.eye;
   ctx.lineWidth = 4;
   ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(x - 10, y + 1);
-  ctx.quadraticCurveTo(x, y + 7, x + 10, y + 1);
+  ctx.quadraticCurveTo(x, y + curveY, x + 10, y + 1);
   ctx.stroke();
   ctx.restore();
 }
 
-function renderNoseAndMouth(ctx, expression) {
-  const mouthOffsetY = expression.mouthOffsetY;
-
+function renderNoseAndMouth(ctx, expression, frame) {
+  const mouthOffsetY = frame.mouthOffsetY;
   ctx.save();
   ctx.fillStyle = CAT_FACE.nose;
   ctx.beginPath();
@@ -330,6 +741,24 @@ function renderNoseAndMouth(ctx, expression) {
   ctx.quadraticCurveTo(64, 79, 70, 84);
   ctx.quadraticCurveTo(64, 91, 58, 84);
   ctx.fill();
+
+  if (expression.mouthStyle === 'o') {
+    renderOMouth(ctx, frame);
+    ctx.restore();
+    return;
+  }
+
+  if (expression.mouthStyle === 'frown') {
+    renderFrownMouth(ctx, mouthOffsetY);
+    ctx.restore();
+    return;
+  }
+
+  if (expression.mouthStyle === 'smirk') {
+    renderSmirkMouth(ctx, mouthOffsetY);
+    ctx.restore();
+    return;
+  }
 
   if (expression.mouthOpen) {
     renderOpenMouth(ctx);
@@ -350,6 +779,111 @@ function renderNoseAndMouth(ctx, expression) {
   ctx.stroke();
 
   ctx.restore();
+}
+
+function renderOMouth(ctx, frame) {
+  ctx.save();
+  ctx.translate(64, 103);
+  ctx.scale(frame.mouthScaleX, frame.mouthScaleY);
+  ctx.fillStyle = '#111111';
+  ctx.strokeStyle = CAT_FACE.outline;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(0, 0, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function renderFrownMouth(ctx, mouthOffsetY) {
+  ctx.save();
+  ctx.strokeStyle = CAT_FACE.outline;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(52, 99 + mouthOffsetY);
+  ctx.quadraticCurveTo(64, 91 + mouthOffsetY, 76, 99 + mouthOffsetY);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function renderSmirkMouth(ctx, mouthOffsetY) {
+  ctx.save();
+  ctx.strokeStyle = CAT_FACE.outline;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(55, 94 + mouthOffsetY);
+  ctx.quadraticCurveTo(66, 102 + mouthOffsetY, 80, 92 + mouthOffsetY);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function renderExpressionEffects(ctx, expression, frame) {
+  if (expression.cheek) {
+    ctx.save();
+    ctx.fillStyle = `rgba(244, 140, 155, ${frame.cheekAlpha})`;
+    ctx.beginPath();
+    ctx.ellipse(31, 91, 8, 4, -0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(97, 91, 8, 4, 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  if (expression.id === 'joy') {
+    ctx.save();
+    ctx.globalAlpha = frame.effectAlpha;
+    ctx.strokeStyle = '#f7c84b';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.translate(0, frame.effectOffsetY);
+    traceSparkle(ctx, 20, 48, 6 * frame.effectScale);
+    traceSparkle(ctx, 106, 47, 5 * frame.effectScale);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  if (expression.angryMark) {
+    ctx.save();
+    ctx.globalAlpha = frame.effectAlpha;
+    ctx.strokeStyle = '#e4474e';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.translate(frame.effectOffsetX, frame.effectOffsetY);
+    ctx.beginPath();
+    ctx.moveTo(102, 35);
+    ctx.lineTo(112, 27);
+    ctx.moveTo(108, 39);
+    ctx.lineTo(116, 30);
+    ctx.moveTo(106, 28);
+    ctx.lineTo(115, 38);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  if (expression.id === 'surprised') {
+    ctx.save();
+    ctx.globalAlpha = frame.effectAlpha;
+    ctx.strokeStyle = '#f7a72c';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.translate(0, frame.effectOffsetY);
+    const surpriseReach = 17 * frame.effectScale;
+    ctx.beginPath();
+    ctx.moveTo(108, 41);
+    ctx.lineTo(114, 41 - surpriseReach);
+    ctx.moveTo(115, 51);
+    ctx.lineTo(121, 47 - (frame.effectScale - 1) * 4);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function traceSparkle(ctx, x, y, size) {
+  ctx.moveTo(x, y - size);
+  ctx.lineTo(x, y + size);
+  ctx.moveTo(x - size, y);
+  ctx.lineTo(x + size, y);
 }
 
 function renderOpenMouth(ctx) {

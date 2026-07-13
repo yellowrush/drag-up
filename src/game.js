@@ -1,6 +1,7 @@
 import { GameEngine } from './utils/game-engine.js'
 import { GameStorage } from './utils/storage.js'
 import { LEVELS, getNextLevel, LEVEL_MAP } from './utils/levels-data.js'
+import { ACCESSORIES, EXPRESSIONS, RewardStorage } from './utils/rewards.js'
 
 var sysInfo = wx.getSystemInfoSync()
 var canvas = wx.createCanvas()
@@ -24,7 +25,9 @@ var HEADER_H = SAFE_TOP + TOP_BAR + TEXT_H
 var engine = null
 var currentLevelId = ''
 var completedLevels = []
+var rewardState = RewardStorage.getState()
 var showLevelSelect = false
+var showScoreModal = false
 var showNext = false
 var instruction = ''
 var activePointer = null
@@ -37,6 +40,7 @@ var modalScrollStartY = 0
 var modalTabScrollX = 0
 var modalTabScrollStartX = 0
 var activeWorldIndex = 0
+var activeRewardTab = 'accessory'
 
 var LEVEL_WORLDS = [
   { id: 'cat-box', label: '\u732b\u7bb1\u5b50', levels: LEVELS, enabled: true },
@@ -56,6 +60,15 @@ var MODAL_CONTENT_ROWS = Math.ceil(LEVELS.length / MODAL_COLS)
 var MODAL_CONTENT_H = MODAL_CONTENT_ROWS * (MODAL_CELL_H + MODAL_GAP) + MODAL_GAP
 var MODAL_INNER_H = MODAL_PAD * 2 + MODAL_TAB_H + MODAL_GAP + MODAL_CONTENT_H
 var MODAL_H = Math.min(MODAL_INNER_H, H - HEADER_H - 40)
+var SCORE_MODAL_W = 320
+var SCORE_MODAL_PAD = 14
+var SCORE_MODAL_ROW_H = 58
+var SCORE_MODAL_GAP = 8
+var SCORE_MODAL_HEADER_H = 96
+var SCORE_MODAL_H = Math.min(
+  SCORE_MODAL_PAD * 2 + SCORE_MODAL_HEADER_H + ACCESSORIES.length * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP),
+  H - 40,
+)
 
 function isInside(x, y, rx, ry, rw, rh) {
   return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh
@@ -106,6 +119,103 @@ function getWorldTabRect(index, mx, my) {
   }
 }
 
+function getModalLevelAt(x, y, mx, my) {
+  var gridX = mx + MODAL_GAP
+  var gridY = my + MODAL_PAD + MODAL_TAB_H + MODAL_GAP
+  var gridW = MODAL_W - MODAL_GAP * 2
+  var gridH = getModalGridHeight()
+  if (!isInside(x, y, gridX, gridY, gridW, gridH)) return null
+
+  var localX = x - gridX
+  var localY = y - gridY + modalScrollY
+  var col = Math.floor(localX / (MODAL_CELL_W + MODAL_GAP))
+  var row = Math.floor(localY / (MODAL_CELL_H + MODAL_GAP))
+  var cellX = col * (MODAL_CELL_W + MODAL_GAP)
+  var cellY = row * (MODAL_CELL_H + MODAL_GAP)
+  if (col < 0 || col >= MODAL_COLS) return null
+  if (localX < cellX || localX > cellX + MODAL_CELL_W) return null
+  if (localY < cellY || localY > cellY + MODAL_CELL_H) return null
+
+  var index = row * MODAL_COLS + col
+  return getActiveWorldLevels()[index] || null
+}
+
+function refreshRewards() {
+  rewardState = RewardStorage.getState()
+  if (engine && engine.setEquippedAccessory) {
+    engine.setEquippedAccessory(rewardState.equippedAccessoryId || '')
+  }
+  if (engine && engine.setEquippedExpression) {
+    engine.setEquippedExpression(rewardState.equippedExpressionId || '')
+  }
+}
+
+function getActiveRewards() {
+  var source = activeRewardTab === 'expression' ? EXPRESSIONS : ACCESSORIES
+  return source.map(function (item) {
+    return {
+      id: item.id,
+      name: item.name,
+      requiredScore: item.requiredScore,
+      description: item.description,
+      type: activeRewardTab,
+    }
+  })
+}
+
+function isRewardOwned(item) {
+  return item.type === 'expression'
+    ? rewardState.ownedExpressionIds.indexOf(item.id) !== -1
+    : rewardState.ownedAccessoryIds.indexOf(item.id) !== -1
+}
+
+function isRewardEquipped(item) {
+  return item.type === 'expression'
+    ? rewardState.equippedExpressionId === item.id
+    : rewardState.equippedAccessoryId === item.id
+}
+
+function canUseReward(item) {
+  return isRewardOwned(item) || rewardState.totalScore >= item.requiredScore
+}
+
+function rewardActionText(item) {
+  if (isRewardEquipped(item)) return '\u5378\u4e0b'
+  if (isRewardOwned(item)) return '\u88c5\u5907'
+  if (rewardState.totalScore >= item.requiredScore) return '\u5151\u6362'
+  return '\u672a\u8fbe\u6210'
+}
+
+function rewardStatusText(item) {
+  if (isRewardEquipped(item)) return '\u5df2\u88c5\u5907'
+  if (isRewardOwned(item)) return '\u5df2\u62e5\u6709'
+  return item.requiredScore + ' \u79ef\u5206'
+}
+
+function useReward(item) {
+  if (!canUseReward(item)) return
+  if (isRewardEquipped(item)) {
+    var unequipped = item.type === 'expression'
+      ? RewardStorage.equipExpression('')
+      : RewardStorage.equipAccessory('')
+    rewardState = unequipped.state
+    refreshRewards()
+    return
+  }
+  if (!isRewardOwned(item)) {
+    var redeemed = item.type === 'expression'
+      ? RewardStorage.redeemExpression(item.id)
+      : RewardStorage.redeemAccessory(item.id)
+    rewardState = redeemed.state
+    if (!redeemed.ok) return
+  }
+  var equipped = item.type === 'expression'
+    ? RewardStorage.equipExpression(item.id)
+    : RewardStorage.equipAccessory(item.id)
+  rewardState = equipped.state
+  refreshRewards()
+}
+
 function drawRoundRect(r, x, y, w, h, radius) {
   r.beginPath()
   r.moveTo(x + radius, y)
@@ -122,17 +232,21 @@ function drawRoundRect(r, x, y, w, h, radius) {
 
 function init() {
   completedLevels = GameStorage.getCompletedLevels()
+  rewardState = RewardStorage.getState()
   engine = new GameEngine(canvas, ctx)
   engine.setupCanvas(W, H - HEADER_H)
   engine.canvasLeft = 0
   engine.canvasTop = 0
   engine.loadCurrentLevel()
+  refreshRewards()
   currentLevelId = engine.maze.id
   instruction = engine.maze.instruction || ''
-  engine.onLevelComplete = function () {
+  engine.onLevelComplete = function (stats) {
     showNext = true
     GameStorage.markLevelCompleted(engine.maze.id)
+    RewardStorage.recordLevelResult(engine.maze.id, stats)
     completedLevels = GameStorage.getCompletedLevels()
+    refreshRewards()
   }
   engine.onInstructionChange = function (text) {
     instruction = text
@@ -144,6 +258,7 @@ function loadLevel(id) {
   currentLevelId = id
   instruction = engine.maze.instruction || ''
   showLevelSelect = false
+  showScoreModal = false
   showNext = false
 }
 
@@ -151,6 +266,22 @@ function handleTouchStart(e) {
   var t = e.touches[0]
   var x = t.clientX
   var y = t.clientY
+
+  if (showScoreModal) {
+    var smx = (W - SCORE_MODAL_W) / 2
+    var smy = (H - SCORE_MODAL_H) / 2
+    if (!isInside(x, y, smx, smy, SCORE_MODAL_W, SCORE_MODAL_H)) {
+      showScoreModal = false
+      modalTouchId = null
+      modalTouchMode = ''
+      return
+    }
+    modalTouchId = t.identifier
+    modalTouchStartX = x
+    modalTouchStartY = y
+    modalTouchMode = getScoreTabAt(x, y, smx, smy) ? 'score-tabs' : 'score-list'
+    return
+  }
 
   if (showLevelSelect) {
     var mx = (W - MODAL_W) / 2
@@ -211,7 +342,14 @@ function handleTouchStart(e) {
       activeWorldIndex = 0
       modalScrollY = 0
       modalTabScrollX = 0
+      showScoreModal = false
       showLevelSelect = true
+      return
+    }
+    if (isInside(x, y, bx + (bw + 18) * 2, by, bw, bh)) {
+      refreshRewards()
+      showLevelSelect = false
+      showScoreModal = true
       return
     }
     return
@@ -232,6 +370,7 @@ function findTouch(list, id) {
 }
 
 wx.onTouchMove(function (e) {
+  if (showScoreModal) return
   if (showLevelSelect) {
     var t = findTouch(e.touches, modalTouchId)
     if (t) {
@@ -256,17 +395,50 @@ wx.onTouchMove(function (e) {
 })
 
 wx.onTouchEnd(function (e) {
+  if (showScoreModal) {
+    var st = findTouch(e.changedTouches, modalTouchId)
+    if (st && Math.abs(st.clientX - modalTouchStartX) < 8 && Math.abs(st.clientY - modalTouchStartY) < 8) {
+      var smx = (W - SCORE_MODAL_W) / 2
+      var smy = (H - SCORE_MODAL_H) / 2
+      if (modalTouchMode === 'score-tabs') {
+        var scoreTab = getScoreTabAt(st.clientX, st.clientY, smx, smy)
+        if (scoreTab) {
+          activeRewardTab = scoreTab
+        }
+      } else if (modalTouchMode === 'score-list') {
+        var rewards = getActiveRewards()
+        for (var ai = 0; ai < rewards.length; ai++) {
+          var action = getScoreActionRect(ai, smx, smy)
+          if (isInside(st.clientX, st.clientY, action.x, action.y, action.w, action.h)) {
+            useReward(rewards[ai])
+            break
+          }
+        }
+      }
+    }
+    modalTouchId = null
+    modalTouchMode = ''
+    return
+  }
+
   if (showLevelSelect) {
     var t = findTouch(e.changedTouches, modalTouchId)
-    if (t && modalTouchMode === 'tabs' && Math.abs(t.clientX - modalTouchStartX) < 8 && Math.abs(t.clientY - modalTouchStartY) < 8) {
+    if (t && Math.abs(t.clientX - modalTouchStartX) < 8 && Math.abs(t.clientY - modalTouchStartY) < 8) {
       var mx = (W - MODAL_W) / 2
       var my = (H - MODAL_H) / 2
-      for (var i = 0; i < LEVEL_WORLDS.length; i++) {
-        var tab = getWorldTabRect(i, mx, my)
-        if (isInside(t.clientX, t.clientY, tab.x, tab.y, tab.w, tab.h) && LEVEL_WORLDS[i].enabled !== false) {
-          activeWorldIndex = i
-          modalScrollY = 0
-          break
+      if (modalTouchMode === 'tabs') {
+        for (var i = 0; i < LEVEL_WORLDS.length; i++) {
+          var tab = getWorldTabRect(i, mx, my)
+          if (isInside(t.clientX, t.clientY, tab.x, tab.y, tab.w, tab.h) && LEVEL_WORLDS[i].enabled !== false) {
+            activeWorldIndex = i
+            modalScrollY = 0
+            break
+          }
+        }
+      } else if (modalTouchMode === 'grid') {
+        var level = getModalLevelAt(t.clientX, t.clientY, mx, my)
+        if (level) {
+          loadLevel(level.id)
         }
       }
     }
@@ -362,6 +534,7 @@ function drawModernUI() {
   var bx = 10
   drawRetryButton(ctx, bx, by)
   drawLevelButton(ctx, bx + bw + 18, by)
+  drawScoreButton(ctx, bx + (bw + 18) * 2, by)
 
   if (instruction) {
     ctx.fillStyle = 'rgba(42,42,74,0.95)'
@@ -377,6 +550,9 @@ function drawModernUI() {
   }
   if (showLevelSelect) {
     drawModal()
+  }
+  if (showScoreModal) {
+    drawScoreModal()
   }
 }
 
@@ -476,6 +652,63 @@ function drawLevelButton(r, x, y) {
   r.restore()
 }
 
+function drawScoreButton(r, x, y) {
+  var cx = x + 23
+  var cy = y + 20
+  r.save()
+  var grd = r.createLinearGradient(cx, cy - 20, cx, cy + 20)
+  grd.addColorStop(0, '#ffe8af')
+  grd.addColorStop(1, '#f3b545')
+  r.fillStyle = grd
+  r.strokeStyle = '#9f6a18'
+  r.lineWidth = 2.4
+  drawRoundedStar(r, cx, cy, 20, 8, 8)
+  r.fill()
+  r.stroke()
+  r.restore()
+}
+
+function drawRoundedStar(r, cx, cy, outerRadius, innerRadius, corner) {
+  var points = []
+  for (var i = 0; i < 10; i++) {
+    var angle = -Math.PI / 2 + i * Math.PI / 5
+    var radius = i % 2 === 0 ? outerRadius : innerRadius
+    points.push({
+      x: cx + Math.cos(angle) * radius,
+      y: cy + Math.sin(angle) * radius,
+    })
+  }
+  drawRoundedPolygon(r, points, corner)
+}
+
+function drawRoundedPolygon(r, points, corner) {
+  r.beginPath()
+  for (var i = 0; i < points.length; i++) {
+    var prev = points[(i - 1 + points.length) % points.length]
+    var point = points[i]
+    var next = points[(i + 1) % points.length]
+    var from = moveToward(point, prev, corner)
+    var to = moveToward(point, next, corner)
+    if (i === 0) {
+      r.moveTo(from.x, from.y)
+    } else {
+      r.lineTo(from.x, from.y)
+    }
+    r.quadraticCurveTo(point.x, point.y, to.x, to.y)
+  }
+  r.closePath()
+}
+
+function moveToward(from, to, distance) {
+  var dx = to.x - from.x
+  var dy = to.y - from.y
+  var length = Math.sqrt(dx * dx + dy * dy) || 1
+  return {
+    x: from.x + dx / length * distance,
+    y: from.y + dy / length * distance,
+  }
+}
+
 function drawNextButton(r) {
   var w = 160
   var h = 48
@@ -495,6 +728,373 @@ function drawNextButton(r) {
   r.textAlign = 'center'
   r.textBaseline = 'middle'
   r.fillText('\u4e0b\u4e00\u5173', W / 2, y + h / 2 + 1)
+}
+
+function getScoreActionRect(index, mx, my) {
+  var rowY = my + SCORE_MODAL_PAD + SCORE_MODAL_HEADER_H + index * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP)
+  return {
+    x: mx + SCORE_MODAL_W - SCORE_MODAL_PAD - 68,
+    y: rowY + 14,
+    w: 62,
+    h: 30,
+  }
+}
+
+function getScoreTabRect(type, mx, my) {
+  var gap = 8
+  var tabW = (SCORE_MODAL_W - SCORE_MODAL_PAD * 2 - gap) / 2
+  var tabX = mx + SCORE_MODAL_PAD + (type === 'expression' ? tabW + gap : 0)
+  return {
+    x: tabX,
+    y: my + 56,
+    w: tabW,
+    h: 32,
+  }
+}
+
+function getScoreTabAt(x, y, mx, my) {
+  var accessory = getScoreTabRect('accessory', mx, my)
+  if (isInside(x, y, accessory.x, accessory.y, accessory.w, accessory.h)) {
+    return 'accessory'
+  }
+  var expression = getScoreTabRect('expression', mx, my)
+  if (isInside(x, y, expression.x, expression.y, expression.w, expression.h)) {
+    return 'expression'
+  }
+  return ''
+}
+
+function drawScoreModal() {
+  ctx.fillStyle = 'rgba(0,0,0,0.66)'
+  ctx.fillRect(0, 0, W, H)
+  var mx = (W - SCORE_MODAL_W) / 2
+  var my = (H - SCORE_MODAL_H) / 2
+
+  ctx.fillStyle = '#2f2f50'
+  drawRoundRect(ctx, mx, my, SCORE_MODAL_W, SCORE_MODAL_H, 8)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)'
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+
+  ctx.fillStyle = '#ffffff'
+  ctx.font = 'bold 18px sans-serif'
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('\u603b\u79ef\u5206', mx + SCORE_MODAL_PAD, my + 31)
+
+  ctx.fillStyle = '#ffe8af'
+  ctx.font = 'bold 24px sans-serif'
+  ctx.textAlign = 'right'
+  ctx.fillText(String(rewardState.totalScore), mx + SCORE_MODAL_W - SCORE_MODAL_PAD, my + 31)
+
+  drawScoreTabs(ctx, mx, my)
+
+  getActiveRewards().forEach(function (item, index) {
+    drawScoreAccessoryRow(ctx, item, index, mx, my)
+  })
+}
+
+function drawScoreTabs(r, mx, my) {
+  drawScoreTab(r, getScoreTabRect('accessory', mx, my), '\u9970\u54c1', activeRewardTab === 'accessory')
+  drawScoreTab(r, getScoreTabRect('expression', mx, my), '\u8868\u60c5', activeRewardTab === 'expression')
+  r.strokeStyle = 'rgba(255,255,255,0.16)'
+  r.lineWidth = 1
+  r.beginPath()
+  r.moveTo(mx + SCORE_MODAL_PAD, my + 92)
+  r.lineTo(mx + SCORE_MODAL_W - SCORE_MODAL_PAD, my + 92)
+  r.stroke()
+}
+
+function drawScoreTab(r, rect, label, active) {
+  r.fillStyle = '#2f2f50'
+  r.lineWidth = 1.4
+  drawRoundRect(r, rect.x, rect.y + 2, rect.w, rect.h - 4, 13)
+  r.fill()
+  if (active) {
+    r.strokeStyle = '#ffe8af'
+    r.lineWidth = 2
+    r.beginPath()
+    r.moveTo(rect.x + 14, rect.y + rect.h - 5)
+    r.lineTo(rect.x + rect.w - 14, rect.y + rect.h - 5)
+    r.stroke()
+  }
+  r.fillStyle = active ? '#ffe8af' : '#d9daec'
+  r.font = 'bold 13px sans-serif'
+  r.textAlign = 'center'
+  r.textBaseline = 'middle'
+  r.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 1)
+}
+
+function drawScoreAccessoryRow(r, item, index, mx, my) {
+  var rowX = mx + SCORE_MODAL_PAD
+  var rowY = my + SCORE_MODAL_PAD + SCORE_MODAL_HEADER_H + index * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP)
+  var rowW = SCORE_MODAL_W - SCORE_MODAL_PAD * 2
+  var owned = isRewardOwned(item)
+  var equipped = isRewardEquipped(item)
+
+  r.fillStyle = equipped ? '#3d3f51' : '#34344f'
+  r.strokeStyle = equipped ? '#7dc88a' : owned ? '#d5a544' : '#565873'
+  r.lineWidth = 1.4
+  drawRoundRect(r, rowX, rowY, rowW, SCORE_MODAL_ROW_H, 8)
+  r.fill()
+  r.stroke()
+
+  drawRewardPreview(r, item, rowX + 28, rowY + SCORE_MODAL_ROW_H / 2)
+
+  r.textAlign = 'left'
+  r.textBaseline = 'middle'
+  r.fillStyle = '#f2f2f7'
+  r.font = 'bold 13px sans-serif'
+  r.fillText(item.name, rowX + 54, rowY + 20)
+  r.fillStyle = '#aeb0c8'
+  r.font = '11px sans-serif'
+  r.fillText(rewardStatusText(item), rowX + 54, rowY + 40)
+
+  var action = getScoreActionRect(index, mx, my)
+  var enabled = canUseReward(item)
+  if (enabled) {
+    var grd = r.createLinearGradient(action.x, action.y, action.x, action.y + action.h)
+    grd.addColorStop(0, '#ffe1a2')
+    grd.addColorStop(1, '#f2b653')
+    r.fillStyle = grd
+    r.strokeStyle = '#98621f'
+  } else {
+    r.fillStyle = '#3a3b50'
+    r.strokeStyle = '#565873'
+  }
+  r.lineWidth = 2
+  drawRoundRect(r, action.x, action.y, action.w, action.h, 8)
+  r.fill()
+  r.stroke()
+  r.fillStyle = enabled ? '#5f3713' : '#82869d'
+  r.font = 'bold 11px sans-serif'
+  r.textAlign = 'center'
+  r.fillText(rewardActionText(item), action.x + action.w / 2, action.y + action.h / 2 + 1)
+}
+
+function drawRewardPreview(r, item, cx, cy) {
+  r.save()
+  r.fillStyle = '#222238'
+  drawRoundRect(r, cx - 18, cy - 18, 36, 36, 8)
+  r.fill()
+  if (item.type === 'expression') {
+    drawExpressionPreview(r, item.id, cx, cy)
+    r.restore()
+    return
+  }
+  var id = item.id
+  if (id === 'red-bow') {
+    r.strokeStyle = '#ffffff'
+    r.lineWidth = 2
+    r.fillStyle = '#e84b5f'
+    r.beginPath()
+    r.ellipse(cx - 7, cy, 10, 7, -0.25, 0, Math.PI * 2)
+    r.ellipse(cx + 7, cy, 10, 7, 0.25, 0, Math.PI * 2)
+    r.fill()
+    r.stroke()
+    r.strokeStyle = '#b82f46'
+    r.lineWidth = 1.4
+    r.beginPath()
+    r.moveTo(cx - 13, cy + 1)
+    r.quadraticCurveTo(cx - 9, cy + 4, cx - 5, cy + 3)
+    r.moveTo(cx + 13, cy + 1)
+    r.quadraticCurveTo(cx + 9, cy + 4, cx + 5, cy + 3)
+    r.stroke()
+    r.fillStyle = '#ffcad1'
+    r.beginPath()
+    r.arc(cx, cy, 5, 0, Math.PI * 2)
+    r.fill()
+  } else if (id === 'gold-bell') {
+    r.strokeStyle = '#f25d6a'
+    r.lineWidth = 3
+    r.beginPath()
+    r.moveTo(cx - 13, cy - 9)
+    r.quadraticCurveTo(cx, cy - 3, cx + 13, cy - 9)
+    r.stroke()
+    r.fillStyle = '#f7c84b'
+    r.strokeStyle = '#8c5b12'
+    r.lineWidth = 2
+    r.beginPath()
+    r.arc(cx, cy, 11, 0, Math.PI * 2)
+    r.fill()
+    r.stroke()
+    r.fillStyle = 'rgba(255,255,255,0.58)'
+    r.beginPath()
+    r.ellipse(cx - 4, cy - 4, 3, 2, -0.5, 0, Math.PI * 2)
+    r.fill()
+    r.beginPath()
+    r.moveTo(cx - 7, cy - 2)
+    r.lineTo(cx + 7, cy - 2)
+    r.stroke()
+    r.beginPath()
+    r.moveTo(cx - 8, cy + 3)
+    r.quadraticCurveTo(cx, cy + 6, cx + 8, cy + 3)
+    r.stroke()
+    r.fillStyle = '#8c5b12'
+    r.beginPath()
+    r.arc(cx, cy + 8, 2.4, 0, Math.PI * 2)
+    r.fill()
+  } else if (id === 'blue-cap') {
+    r.save()
+    r.translate(cx, cy)
+    r.rotate(-0.32)
+    r.fillStyle = '#8ec5ff'
+    r.strokeStyle = '#ffffff'
+    r.lineWidth = 2
+    r.beginPath()
+    drawRoundRect(r, -15, -6, 30, 12, 7)
+    r.fill()
+    r.stroke()
+    r.fillStyle = '#d9f0ff'
+    r.beginPath()
+    r.ellipse(-5, -2, 7, 2, -0.1, 0, Math.PI * 2)
+    r.fill()
+    r.fillStyle = '#ffd6df'
+    r.strokeStyle = '#7f4f64'
+    r.lineWidth = 1.3
+    r.beginPath()
+    r.arc(4, 1, 4, 0, Math.PI * 2)
+    r.fill()
+    r.stroke()
+    ;[
+      { x: -1, y: -3, r: 1.8 },
+      { x: 3, y: -5, r: 1.9 },
+      { x: 7, y: -3, r: 1.8 },
+      { x: 9, y: 1, r: 1.7 },
+    ].forEach(function (pad) {
+      r.beginPath()
+      r.arc(pad.x, pad.y, pad.r, 0, Math.PI * 2)
+      r.fill()
+      r.stroke()
+    })
+    r.restore()
+  } else if (id === 'star-crown') {
+    r.fillStyle = '#ffd95c'
+    r.strokeStyle = '#8d6418'
+    r.lineWidth = 1.8
+    r.beginPath()
+    r.moveTo(cx - 15, cy + 9)
+    r.lineTo(cx - 10, cy - 9)
+    r.lineTo(cx - 3, cy + 5)
+    r.lineTo(cx, cy - 12)
+    r.lineTo(cx + 3, cy + 5)
+    r.lineTo(cx + 10, cy - 9)
+    r.lineTo(cx + 15, cy + 9)
+    r.closePath()
+    r.fill()
+    r.stroke()
+    r.fillStyle = '#ff7fa0'
+    ;[
+      { x: cx - 10, y: cy - 8 },
+      { x: cx, y: cy - 12 },
+      { x: cx + 10, y: cy - 8 },
+    ].forEach(function (gem) {
+      r.beginPath()
+      r.arc(gem.x, gem.y, 2.4, 0, Math.PI * 2)
+      r.fill()
+    })
+    r.fillStyle = '#fff1a5'
+    r.beginPath()
+    r.ellipse(cx, cy + 6, 10, 2, 0, 0, Math.PI * 2)
+    r.fill()
+  } else if (id === 'magic-hat') {
+    r.fillStyle = '#fff8f8'
+    r.strokeStyle = '#ffffff'
+    r.lineWidth = 2
+    r.beginPath()
+    r.moveTo(cx - 15, cy + 5)
+    r.quadraticCurveTo(cx - 9, cy - 14, cx, cy - 10)
+    r.quadraticCurveTo(cx + 9, cy - 14, cx + 15, cy + 5)
+    r.quadraticCurveTo(cx, cy + 12, cx - 15, cy + 5)
+    r.closePath()
+    r.fill()
+    r.stroke()
+    r.fillStyle = '#ffdfe6'
+    r.strokeStyle = '#e6a3b0'
+    r.lineWidth = 1.4
+    r.beginPath()
+    r.ellipse(cx, cy + 5, 14, 4, 0, 0, Math.PI * 2)
+    r.fill()
+    r.stroke()
+    r.fillStyle = '#e4474e'
+    drawRoundRect(r, cx - 2, cy - 7, 4, 12, 1.5)
+    r.fill()
+    drawRoundRect(r, cx - 6, cy - 3, 12, 4, 1.5)
+    r.fill()
+  }
+  r.restore()
+}
+
+function drawExpressionPreview(r, id, cx, cy) {
+  r.fillStyle = '#1b1b1b'
+  r.strokeStyle = '#ffffff'
+  r.lineWidth = 2
+  r.beginPath()
+  r.arc(cx, cy, 14, 0, Math.PI * 2)
+  r.fill()
+  r.stroke()
+
+  r.strokeStyle = '#ffffff'
+  r.fillStyle = '#ffffff'
+  r.lineCap = 'round'
+  if (id === 'sleepy') {
+    r.lineWidth = 2
+    r.beginPath()
+    r.moveTo(cx - 9, cy - 2)
+    r.quadraticCurveTo(cx - 5, cy + 2, cx - 1, cy - 2)
+    r.moveTo(cx + 1, cy - 2)
+    r.quadraticCurveTo(cx + 5, cy + 2, cx + 9, cy - 2)
+    r.stroke()
+    drawPreviewSmile(r, cx, cy + 5)
+  } else if (id === 'joy') {
+    r.beginPath()
+    r.arc(cx - 6, cy - 3, 3, 0, Math.PI * 2)
+    r.arc(cx + 6, cy - 3, 3, 0, Math.PI * 2)
+    r.fill()
+    drawPreviewSmile(r, cx, cy + 5)
+  } else if (id === 'surprised') {
+    r.beginPath()
+    r.arc(cx - 6, cy - 4, 3.5, 0, Math.PI * 2)
+    r.arc(cx + 6, cy - 4, 3.5, 0, Math.PI * 2)
+    r.fill()
+    r.beginPath()
+    r.arc(cx, cy + 6, 4, 0, Math.PI * 2)
+    r.fill()
+  } else if (id === 'angry') {
+    r.lineWidth = 2.4
+    r.beginPath()
+    r.moveTo(cx - 10, cy - 8)
+    r.lineTo(cx - 2, cy - 4)
+    r.moveTo(cx + 10, cy - 8)
+    r.lineTo(cx + 2, cy - 4)
+    r.stroke()
+    r.beginPath()
+    r.arc(cx - 6, cy - 2, 2.6, 0, Math.PI * 2)
+    r.arc(cx + 6, cy - 2, 2.6, 0, Math.PI * 2)
+    r.fill()
+    r.beginPath()
+    r.arc(cx, cy + 8, 5, Math.PI, 0)
+    r.stroke()
+  } else {
+    r.beginPath()
+    r.ellipse(cx - 6, cy - 3, 3, 1.8, 0, 0, Math.PI * 2)
+    r.ellipse(cx + 6, cy - 3, 3, 1.8, 0, 0, Math.PI * 2)
+    r.fill()
+    drawPreviewSmile(r, cx, cy + 5)
+  }
+}
+
+function drawPreviewSmile(r, cx, cy) {
+  r.save()
+  r.strokeStyle = '#ffffff'
+  r.lineWidth = 2
+  r.lineCap = 'round'
+  r.beginPath()
+  r.moveTo(cx - 6, cy)
+  r.quadraticCurveTo(cx, cy + 5, cx + 6, cy)
+  r.stroke()
+  r.restore()
 }
 
 function drawModal() {

@@ -1,0 +1,914 @@
+<template>
+  <view class="page">
+    <view
+      class="top-bar"
+      :style="{ paddingTop: topBarPadding, minHeight: '44px' }"
+    >
+      <text class="instruction">{{ instruction }}</text>
+      <view class="tool-actions">
+        <view class="tool-btn" @tap="onResetTap">
+          <view class="tool-icon retry-icon">
+            <view class="retry-mark">
+              <view class="retry-head"></view>
+            </view>
+          </view>
+          <text class="tool-label">&#37325;&#35797;</text>
+        </view>
+        <view class="tool-btn" @tap="onLevelsTap">
+          <view class="tool-icon settings-icon">
+            <view class="gear-mark">
+              <view class="gear-hole"></view>
+            </view>
+          </view>
+          <text class="tool-label">&#20851;&#21345;</text>
+        </view>
+        <view class="tool-btn" @tap="onScoreTap">
+          <view class="point-icon">
+            <view class="point-shape"></view>
+            <view class="point-round point-round-top"></view>
+            <view class="point-round point-round-right"></view>
+            <view class="point-round point-round-bottom-right"></view>
+            <view class="point-round point-round-bottom-left"></view>
+            <view class="point-round point-round-left"></view>
+            <view class="point-round point-round-inner-top-right"></view>
+            <view class="point-round point-round-inner-right"></view>
+            <view class="point-round point-round-inner-bottom"></view>
+            <view class="point-round point-round-inner-left"></view>
+            <view class="point-round point-round-inner-top-left"></view>
+          </view>
+          <text class="tool-label">&#31215;&#20998;</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="game-area">
+      <game-canvas
+        :paused="showLevelSelect || showScoreModal"
+        @ready="onGameReady"
+        @instruction="onInstruction"
+      />
+    </view>
+
+    <view
+      v-if="showLevelSelect"
+      class="modal-mask"
+      @tap.self="showLevelSelect = false"
+    >
+      <view class="modal-box level-modal" @tap.stop>
+        <view class="modal-title">&#36873;&#25321;&#20851;&#21345;</view>
+        <scroll-view scroll-y class="level-scroll">
+          <view class="level-grid">
+            <view
+              v-for="(lv, index) in levels"
+              :key="lv.id"
+              class="level-cell"
+              :class="{ completed: completedLevels.includes(lv.id) }"
+              @tap="onSelectLevel(lv.id)"
+            >
+              <text class="level-number">{{ levelTitle(index) }}</text>
+              <text class="level-status">
+                {{ completedLevels.includes(lv.id) ? ownedText : lockedText }}
+              </text>
+            </view>
+          </view>
+        </scroll-view>
+      </view>
+    </view>
+
+    <view
+      v-if="showScoreModal"
+      class="modal-mask"
+      @tap.self="showScoreModal = false"
+    >
+      <view class="modal-box score-modal" @tap.stop>
+        <view class="score-head">
+          <view>
+            <view class="modal-title score-title">{{ totalScoreText }}</view>
+          </view>
+          <view class="score-total">{{ totalScore }}</view>
+        </view>
+
+        <view class="reward-tabs">
+          <view
+            class="reward-tab"
+            :class="{ active: activeRewardTab === 'accessory' }"
+            @tap="activeRewardTab = 'accessory'"
+          >
+            &#39280;&#21697;
+          </view>
+          <view
+            class="reward-tab"
+            :class="{ active: activeRewardTab === 'expression' }"
+            @tap="activeRewardTab = 'expression'"
+          >
+            &#34920;&#24773;
+          </view>
+        </view>
+
+        <scroll-view scroll-y class="reward-scroll">
+          <view
+            v-for="item in rewardItems"
+            :key="`${item.type}-${item.id}`"
+            class="reward-row"
+            :class="{ owned: isOwned(item), equipped: isEquipped(item) }"
+          >
+            <view class="reward-preview">
+              <view :class="['preview-mark', item.type, item.id]"></view>
+            </view>
+            <view class="reward-info">
+              <text class="reward-name">{{ item.name }}</text>
+              <text class="reward-desc">{{ rewardStatus(item) }}</text>
+            </view>
+            <view
+              class="reward-action"
+              :class="{ disabled: !canUseReward(item) }"
+              @tap.stop="onRewardAction(item)"
+            >
+              {{ rewardActionText(item) }}
+            </view>
+          </view>
+        </scroll-view>
+      </view>
+    </view>
+
+    <view v-show="showNext" class="next-btn" @tap="onNextLevel">
+      &#19979;&#19968;&#20851;
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+  import { computed, markRaw, onMounted, ref, shallowRef } from 'vue';
+  import gameCanvas from '@/components/game-canvas.vue';
+  import { GameStorage } from '@/utils/storage.js';
+  import { LEVELS, getNextLevel } from '@/utils/levels-data.js';
+  import { ACCESSORIES, EXPRESSIONS, RewardStorage } from '@/utils/rewards.js';
+
+  const engine = shallowRef<any>(null);
+  const instruction = ref('');
+  const showLevelSelect = ref(false);
+  const showScoreModal = ref(false);
+  const showNext = ref(false);
+  const levels = shallowRef(LEVELS);
+  const completedLevels = ref<string[]>([]);
+  const rewardState = ref(RewardStorage.getState());
+  const activeRewardTab = ref('accessory');
+  const topBarPadding = ref('56px');
+  const ownedText = '\u5df2\u5b8c\u6210';
+  const lockedText = '\u672a\u5b8c\u6210';
+  const totalScoreText = '\u603b\u79ef\u5206';
+  let currentLevelId = '';
+
+  const totalScore = computed(() => rewardState.value.totalScore || 0);
+  const rewardItems = computed(() => {
+    const source = activeRewardTab.value === 'expression' ? EXPRESSIONS : ACCESSORIES;
+    return source.map((item: any) => ({
+      ...item,
+      type: activeRewardTab.value,
+    }));
+  });
+
+  onMounted(() => {
+    completedLevels.value = GameStorage.getCompletedLevels();
+    refreshRewards();
+    try {
+      const sH = uni.getSystemInfoSync().statusBarHeight || 44;
+      topBarPadding.value = `${sH + 12}px`;
+    } catch (e) {
+      /* keep default */
+    }
+  });
+
+  function onGameReady(eng: any) {
+    engine.value = markRaw(eng);
+    if (currentLevelId && currentLevelId !== eng.maze.id) {
+      eng.loadLevel(currentLevelId);
+    }
+    currentLevelId = eng.maze.id;
+    instruction.value = eng.maze.instruction || '';
+    applyEquippedRewards();
+
+    eng.onLevelComplete = (stats: any) => {
+      showNext.value = true;
+      GameStorage.markLevelCompleted(eng.maze.id);
+      RewardStorage.recordLevelResult(eng.maze.id, stats);
+      completedLevels.value = GameStorage.getCompletedLevels();
+      refreshRewards();
+    };
+
+    eng.onInstructionChange = (text: string) => {
+      instruction.value = text;
+    };
+  }
+
+  function onInstruction(text: string) {
+    instruction.value = text;
+  }
+
+  function onLevelsTap() {
+    completedLevels.value = GameStorage.getCompletedLevels();
+    showScoreModal.value = false;
+    showLevelSelect.value = true;
+  }
+
+  function onScoreTap() {
+    refreshRewards();
+    showLevelSelect.value = false;
+    showScoreModal.value = true;
+  }
+
+  function onSelectLevel(id: string) {
+    if (!engine.value) return;
+    engine.value.loadLevel(id);
+    currentLevelId = id;
+    showLevelSelect.value = false;
+    showNext.value = false;
+    instruction.value = engine.value.maze.instruction || '';
+  }
+
+  function onNextLevel() {
+    if (!engine.value) return;
+    const next = getNextLevel(engine.value.maze.id);
+    if (next) {
+      engine.value.loadLevel(next);
+      currentLevelId = next;
+      instruction.value = engine.value.maze.instruction || '';
+    } else {
+      completedLevels.value = GameStorage.getCompletedLevels();
+      showLevelSelect.value = true;
+    }
+    showNext.value = false;
+  }
+
+  function onResetTap() {
+    if (!engine.value) return;
+    engine.value.loadLevel(currentLevelId);
+    showNext.value = false;
+    instruction.value = engine.value.maze.instruction || '';
+  }
+
+  function refreshRewards() {
+    rewardState.value = RewardStorage.getState();
+    applyEquippedRewards();
+  }
+
+  function applyEquippedRewards() {
+    if (engine.value && engine.value.setEquippedAccessory) {
+      engine.value.setEquippedAccessory(
+        rewardState.value.equippedAccessoryId || '',
+      );
+    }
+    if (engine.value && engine.value.setEquippedExpression) {
+      engine.value.setEquippedExpression(
+        rewardState.value.equippedExpressionId || '',
+      );
+    }
+  }
+
+  function isOwned(item: any) {
+    return item.type === 'expression'
+      ? rewardState.value.ownedExpressionIds.includes(item.id)
+      : rewardState.value.ownedAccessoryIds.includes(item.id);
+  }
+
+  function isEquipped(item: any) {
+    return item.type === 'expression'
+      ? rewardState.value.equippedExpressionId === item.id
+      : rewardState.value.equippedAccessoryId === item.id;
+  }
+
+  function canUseReward(item: any) {
+    return isOwned(item) || totalScore.value >= item.requiredScore;
+  }
+
+  function rewardStatus(item: any) {
+    if (isEquipped(item)) return '\u5df2\u88c5\u5907';
+    if (isOwned(item)) return '\u5df2\u62e5\u6709';
+    return `${item.requiredScore} \u79ef\u5206`;
+  }
+
+  function rewardActionText(item: any) {
+    if (isEquipped(item)) return '\u5378\u4e0b';
+    if (isOwned(item)) return '\u88c5\u5907';
+    if (totalScore.value >= item.requiredScore) return '\u5151\u6362';
+    return '\u672a\u8fbe\u6210';
+  }
+
+  function onRewardAction(item: any) {
+    if (!canUseReward(item)) return;
+
+    if (isEquipped(item)) {
+      const unequipped =
+        item.type === 'expression'
+          ? RewardStorage.equipExpression('')
+          : RewardStorage.equipAccessory('');
+      rewardState.value = unequipped.state;
+      applyEquippedRewards();
+      return;
+    }
+
+    if (!isOwned(item)) {
+      const redeemed =
+        item.type === 'expression'
+          ? RewardStorage.redeemExpression(item.id)
+          : RewardStorage.redeemAccessory(item.id);
+      rewardState.value = redeemed.state;
+      if (!redeemed.ok) return;
+    }
+
+    const equipped =
+      item.type === 'expression'
+        ? RewardStorage.equipExpression(item.id)
+        : RewardStorage.equipAccessory(item.id);
+    rewardState.value = equipped.state;
+    applyEquippedRewards();
+  }
+
+  function levelTitle(index: number) {
+    return `\u7b2c ${index + 1} \u5173`;
+  }
+
+</script>
+
+<style>
+  .page {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #1a1a2e;
+    position: relative;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+  .top-bar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px 8px;
+    background: rgba(26, 26, 46, 0.72);
+    box-sizing: border-box;
+  }
+  .game-area {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+  }
+  .instruction {
+    color: #d9d9e6;
+    font-size: 13px;
+    flex: 1;
+    min-width: 0;
+    line-height: 1.35;
+  }
+  .tool-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: 10px;
+  }
+  .tool-btn {
+    width: 46px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .tool-icon,
+  .point-icon {
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    font-weight: 800;
+    line-height: 1;
+    position: relative;
+  }
+  .retry-icon {
+    color: #fff;
+    background: linear-gradient(180deg, #ffd970 0%, #f2a92e 100%);
+    border: 2px solid #9f6a18;
+    border-radius: 11px;
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.45),
+      0 2px 0 rgba(74, 44, 12, 0.2);
+  }
+  .retry-mark {
+    width: 20px;
+    height: 20px;
+    border: 4px solid #fff;
+    border-right-color: transparent;
+    border-radius: 50%;
+    position: relative;
+    box-sizing: border-box;
+  }
+  .retry-head {
+    position: absolute;
+    right: -4px;
+    top: -5px;
+    width: 0;
+    height: 0;
+    border-left: 8px solid #fff;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    transform: rotate(18deg);
+  }
+  .settings-icon {
+    color: #f5f5f5;
+    background: #b9b9b9;
+    border: 2px solid #4a4a4a;
+    border-radius: 11px;
+    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.38);
+  }
+  .gear-mark {
+    width: 24px;
+    height: 24px;
+    border: 4px solid #4a4a4a;
+    border-radius: 50%;
+    background:
+      linear-gradient(90deg, transparent 37%, #4a4a4a 37%, #4a4a4a 63%, transparent 63%),
+      linear-gradient(0deg, transparent 37%, #4a4a4a 37%, #4a4a4a 63%, transparent 63%),
+      #d9d9d9;
+    position: relative;
+    box-sizing: border-box;
+  }
+  .gear-mark::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    background:
+      linear-gradient(90deg, transparent 42%, #4a4a4a 42%, #4a4a4a 58%, transparent 58%),
+      linear-gradient(0deg, transparent 42%, #4a4a4a 42%, #4a4a4a 58%, transparent 58%);
+    transform: rotate(45deg);
+    z-index: -1;
+  }
+  .gear-hole {
+    width: 11px;
+    height: 11px;
+    border: 3px solid #4a4a4a;
+    border-radius: 50%;
+    background: #f5f5f5;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    box-sizing: border-box;
+  }
+  .point-icon {
+    filter: drop-shadow(0 2px 0 rgba(74, 44, 12, 0.24));
+  }
+  .point-shape {
+    position: absolute;
+    inset: 2px;
+    background: linear-gradient(180deg, #ffe8af 0%, #f3b545 100%);
+    clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 100%, 50% 74%, 21% 100%, 32% 57%, 2% 35%, 39% 35%);
+  }
+  .point-round {
+    position: absolute;
+    width: 13px;
+    height: 13px;
+    background: #ffd36d;
+    border-radius: 50%;
+  }
+  .point-round-top {
+    top: -1px;
+    left: 12.5px;
+  }
+  .point-round-right {
+    top: 10px;
+    right: -1px;
+  }
+  .point-round-bottom-right {
+    right: 3px;
+    bottom: -1px;
+  }
+  .point-round-bottom-left {
+    left: 3px;
+    bottom: -1px;
+  }
+  .point-round-left {
+    top: 10px;
+    left: -1px;
+  }
+  .point-round-inner-top-right,
+  .point-round-inner-right,
+  .point-round-inner-bottom,
+  .point-round-inner-left,
+  .point-round-inner-top-left {
+    width: 10px;
+    height: 10px;
+    background: #f7c253;
+  }
+  .point-round-inner-top-right {
+    top: 12px;
+    right: 10px;
+  }
+  .point-round-inner-right {
+    top: 20px;
+    right: 7px;
+  }
+  .point-round-inner-bottom {
+    left: 14px;
+    bottom: 6px;
+  }
+  .point-round-inner-left {
+    top: 20px;
+    left: 7px;
+  }
+  .point-round-inner-top-left {
+    top: 12px;
+    left: 10px;
+  }
+  .tool-label {
+    color: #eeeeee;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.1;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  }
+  .modal-mask {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-box {
+    width: 360px;
+    max-width: 88vw;
+    background: #2a2a40;
+    border-radius: 8px;
+    padding: 22px;
+    box-sizing: border-box;
+    max-height: 80vh;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+  .modal-title {
+    color: #fff;
+    font-size: 18px;
+    text-align: center;
+    margin-bottom: 16px;
+    font-weight: 800;
+  }
+  .level-scroll {
+    max-height: 62vh;
+  }
+  .level-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+  }
+  .level-cell {
+    width: 88px;
+    height: 58px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #3a3a55;
+    color: #d9daec;
+    border: 1px solid #62627f;
+    border-radius: 8px;
+    font-size: 12px;
+    text-align: center;
+    line-height: 1.2;
+    box-sizing: border-box;
+  }
+  .level-cell.completed {
+    background: linear-gradient(180deg, #ffe8af 0%, #ffc75d 100%);
+    border-color: #a96d24;
+    color: #6b4518;
+  }
+  .level-number {
+    font-size: 13px;
+    font-weight: 800;
+  }
+  .level-status {
+    margin-top: 4px;
+    font-size: 10px;
+    opacity: 0.78;
+  }
+  .score-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+  .score-title {
+    margin-bottom: 3px;
+    text-align: left;
+  }
+  .score-total {
+    min-width: 86px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    color: #ffe8af;
+    font-size: 24px;
+    font-weight: 900;
+  }
+  .reward-tabs {
+    display: flex;
+    gap: 8px;
+    padding-bottom: 4px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  }
+  .reward-tab {
+    flex: 1;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #d9daec;
+    background: #2f2f50;
+    border: 0;
+    border-radius: 13px;
+    font-size: 13px;
+    font-weight: 800;
+    box-sizing: border-box;
+  }
+  .reward-tab.active {
+    color: #ffe8af;
+    border-bottom: 3px solid #ffe8af;
+  }
+  .reward-scroll {
+    max-height: 54vh;
+  }
+  .reward-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 64px;
+    padding: 9px;
+    margin-bottom: 9px;
+    border-radius: 8px;
+    background: #34344f;
+    border: 1px solid #565873;
+    box-sizing: border-box;
+  }
+  .reward-row.owned {
+    border-color: #d5a544;
+  }
+  .reward-row.equipped {
+    background: #3d3f51;
+    border-color: #7dc88a;
+  }
+  .reward-preview {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    background: #222238;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .preview-mark {
+    width: 24px;
+    height: 24px;
+    position: relative;
+  }
+  .preview-mark.accessory.red-bow {
+    width: 30px;
+    height: 20px;
+    background:
+      radial-gradient(circle at 50% 50%, #ffcad1 0 19%, transparent 20%),
+      radial-gradient(ellipse at 27% 44%, #ff7c8f 0 18%, transparent 19%),
+      radial-gradient(ellipse at 73% 44%, #ff7c8f 0 18%, transparent 19%),
+      radial-gradient(ellipse at 27% 52%, #e84b5f 0 38%, transparent 39%),
+      radial-gradient(ellipse at 73% 52%, #e84b5f 0 38%, transparent 39%);
+  }
+  .preview-mark.accessory.gold-bell {
+    background:
+      radial-gradient(ellipse at 34% 30%, rgba(255, 255, 255, 0.72) 0 12%, transparent 13%),
+      linear-gradient(#f8d86d 0 42%, #f7c84b 43% 100%);
+    border: 2px solid #8c5b12;
+    border-radius: 50%;
+  }
+  .preview-mark.accessory.gold-bell::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    top: 10px;
+    height: 2px;
+    background: #8c5b12;
+    border-radius: 2px;
+  }
+  .preview-mark.accessory.gold-bell::after {
+    content: '';
+    position: absolute;
+    left: 9px;
+    bottom: 3px;
+    width: 6px;
+    height: 4px;
+    background: #8c5b12;
+    border-radius: 50%;
+  }
+  .preview-mark.accessory.blue-cap {
+    width: 31px;
+    height: 14px;
+    background: #8ec5ff;
+    border: 2px solid #ffffff;
+    border-radius: 12px;
+    transform: rotate(-18deg);
+  }
+  .preview-mark.accessory.blue-cap::before {
+    content: '';
+    position: absolute;
+    right: 5px;
+    top: 4px;
+    width: 7px;
+    height: 7px;
+    background: #ffd6df;
+    border-radius: 50%;
+    box-shadow:
+      -5px -4px 0 -1px #ffd6df,
+      0 -6px 0 -1px #ffd6df,
+      5px -4px 0 -1px #ffd6df;
+  }
+  .preview-mark.accessory.star-crown {
+    width: 30px;
+    height: 24px;
+    background:
+      radial-gradient(circle at 18% 25%, #ff7fa0 0 10%, transparent 11%),
+      radial-gradient(circle at 50% 12%, #ff7fa0 0 11%, transparent 12%),
+      radial-gradient(circle at 82% 25%, #ff7fa0 0 10%, transparent 11%),
+      linear-gradient(#ffd95c, #f3b545);
+    clip-path: polygon(0% 100%, 14% 20%, 38% 78%, 50% 0%, 62% 78%, 86% 20%, 100% 100%);
+  }
+  .preview-mark.accessory.magic-hat {
+    width: 31px;
+    height: 23px;
+    background:
+      linear-gradient(90deg, transparent 41%, #e4474e 42% 58%, transparent 59%),
+      linear-gradient(0deg, transparent 36%, #e4474e 37% 61%, transparent 62%),
+      linear-gradient(#fff8f8 0 70%, #ffdfe6 71% 100%);
+    border: 2px solid #ffffff;
+    border-radius: 14px 14px 9px 9px;
+  }
+  .preview-mark.expression {
+    width: 28px;
+    height: 28px;
+    background: #1b1b1b;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    box-sizing: border-box;
+  }
+  .preview-mark.expression::before,
+  .preview-mark.expression::after {
+    content: '';
+    position: absolute;
+    background: #ffffff;
+  }
+  .preview-mark.expression.sleepy::before {
+    left: 6px;
+    top: 11px;
+    width: 16px;
+    height: 7px;
+    border-top: 2px solid #ffffff;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .preview-mark.expression.joy::before {
+    left: 5px;
+    top: 8px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    box-shadow: 12px 0 0 #ffffff;
+  }
+  .preview-mark.expression.joy::after {
+    left: 9px;
+    top: 17px;
+    width: 10px;
+    height: 5px;
+    border-bottom: 2px solid #ffffff;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .preview-mark.expression.surprised::before {
+    left: 4px;
+    top: 7px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    box-shadow: 14px 0 0 #ffffff;
+  }
+  .preview-mark.expression.surprised::after {
+    left: 11px;
+    top: 16px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+  .preview-mark.expression.angry::before {
+    left: 5px;
+    top: 8px;
+    width: 18px;
+    height: 10px;
+    background:
+      linear-gradient(25deg, transparent 42%, #ffffff 42%, #ffffff 58%, transparent 58%),
+      linear-gradient(-25deg, transparent 42%, #ffffff 42%, #ffffff 58%, transparent 58%);
+  }
+  .preview-mark.expression.angry::after {
+    left: 9px;
+    top: 19px;
+    width: 10px;
+    height: 5px;
+    border-top: 2px solid #ffffff;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .preview-mark.expression.proud::before {
+    left: 5px;
+    top: 10px;
+    width: 5px;
+    height: 3px;
+    border-radius: 50%;
+    box-shadow: 13px 0 0 #ffffff;
+  }
+  .preview-mark.expression.proud::after {
+    left: 9px;
+    top: 17px;
+    width: 11px;
+    height: 5px;
+    border-bottom: 2px solid #ffffff;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .reward-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .reward-name {
+    color: #f2f2f7;
+    font-size: 14px;
+    font-weight: 800;
+  }
+  .reward-desc {
+    color: #aeb0c8;
+    font-size: 12px;
+  }
+  .reward-action {
+    min-width: 66px;
+    height: 30px;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #5f3713;
+    background: linear-gradient(180deg, #ffe1a2 0%, #f2b653 100%);
+    border: 2px solid #98621f;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 900;
+    box-sizing: border-box;
+  }
+  .reward-action.disabled {
+    color: #82869d;
+    background: #3a3b50;
+    border-color: #565873;
+  }
+  .next-btn {
+    position: fixed;
+    bottom: 48px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    min-width: 132px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    background: linear-gradient(180deg, #ffe1a2 0%, #f2b653 100%);
+    color: #5f3713;
+    font-size: 18px;
+    font-weight: 800;
+    padding: 0 32px;
+    border: 3px solid #98621f;
+    border-radius: 8px;
+    box-shadow:
+      inset 0 3px 0 rgba(255, 255, 255, 0.45),
+      0 5px 0 rgba(68, 39, 12, 0.18);
+  }
+</style>

@@ -6,8 +6,11 @@ import { Cub } from './cub.js';
 import { GameStorage } from './storage.js';
 import { LEVELS, LEVEL_MAP } from './levels-data.js';
 import { createGoalSuccessAnimation } from './goal-visuals.js';
+import { calculateLevelScore } from './rewards.js';
 
 var TAU = Math.PI * 2;
+var DRAG_COUNT_THRESHOLD = 6;
+var ROTATE_COUNT_THRESHOLD = Math.PI / 36;
 
 export class GameEngine {
   constructor(canvas, ctx) {
@@ -31,11 +34,17 @@ export class GameEngine {
     this.cubDragMove = null;
     this.dragStartPosition = null;
     this.dragStartPegPosition = null;
+    this.dragStartPeg = null;
+    this.dragMaxDistance = 0;
     this.dragStartAngle = null;
     this.dragStartMazeAngle = null;
     this.cubLookTarget = null;
     this.moveAngle = null;
     this.rotatePointer = null;
+    this.rotateMaxDelta = 0;
+    this.equippedAccessoryId = '';
+    this.equippedExpressionId = '';
+    this.levelStats = this.createLevelStats('');
 
     // Win animation
     this.winAnim = null;
@@ -131,6 +140,7 @@ export class GameEngine {
     this.maze = new Maze();
     this.maze.id = levelId;
     this.maze.loadText(levelData.text);
+    this.resetLevelStats(levelId);
 
     // Initialize cub at the maze's start position
     if (this.maze.startPosition) {
@@ -159,6 +169,36 @@ export class GameEngine {
 
     // Recalculate centering now that the maze's gridMax is known.
     this.setupCanvas(this.canvasSize.width, this.canvasSize.height);
+  }
+
+  createLevelStats(levelId) {
+    return {
+      levelId: levelId || '',
+      dragCount: 0,
+      rotateCount: 0,
+    };
+  }
+
+  resetLevelStats(levelId) {
+    this.levelStats = this.createLevelStats(levelId);
+  }
+
+  getAttemptStats() {
+    var stats = {
+      levelId: (this.maze && this.maze.id) || this.levelStats.levelId || '',
+      dragCount: this.levelStats.dragCount,
+      rotateCount: this.levelStats.rotateCount,
+    };
+    stats.score = calculateLevelScore(stats);
+    return stats;
+  }
+
+  setEquippedAccessory(accessoryId) {
+    this.equippedAccessoryId = accessoryId || '';
+  }
+
+  setEquippedExpression(expressionId) {
+    this.equippedExpressionId = expressionId || '';
   }
 
   // ---- update ----
@@ -223,6 +263,8 @@ export class GameEngine {
         {
           isDragging: this.isCubDragging,
           lookTarget: this.cubLookTarget,
+          accessoryId: this.equippedAccessoryId,
+          expressionId: this.equippedExpressionId,
         },
       );
     }
@@ -376,11 +418,14 @@ export class GameEngine {
     this.cubDragMove = null;
     this.dragStartPosition = null;
     this.dragStartPegPosition = null;
+    this.dragStartPeg = null;
+    this.dragMaxDistance = 0;
     this.dragStartAngle = null;
     this.dragStartMazeAngle = null;
     this.cubLookTarget = null;
     this.moveAngle = null;
     this.rotatePointer = null;
+    this.rotateMaxDelta = 0;
   }
 
   cubDragPointerDown(pointer) {
@@ -391,6 +436,11 @@ export class GameEngine {
     this.isCubDragging = true;
     this.cubLookTarget = this.getCanvasPoint(pointer);
     this.dragStartPosition = { x: pointer.x, y: pointer.y };
+    this.dragStartPeg = {
+      x: this.cub.peg.x,
+      y: this.cub.peg.y,
+    };
+    this.dragMaxDistance = 0;
     this.dragStartPegPosition = {
       x: this.cub[this.maze.orientation].x * this.gridSize + this.mazeCenter.x,
       y: this.cub[this.maze.orientation].y * this.gridSize + this.mazeCenter.y,
@@ -404,10 +454,26 @@ export class GameEngine {
       x: pointer.x - this.dragStartPosition.x,
       y: pointer.y - this.dragStartPosition.y,
     };
+    this.dragMaxDistance = Math.max(
+      this.dragMaxDistance,
+      getDistance(pointer, this.dragStartPosition),
+    );
     // console.log('[engine] cubDragMove', this.cubDragMove)
   }
 
   cubDragPointerUp() {
+    var movedPeg =
+      this.dragStartPeg &&
+      this.cub.peg &&
+      (this.dragStartPeg.x !== this.cub.peg.x ||
+        this.dragStartPeg.y !== this.cub.peg.y);
+    if (
+      this.isCubDragging &&
+      (movedPeg || this.dragMaxDistance >= DRAG_COUNT_THRESHOLD)
+    ) {
+      this.levelStats.dragCount += 1;
+    }
+
     this.cubDragMove = null;
     this.isCubDragging = false;
     this.cubLookTarget = null;
@@ -542,6 +608,7 @@ export class GameEngine {
     this.dragStartMazeAngle = this.maze.flyWheel.angle;
     this.dragAngle = this.dragStartMazeAngle;
     this.rotatePointer = pointer;
+    this.rotateMaxDelta = 0;
   }
 
   getDragAngle(pointer) {
@@ -554,10 +621,17 @@ export class GameEngine {
     this.moveAngle = this.getDragAngle(pointer);
     var deltaAngle = this.moveAngle - this.dragStartAngle;
     this.dragAngle = normalizeAngle(this.dragStartMazeAngle + deltaAngle);
+    this.rotateMaxDelta = Math.max(
+      this.rotateMaxDelta,
+      getAngleDistance(this.moveAngle, this.dragStartAngle),
+    );
     // console.log('[engine] rotateMove', { moveAngle: this.moveAngle, dragAngle: this.dragAngle })
   }
 
   mazeRotatePointerUp() {
+    if (this.rotateMaxDelta >= ROTATE_COUNT_THRESHOLD) {
+      this.levelStats.rotateCount += 1;
+    }
     this.dragAngle = null;
     this.rotatePointer = null;
   }
@@ -566,6 +640,7 @@ export class GameEngine {
 
   completeLevel() {
     // console.log('Level complete!')
+    var stats = this.getAttemptStats();
     this.resetPointerState();
     var cubPosition = this.getCubPosition();
     this.winAnim = createGoalSuccessAnimation(
@@ -579,7 +654,7 @@ export class GameEngine {
     GameStorage.markLevelCompleted(this.maze.id);
 
     if (this.onLevelComplete) {
-      this.onLevelComplete();
+      this.onLevelComplete(stats);
     }
   }
 
@@ -601,6 +676,11 @@ function getDistance(a, b) {
   var dx = b.x - a.x;
   var dy = b.y - a.y;
   return Math.sqrt(dx * dx + dy * dy);
+}
+
+function getAngleDistance(a, b) {
+  var diff = Math.abs(normalizeAngle(a) - normalizeAngle(b));
+  return Math.min(diff, TAU - diff);
 }
 
 function distanceSorter(a, b) {
