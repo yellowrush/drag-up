@@ -1,3 +1,6 @@
 node_modules
 dist
 .workbuddy
+private.*.key
+project.config.minigame.json
+.env
