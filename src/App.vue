@@ -5,8 +5,24 @@
       :style="{ paddingTop: topBarPadding, minHeight: '44px' }"
     >
       <text class="instruction">{{ instruction }}</text>
-      <text class="btn" @tap="onLevelsTap">关卡选择</text>
-      <text class="btn" @tap="onResetTap">重置</text>
+      <view class="tool-actions">
+        <view class="tool-btn" @tap="onResetTap">
+          <view class="tool-icon retry-icon">
+            <view class="retry-mark">
+              <view class="retry-head"></view>
+            </view>
+          </view>
+          <text class="tool-label">&#37325;&#35797;</text>
+        </view>
+        <view class="tool-btn" @tap="onLevelsTap">
+          <view class="tool-icon settings-icon">
+            <view class="gear-mark">
+              <view class="gear-hole"></view>
+            </view>
+          </view>
+          <text class="tool-label">&#35774;&#32622;</text>
+        </view>
+      </view>
     </view>
 
     <view class="game-area">
@@ -38,7 +54,7 @@
       </view>
     </view>
 
-    <view v-show="showNext" class="next-btn" @tap="onNextLevel">下一关</view>
+    <view v-show="showNext" class="next-btn" @tap="onNextLevel">&#19979;&#19968;&#20851;</view>
   </view>
 </template>
 
@@ -141,8 +157,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 16px;
-    background: rgba(26, 26, 46, 0.95);
+    padding: 0 18px 8px;
+    background: rgba(26, 26, 46, 0.72);
     box-sizing: border-box;
   }
   .game-area {
@@ -156,18 +172,109 @@
     font-size: 13px;
     flex: 1;
   }
-  .btn {
-    color: #ccc;
-    font-size: 15px;
-    padding: 8px 16px;
-    border: 1px solid #555;
-    border-radius: 8px;
-    margin-left: 10px;
-    min-width: 72px;
-    text-align: center;
-    display: inline-flex;
+  .tool-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-left: 12px;
+  }
+  .tool-btn {
+    width: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .tool-icon {
+    width: 38px;
+    height: 38px;
+    display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: 11px;
+    box-sizing: border-box;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .retry-icon {
+    color: #fff;
+    background: linear-gradient(180deg, #ffd970 0%, #f2a92e 100%);
+    border: 2px solid #9f6a18;
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.45),
+      0 2px 0 rgba(74, 44, 12, 0.2);
+  }
+  .retry-mark {
+    width: 20px;
+    height: 20px;
+    border: 4px solid #fff;
+    border-right-color: transparent;
+    border-radius: 50%;
+    position: relative;
+    box-sizing: border-box;
+  }
+  .retry-head {
+    position: absolute;
+    right: -4px;
+    top: -5px;
+    width: 0;
+    height: 0;
+    border-left: 8px solid #fff;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    transform: rotate(18deg);
+  }
+  .settings-icon {
+    color: #f5f5f5;
+    background: #b9b9b9;
+    border: 2px solid #4a4a4a;
+    text-shadow:
+      -1px 0 #4a4a4a,
+      0 1px #4a4a4a,
+      1px 0 #4a4a4a,
+      0 -1px #4a4a4a;
+    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.38);
+  }
+  .gear-mark {
+    width: 24px;
+    height: 24px;
+    border: 4px solid #4a4a4a;
+    border-radius: 50%;
+    background:
+      linear-gradient(90deg, transparent 37%, #4a4a4a 37%, #4a4a4a 63%, transparent 63%),
+      linear-gradient(0deg, transparent 37%, #4a4a4a 37%, #4a4a4a 63%, transparent 63%),
+      #d9d9d9;
+    position: relative;
+    box-sizing: border-box;
+  }
+  .gear-mark::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    background:
+      linear-gradient(90deg, transparent 42%, #4a4a4a 42%, #4a4a4a 58%, transparent 58%),
+      linear-gradient(0deg, transparent 42%, #4a4a4a 42%, #4a4a4a 58%, transparent 58%);
+    transform: rotate(45deg);
+    z-index: -1;
+  }
+  .gear-hole {
+    width: 11px;
+    height: 11px;
+    border: 3px solid #4a4a4a;
+    border-radius: 50%;
+    background: #f5f5f5;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    box-sizing: border-box;
+  }
+  .tool-label {
+    color: #eeeeee;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.1;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
   }
   .modal-mask {
     position: fixed;
@@ -228,11 +335,21 @@
     left: 50%;
     transform: translateX(-50%);
     z-index: 1000;
-    background: #7b2;
-    color: #fff;
+    min-width: 132px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    background: linear-gradient(180deg, #ffe1a2 0%, #f2b653 100%);
+    color: #5f3713;
     font-size: 18px;
-    padding: 14px 44px;
-    border-radius: 30px;
-    box-shadow: 0 4px 16px rgba(119, 187, 34, 0.3);
+    font-weight: 800;
+    padding: 0 32px;
+    border: 3px solid #98621f;
+    border-radius: 14px;
+    box-shadow:
+      inset 0 3px 0 rgba(255, 255, 255, 0.45),
+      0 5px 0 rgba(68, 39, 12, 0.18);
   }
 </style>

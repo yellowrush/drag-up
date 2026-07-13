@@ -36,13 +36,13 @@ var modalScrollStartY = 0
 var MODAL_W = 300
 var MODAL_COLS = 3
 var MODAL_GAP = 8
-var MODAL_CELL_H = 48
+var MODAL_PAD = 14
+var MODAL_CELL_H = 54
 var MODAL_CELL_W = (MODAL_W - MODAL_GAP * (MODAL_COLS + 1)) / MODAL_COLS
-var MODAL_TITLE_H = 44
 var MODAL_CONTENT_ROWS = Math.ceil(LEVELS.length / MODAL_COLS)
-var MODAL_CONTENT_H = MODAL_CONTENT_ROWS * (MODAL_CELL_H + MODAL_GAP)
-var MODAL_INNER_H = MODAL_TITLE_H + MODAL_CONTENT_H
-var MODAL_H = Math.min(MODAL_INNER_H + 20, H - HEADER_H - 40)
+var MODAL_CONTENT_H = MODAL_CONTENT_ROWS * (MODAL_CELL_H + MODAL_GAP) + MODAL_GAP
+var MODAL_INNER_H = MODAL_PAD * 2 + MODAL_CONTENT_H
+var MODAL_H = Math.min(MODAL_INNER_H, H - HEADER_H - 40)
 
 function isInside(x, y, rx, ry, rw, rh) {
   return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh
@@ -108,9 +108,11 @@ function handleTouchStart(e) {
   }
 
   if (showNext) {
-    var nx = (W - 180) / 2
-    var ny = H - 80
-    if (isInside(x, y, nx, ny, 180, 48)) {
+    var nextW = 160
+    var nextH = 48
+    var nx = (W - nextW) / 2
+    var ny = H - 88
+    if (isInside(x, y, nx, ny, nextW, nextH)) {
       var nextId = getNextLevel(engine.maze.id)
       if (nextId) {
         loadLevel(nextId)
@@ -124,8 +126,8 @@ function handleTouchStart(e) {
   }
 
   if (y < HEADER_H) {
-    var bw = 76
-    var bh = 26
+    var bw = 46
+    var bh = 58
     var by = SAFE_TOP + (TOP_BAR - bh) / 2
     var bx = 10
     if (isInside(x, y, bx, by, bw, bh)) {
@@ -136,7 +138,7 @@ function handleTouchStart(e) {
       }
       return
     }
-    if (isInside(x, y, bx + bw + 6, by, bw, bh)) {
+    if (isInside(x, y, bx + bw + 18, by, bw, bh)) {
       completedLevels = GameStorage.getCompletedLevels()
       modalScrollY = 0
       showLevelSelect = true
@@ -164,7 +166,7 @@ wx.onTouchMove(function (e) {
     var t = findTouch(e.touches, modalTouchId)
     if (t) {
       modalScrollY = modalScrollStartY + (modalTouchStartY - t.clientY)
-      var maxScroll = Math.max(0, MODAL_INNER_H - (MODAL_H - MODAL_TITLE_H - 10))
+      var maxScroll = Math.max(0, MODAL_INNER_H - MODAL_H)
       if (modalScrollY < 0) modalScrollY = 0
       if (modalScrollY > maxScroll) modalScrollY = maxScroll
     }
@@ -178,24 +180,6 @@ wx.onTouchMove(function (e) {
 
 wx.onTouchEnd(function (e) {
   if (showLevelSelect) {
-    var t = findTouch(e.changedTouches, modalTouchId)
-    if (t && Math.abs(t.clientY - modalTouchStartY) < 8) {
-      var mx = (W - MODAL_W) / 2
-      var my = (H - MODAL_H) / 2
-      var startX = mx + MODAL_GAP
-      var startY = my + MODAL_TITLE_H
-      for (var i = 0; i < LEVELS.length; i++) {
-        var lv = LEVELS[i]
-        var col = i % MODAL_COLS
-        var row = Math.floor(i / MODAL_COLS)
-        var cx = startX + col * (MODAL_CELL_W + MODAL_GAP)
-        var cy = startY + row * (MODAL_CELL_H + MODAL_GAP) - modalScrollY
-        if (isInside(t.clientX, t.clientY, cx, cy, MODAL_CELL_W, MODAL_CELL_H)) {
-          loadLevel(lv.id)
-          break
-        }
-      }
-    }
     modalTouchId = null
     return
   }
@@ -221,6 +205,9 @@ function render() {
 }
 
 function drawUI() {
+  drawModernUI()
+  return;
+
   ctx.fillStyle = '#2a2a4a'
   ctx.fillRect(0, 0, W, SAFE_TOP)
   ctx.fillStyle = 'rgba(42,42,74,0.95)'
@@ -272,48 +259,209 @@ function drawUI() {
   }
 }
 
+function drawModernUI() {
+  ctx.fillStyle = '#2a2a4a'
+  ctx.fillRect(0, 0, W, SAFE_TOP)
+  ctx.fillStyle = 'rgba(42,42,74,0.95)'
+  ctx.fillRect(0, SAFE_TOP, W, TOP_BAR)
+
+  var bw = 46
+  var bh = 58
+  var by = SAFE_TOP + (TOP_BAR - bh) / 2
+  var bx = 10
+  drawRetryButton(ctx, bx, by)
+  drawLevelButton(ctx, bx + bw + 18, by)
+
+  if (instruction) {
+    ctx.fillStyle = 'rgba(42,42,74,0.95)'
+    ctx.fillRect(0, SAFE_TOP + TOP_BAR, W, TEXT_H)
+    ctx.fillStyle = '#dde'
+    ctx.font = '13px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(instruction, W / 2, SAFE_TOP + TOP_BAR + TEXT_H / 2)
+  }
+  if (showNext) {
+    drawNextButton(ctx)
+  }
+  if (showLevelSelect) {
+    drawModal()
+  }
+}
+
+function drawToolLabel(r, x, y, text) {
+  r.fillStyle = '#f2f2f2'
+  r.font = '12px sans-serif'
+  r.textAlign = 'center'
+  r.textBaseline = 'middle'
+  r.fillText(text, x + 23, y + 51)
+}
+
+function drawRetryButton(r, x, y) {
+  var ix = x + 4
+  var iy = y
+  var size = 38
+
+  r.save()
+  r.translate(ix + size / 2 + 1.5, iy + size / 2 + 1.5)
+  r.strokeStyle = '#f0f0f0'
+  r.lineWidth = 5.2
+  r.lineCap = 'round'
+  r.lineJoin = 'round'
+  r.beginPath()
+  r.arc(-1, 2, 11.5, 0.36, 5.15, false)
+  r.lineTo(15.4, -3.4)
+  r.stroke()
+  r.beginPath()
+  r.moveTo(10.4, -11.4)
+  r.lineTo(15.4, -3.4)
+  r.lineTo(6.4, -1.9)
+  r.stroke()
+  r.restore()
+}
+
+function drawLevelButton(r, x, y) {
+  var cx = x + 23
+  var cy = y + 21
+  r.save()
+  r.fillStyle = '#333'
+
+  r.beginPath()
+  r.ellipse(cx - 11.5, cy - 3, 5, 6.2, -0.35, 0, Math.PI * 2)
+  r.fill()
+
+  r.beginPath()
+  r.ellipse(cx - 4.5, cy - 9.5, 5, 7.2, -0.05, 0, Math.PI * 2)
+  r.fill()
+
+  r.beginPath()
+  r.ellipse(cx + 4.5, cy - 9.5, 5, 7.2, 0.05, 0, Math.PI * 2)
+  r.fill()
+
+  r.beginPath()
+  r.ellipse(cx + 11.5, cy - 3, 5, 6.2, 0.35, 0, Math.PI * 2)
+  r.fill()
+
+  r.beginPath()
+  r.moveTo(cx - 13, cy + 11)
+  r.bezierCurveTo(cx - 13, cy + 5, cx - 8.8, cy + 1.5, cx - 4.5, cy - 1)
+  r.bezierCurveTo(cx - 1.8, cy - 2.8, cx + 1.8, cy - 2.8, cx + 4.5, cy - 1)
+  r.bezierCurveTo(cx + 8.8, cy + 1.5, cx + 13, cy + 5, cx + 13, cy + 11)
+  r.bezierCurveTo(cx + 13, cy + 17, cx + 7, cy + 18.5, cx + 1.8, cy + 16)
+  r.bezierCurveTo(cx + 0.5, cy + 15.4, cx - 0.5, cy + 15.4, cx - 1.8, cy + 16)
+  r.bezierCurveTo(cx - 7, cy + 18.5, cx - 13, cy + 17, cx - 13, cy + 11)
+  r.closePath()
+  r.fill()
+
+  r.fillStyle = '#f0f0f0'
+
+  r.beginPath()
+  r.ellipse(cx - 11.5, cy - 3, 3.1, 4.2, -0.35, 0, Math.PI * 2)
+  r.fill()
+
+  r.beginPath()
+  r.ellipse(cx - 4.5, cy - 9.5, 3.1, 5, -0.05, 0, Math.PI * 2)
+  r.fill()
+
+  r.beginPath()
+  r.ellipse(cx + 4.5, cy - 9.5, 3.1, 5, 0.05, 0, Math.PI * 2)
+  r.fill()
+
+  r.beginPath()
+  r.ellipse(cx + 11.5, cy - 3, 3.1, 4.2, 0.35, 0, Math.PI * 2)
+  r.fill()
+
+  r.beginPath()
+  r.moveTo(cx - 9, cy + 11)
+  r.bezierCurveTo(cx - 9, cy + 6.8, cx - 6, cy + 3.7, cx - 3.2, cy + 2.1)
+  r.bezierCurveTo(cx - 1.2, cy + 1, cx + 1.2, cy + 1, cx + 3.2, cy + 2.1)
+  r.bezierCurveTo(cx + 6, cy + 3.7, cx + 9, cy + 6.8, cx + 9, cy + 11)
+  r.bezierCurveTo(cx + 9, cy + 14.3, cx + 5.6, cy + 15.3, cx + 1.9, cy + 13.7)
+  r.bezierCurveTo(cx + 0.6, cy + 13.1, cx - 0.6, cy + 13.1, cx - 1.9, cy + 13.7)
+  r.bezierCurveTo(cx - 5.6, cy + 15.3, cx - 9, cy + 14.3, cx - 9, cy + 11)
+  r.closePath()
+  r.fill()
+
+  r.restore()
+}
+
+function drawNextButton(r) {
+  var w = 160
+  var h = 48
+  var x = (W - w) / 2
+  var y = H - 88
+  var grd = r.createLinearGradient(x, y, x, y + h)
+  grd.addColorStop(0, '#ffe8af')
+  grd.addColorStop(1, '#ffc75d')
+  r.fillStyle = grd
+  drawRoundRect(r, x, y, w, h, 14)
+  r.fill()
+  r.strokeStyle = '#a96d24'
+  r.lineWidth = 3
+  r.stroke()
+  r.fillStyle = '#6b4518'
+  r.font = '20px sans-serif'
+  r.textAlign = 'center'
+  r.textBaseline = 'middle'
+  r.fillText('\u4e0b\u4e00\u5173', W / 2, y + h / 2 + 1)
+}
+
 function drawModal() {
-  ctx.fillStyle = 'rgba(0,0,0,0.6)'
+  ctx.fillStyle = 'rgba(0,0,0,0.66)'
   ctx.fillRect(0, 0, W, H)
   var mx = (W - MODAL_W) / 2
   var my = (H - MODAL_H) / 2
-  ctx.fillStyle = '#3a3a60'
-  drawRoundRect(ctx, mx, my, MODAL_W, MODAL_H, 12)
+  ctx.fillStyle = '#2f2f50'
+  drawRoundRect(ctx, mx, my, MODAL_W, MODAL_H, 16)
   ctx.fill()
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)'
+  ctx.lineWidth = 1.5
+  ctx.stroke()
   ctx.save()
   ctx.beginPath()
   ctx.rect(mx, my, MODAL_W, MODAL_H)
   ctx.clip()
 
   var startX = mx + MODAL_GAP
-  var startY = my + MODAL_TITLE_H
-  ctx.fillStyle = '#fff'
-  ctx.font = '16px sans-serif'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText('选择关卡', W / 2, my + MODAL_TITLE_H / 2)
+  var startY = my + MODAL_PAD + MODAL_GAP
 
   LEVELS.forEach(function (lv, i) {
     var col = i % MODAL_COLS
     var row = Math.floor(i / MODAL_COLS)
     var cx = startX + col * (MODAL_CELL_W + MODAL_GAP)
     var cy = startY + row * (MODAL_CELL_H + MODAL_GAP) - modalScrollY
-    if (completedLevels.includes(lv.id)) {
-      ctx.fillStyle = '#4a8a3a'
-    } else {
-      ctx.fillStyle = '#4a4a75'
-    }
-    drawRoundRect(ctx, cx, cy, MODAL_CELL_W, MODAL_CELL_H, 8)
-    ctx.fill()
-    ctx.fillStyle = completedLevels.includes(lv.id) ? '#fff' : '#ddd'
-    ctx.font = '12px sans-serif'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(lv.label, cx + MODAL_CELL_W / 2, cy + MODAL_CELL_H / 2)
+    if (cy > my + MODAL_H || cy + MODAL_CELL_H < my) return
+    drawLevelModalCell(ctx, cx, cy, i + 1, completedLevels.includes(lv.id))
   })
 
   ctx.restore()
   ctx.textBaseline = 'alphabetic'
+}
+
+function drawLevelModalCell(r, x, y, number, completed) {
+  if (completed) {
+    var grd = r.createLinearGradient(x, y, x, y + MODAL_CELL_H)
+    grd.addColorStop(0, '#ffe8af')
+    grd.addColorStop(1, '#ffc75d')
+    r.fillStyle = grd
+    r.strokeStyle = '#a96d24'
+  } else {
+    r.fillStyle = '#3c3c61'
+    r.strokeStyle = '#62627f'
+  }
+  r.lineWidth = 1.5
+  drawRoundRect(r, x, y, MODAL_CELL_W, MODAL_CELL_H, 10)
+  r.fill()
+  r.stroke()
+
+  r.textAlign = 'center'
+  r.textBaseline = 'middle'
+  r.fillStyle = completed ? '#6b4518' : '#d9daec'
+  r.font = '13px sans-serif'
+  r.fillText('\u7b2c ' + number + ' \u5173', x + MODAL_CELL_W / 2, y + 20)
+  r.fillStyle = completed ? '#7a4d16' : '#9093ad'
+  r.font = '10px sans-serif'
+  r.fillText(completed ? '\u5df2\u5b8c\u6210' : '\u672a\u5b8c\u6210', x + MODAL_CELL_W / 2, y + 38)
 }
 
 function loop() {

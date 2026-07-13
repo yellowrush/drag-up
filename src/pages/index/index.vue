@@ -2,8 +2,22 @@
   <view class="page">
     <view class="top-bar" :style="{ paddingTop: safeTop + 'px' }">
       <view class="btn-group">
-        <view class="btn" @tap="onLevelsTap">关卡选择</view>
-        <view class="btn" @tap="onResetTap">重置</view>
+        <view class="tool-btn" @tap="onResetTap">
+          <view class="tool-icon retry-icon">
+            <view class="retry-mark">
+              <view class="retry-head"></view>
+            </view>
+          </view>
+          <text class="tool-label">&#37325;&#35797;</text>
+        </view>
+        <view class="tool-btn" @tap="onLevelsTap">
+          <view class="tool-icon settings-icon">
+            <view class="gear-mark">
+              <view class="gear-hole"></view>
+            </view>
+          </view>
+          <text class="tool-label">&#35774;&#32622;</text>
+        </view>
       </view>
       <view class="instruction">
         <text>{{ instruction }}</text>
@@ -11,7 +25,11 @@
     </view>
 
     <view class="game-area">
-      <game-canvas :paused="showLevelSelect" @ready="onGameReady" @instruction="onInstruction" />
+      <game-canvas
+        :paused="showLevelSelect"
+        @ready="onGameReady"
+        @instruction="onInstruction"
+      />
     </view>
 
     <view
@@ -20,7 +38,7 @@
       @tap.self="showLevelSelect = false"
     >
       <view class="modal-box">
-        <text class="modal-title">选择关卡</text>
+        <text class="modal-title">&#36873;&#25321;&#20851;&#21345;</text>
         <view class="level-grid">
           <view
             v-for="lv in levels"
@@ -35,7 +53,9 @@
       </view>
     </view>
 
-    <view v-show="showNext" class="next-btn" @tap="onNextLevel"> 下一关 </view>
+    <view v-show="showNext" class="next-btn" @tap="onNextLevel">
+      &#19979;&#19968;&#20851;
+    </view>
   </view>
 </template>
 
@@ -51,12 +71,11 @@
   const showNext = ref(false);
   const levels = shallowRef(LEVELS);
   const completedLevels = ref<string[]>([]);
-  const safeTop = ref(44); // 默认安全值
+  const safeTop = ref(44);
   let currentLevelId = '';
 
   onMounted(() => {
     completedLevels.value = GameStorage.getCompletedLevels();
-    // 动态获取状态栏高度，确保不被手机原生状态栏遮挡
     try {
       const sys = uni.getSystemInfoSync();
       safeTop.value = (sys.statusBarHeight || 44) + 8;
@@ -131,26 +150,112 @@
     touch-action: none;
   }
   .top-bar {
-    padding: 0 20rpx 12rpx;
-    background: rgba(26, 26, 46, 0.85);
+    padding: 0 24rpx 10rpx;
+    background: rgba(26, 26, 46, 0.72);
   }
   .btn-group {
     display: flex;
     align-items: center;
-    gap: 12rpx;
+    gap: 26rpx;
   }
   .instruction {
-    color: #aaa;
+    color: #ddd;
     font-size: 24rpx;
-    text-align: left;
-    margin-left: 20rpx;
+    text-align: center;
+    margin-top: 12rpx;
   }
-  .btn {
-    color: #aaa;
-    font-size: 26rpx;
-    padding: 8rpx 20rpx;
-    border: 1rpx solid #444;
-    border-radius: 8rpx;
+  .tool-btn {
+    width: 92rpx;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6rpx;
+  }
+  .tool-icon {
+    width: 68rpx;
+    height: 68rpx;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 20rpx;
+    box-sizing: border-box;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .retry-icon {
+    color: #fff;
+    background: linear-gradient(180deg, #ffd970 0%, #f2a92e 100%);
+    border: 4rpx solid #9f6a18;
+    box-shadow:
+      inset 0 4rpx 0 rgba(255, 255, 255, 0.45),
+      0 3rpx 0 rgba(74, 44, 12, 0.2);
+  }
+  .retry-mark {
+    width: 38rpx;
+    height: 38rpx;
+    border: 8rpx solid #fff;
+    border-right-color: transparent;
+    border-radius: 50%;
+    position: relative;
+    box-sizing: border-box;
+  }
+  .retry-head {
+    position: absolute;
+    right: -8rpx;
+    top: -9rpx;
+    width: 0;
+    height: 0;
+    border-left: 15rpx solid #fff;
+    border-top: 9rpx solid transparent;
+    border-bottom: 9rpx solid transparent;
+    transform: rotate(18deg);
+  }
+  .settings-icon {
+    color: #f5f5f5;
+    background: #b9b9b9;
+    border: 4rpx solid #4a4a4a;
+    box-shadow: inset 0 4rpx 0 rgba(255, 255, 255, 0.38);
+  }
+  .gear-mark {
+    width: 44rpx;
+    height: 44rpx;
+    border: 8rpx solid #4a4a4a;
+    border-radius: 50%;
+    background:
+      linear-gradient(90deg, transparent 37%, #4a4a4a 37%, #4a4a4a 63%, transparent 63%),
+      linear-gradient(0deg, transparent 37%, #4a4a4a 37%, #4a4a4a 63%, transparent 63%),
+      #d9d9d9;
+    position: relative;
+    box-sizing: border-box;
+  }
+  .gear-mark::before {
+    content: '';
+    position: absolute;
+    inset: -15rpx;
+    background:
+      linear-gradient(90deg, transparent 42%, #4a4a4a 42%, #4a4a4a 58%, transparent 58%),
+      linear-gradient(0deg, transparent 42%, #4a4a4a 42%, #4a4a4a 58%, transparent 58%);
+    transform: rotate(45deg);
+    z-index: -1;
+  }
+  .gear-hole {
+    width: 20rpx;
+    height: 20rpx;
+    border: 5rpx solid #4a4a4a;
+    border-radius: 50%;
+    background: #f5f5f5;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    box-sizing: border-box;
+  }
+  .tool-label {
+    color: #eeeeee;
+    font-size: 24rpx;
+    font-weight: 700;
+    line-height: 1.1;
+    text-shadow: 0 2rpx 2rpx rgba(0, 0, 0, 0.45);
   }
   .game-area {
     flex: 1;
@@ -209,10 +314,21 @@
     left: 50%;
     transform: translateX(-50%);
     z-index: 50;
-    background: #7b2;
-    color: #fff;
+    min-width: 260rpx;
+    height: 78rpx;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    background: linear-gradient(180deg, #ffe1a2 0%, #f2b653 100%);
+    color: #5f3713;
     font-size: 32rpx;
-    padding: 20rpx 60rpx;
-    border-radius: 40rpx;
+    font-weight: 800;
+    padding: 0 58rpx;
+    border: 5rpx solid #98621f;
+    border-radius: 24rpx;
+    box-shadow:
+      inset 0 5rpx 0 rgba(255, 255, 255, 0.45),
+      0 8rpx 0 rgba(68, 39, 12, 0.18);
   }
 </style>
