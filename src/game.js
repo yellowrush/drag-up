@@ -30,22 +30,80 @@ var instruction = ''
 var activePointer = null
 var modalScrollY = 0
 var modalTouchId = null
+var modalTouchMode = ''
+var modalTouchStartX = 0
 var modalTouchStartY = 0
 var modalScrollStartY = 0
+var modalTabScrollX = 0
+var modalTabScrollStartX = 0
+var activeWorldIndex = 0
 
+var LEVEL_WORLDS = [
+  { id: 'cat-box', label: '\u732b\u7bb1\u5b50', levels: LEVELS, enabled: true },
+  { id: 'cat-scratcher', label: '\u732b\u6293\u677f', levels: [], enabled: false },
+  { id: 'yarn-ball', label: '\u6bdb\u7ebf\u7403', levels: [], enabled: false },
+]
 var MODAL_W = 300
 var MODAL_COLS = 3
 var MODAL_GAP = 8
 var MODAL_PAD = 14
+var MODAL_TAB_H = 38
+var MODAL_TAB_W = 106
+var MODAL_TAB_GAP = 8
 var MODAL_CELL_H = 54
 var MODAL_CELL_W = (MODAL_W - MODAL_GAP * (MODAL_COLS + 1)) / MODAL_COLS
 var MODAL_CONTENT_ROWS = Math.ceil(LEVELS.length / MODAL_COLS)
 var MODAL_CONTENT_H = MODAL_CONTENT_ROWS * (MODAL_CELL_H + MODAL_GAP) + MODAL_GAP
-var MODAL_INNER_H = MODAL_PAD * 2 + MODAL_CONTENT_H
+var MODAL_INNER_H = MODAL_PAD * 2 + MODAL_TAB_H + MODAL_GAP + MODAL_CONTENT_H
 var MODAL_H = Math.min(MODAL_INNER_H, H - HEADER_H - 40)
 
 function isInside(x, y, rx, ry, rw, rh) {
   return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh
+}
+
+function getActiveWorld() {
+  return LEVEL_WORLDS[activeWorldIndex] || LEVEL_WORLDS[0]
+}
+
+function getActiveWorldLevels() {
+  return getActiveWorld().levels || []
+}
+
+function getModalGridHeight() {
+  return MODAL_H - MODAL_PAD * 2 - MODAL_TAB_H - MODAL_GAP
+}
+
+function getModalContentHeight() {
+  var rows = Math.ceil(getActiveWorldLevels().length / MODAL_COLS)
+  return rows * (MODAL_CELL_H + MODAL_GAP) + MODAL_GAP
+}
+
+function getModalMaxScroll() {
+  return Math.max(0, getModalContentHeight() - getModalGridHeight())
+}
+
+function getTabStripRect(mx, my) {
+  return {
+    x: mx + MODAL_PAD,
+    y: my + MODAL_PAD,
+    w: MODAL_W - MODAL_PAD * 2,
+    h: MODAL_TAB_H,
+  }
+}
+
+function getModalTabMaxScroll() {
+  var totalW = LEVEL_WORLDS.length * MODAL_TAB_W + Math.max(0, LEVEL_WORLDS.length - 1) * MODAL_TAB_GAP
+  return Math.max(0, totalW - (MODAL_W - MODAL_PAD * 2))
+}
+
+function getWorldTabRect(index, mx, my) {
+  var strip = getTabStripRect(mx, my)
+  return {
+    x: strip.x + index * (MODAL_TAB_W + MODAL_TAB_GAP) - modalTabScrollX,
+    y: strip.y,
+    w: MODAL_TAB_W,
+    h: MODAL_TAB_H,
+  }
 }
 
 function drawRoundRect(r, x, y, w, h, radius) {
@@ -102,8 +160,16 @@ function handleTouchStart(e) {
       return
     }
     modalTouchId = t.identifier
+    modalTouchStartX = x
     modalTouchStartY = y
-    modalScrollStartY = modalScrollY
+    var tabStrip = getTabStripRect(mx, my)
+    if (isInside(x, y, tabStrip.x, tabStrip.y, tabStrip.w, tabStrip.h)) {
+      modalTouchMode = 'tabs'
+      modalTabScrollStartX = modalTabScrollX
+    } else {
+      modalTouchMode = 'grid'
+      modalScrollStartY = modalScrollY
+    }
     return
   }
 
@@ -118,7 +184,9 @@ function handleTouchStart(e) {
         loadLevel(nextId)
       } else {
         completedLevels = GameStorage.getCompletedLevels()
+        activeWorldIndex = 0
         modalScrollY = 0
+        modalTabScrollX = 0
         showLevelSelect = true
       }
       return
@@ -140,7 +208,9 @@ function handleTouchStart(e) {
     }
     if (isInside(x, y, bx + bw + 18, by, bw, bh)) {
       completedLevels = GameStorage.getCompletedLevels()
+      activeWorldIndex = 0
       modalScrollY = 0
+      modalTabScrollX = 0
       showLevelSelect = true
       return
     }
@@ -165,10 +235,17 @@ wx.onTouchMove(function (e) {
   if (showLevelSelect) {
     var t = findTouch(e.touches, modalTouchId)
     if (t) {
-      modalScrollY = modalScrollStartY + (modalTouchStartY - t.clientY)
-      var maxScroll = Math.max(0, MODAL_INNER_H - MODAL_H)
-      if (modalScrollY < 0) modalScrollY = 0
-      if (modalScrollY > maxScroll) modalScrollY = maxScroll
+      if (modalTouchMode === 'tabs') {
+        modalTabScrollX = modalTabScrollStartX + (modalTouchStartX - t.clientX)
+        var maxTabScroll = getModalTabMaxScroll()
+        if (modalTabScrollX < 0) modalTabScrollX = 0
+        if (modalTabScrollX > maxTabScroll) modalTabScrollX = maxTabScroll
+      } else {
+        modalScrollY = modalScrollStartY + (modalTouchStartY - t.clientY)
+        var maxScroll = getModalMaxScroll()
+        if (modalScrollY < 0) modalScrollY = 0
+        if (modalScrollY > maxScroll) modalScrollY = maxScroll
+      }
     }
     return
   }
@@ -180,7 +257,21 @@ wx.onTouchMove(function (e) {
 
 wx.onTouchEnd(function (e) {
   if (showLevelSelect) {
+    var t = findTouch(e.changedTouches, modalTouchId)
+    if (t && modalTouchMode === 'tabs' && Math.abs(t.clientX - modalTouchStartX) < 8 && Math.abs(t.clientY - modalTouchStartY) < 8) {
+      var mx = (W - MODAL_W) / 2
+      var my = (H - MODAL_H) / 2
+      for (var i = 0; i < LEVEL_WORLDS.length; i++) {
+        var tab = getWorldTabRect(i, mx, my)
+        if (isInside(t.clientX, t.clientY, tab.x, tab.y, tab.w, tab.h) && LEVEL_WORLDS[i].enabled !== false) {
+          activeWorldIndex = i
+          modalScrollY = 0
+          break
+        }
+      }
+    }
     modalTouchId = null
+    modalTouchMode = ''
     return
   }
   if (showNext) return
@@ -417,25 +508,87 @@ function drawModal() {
   ctx.strokeStyle = 'rgba(255,255,255,0.22)'
   ctx.lineWidth = 1.5
   ctx.stroke()
+
+  drawWorldTabs(ctx, mx, my)
+
+  var levels = getActiveWorldLevels()
+  var startX = mx + MODAL_GAP
+  var startY = my + MODAL_PAD + MODAL_TAB_H + MODAL_GAP
+  var gridH = getModalGridHeight()
+
   ctx.save()
   ctx.beginPath()
-  ctx.rect(mx, my, MODAL_W, MODAL_H)
+  ctx.rect(mx + MODAL_GAP, startY, MODAL_W - MODAL_GAP * 2, gridH)
   ctx.clip()
 
-  var startX = mx + MODAL_GAP
-  var startY = my + MODAL_PAD + MODAL_GAP
-
-  LEVELS.forEach(function (lv, i) {
+  levels.forEach(function (lv, i) {
     var col = i % MODAL_COLS
     var row = Math.floor(i / MODAL_COLS)
     var cx = startX + col * (MODAL_CELL_W + MODAL_GAP)
     var cy = startY + row * (MODAL_CELL_H + MODAL_GAP) - modalScrollY
-    if (cy > my + MODAL_H || cy + MODAL_CELL_H < my) return
+    if (cy > startY + gridH || cy + MODAL_CELL_H < startY) return
     drawLevelModalCell(ctx, cx, cy, i + 1, completedLevels.includes(lv.id))
   })
 
   ctx.restore()
   ctx.textBaseline = 'alphabetic'
+}
+
+function drawWorldTabs(r, mx, my) {
+  var strip = getTabStripRect(mx, my)
+  r.save()
+  r.beginPath()
+  r.rect(strip.x, strip.y - 2, strip.w, strip.h + 4)
+  r.clip()
+
+  for (var i = 0; i < LEVEL_WORLDS.length; i++) {
+    var world = LEVEL_WORLDS[i]
+    var rect = getWorldTabRect(i, mx, my)
+    if (rect.x > strip.x + strip.w || rect.x + rect.w < strip.x) continue
+    var active = i === activeWorldIndex
+    var enabled = world.enabled !== false
+    r.fillStyle = '#2f2f50'
+    r.strokeStyle = enabled ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.16)'
+    r.lineWidth = 1.4
+    drawRoundRect(r, rect.x, rect.y + 2, rect.w, rect.h - 4, 13)
+    r.fill()
+    if (!active) {
+      if (!enabled && typeof r.setLineDash === 'function') r.setLineDash([5, 4])
+      r.stroke()
+      if (typeof r.setLineDash === 'function') r.setLineDash([])
+    }
+
+    if (active) {
+      r.strokeStyle = '#ffe8af'
+      r.lineWidth = 2
+      r.beginPath()
+      r.moveTo(rect.x + 14, rect.y + rect.h - 5)
+      r.lineTo(rect.x + rect.w - 14, rect.y + rect.h - 5)
+      r.stroke()
+    }
+
+    r.fillStyle = active ? '#ffe8af' : enabled ? '#d9daec' : '#7d8099'
+    r.textAlign = 'center'
+    r.textBaseline = 'middle'
+    if (enabled) {
+      r.font = '13px sans-serif'
+      r.fillText(world.label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 1)
+    } else {
+      r.font = '12px sans-serif'
+      r.fillText(world.label, rect.x + rect.w / 2, rect.y + rect.h / 2 - 5)
+      r.fillStyle = '#656980'
+      r.font = '9px sans-serif'
+      r.fillText('\u5373\u5c06\u5f00\u653e', rect.x + rect.w / 2, rect.y + rect.h / 2 + 10)
+    }
+  }
+
+  r.restore()
+  r.strokeStyle = 'rgba(255,255,255,0.16)'
+  r.lineWidth = 1
+  r.beginPath()
+  r.moveTo(strip.x, strip.y + strip.h + 4)
+  r.lineTo(strip.x + strip.w, strip.y + strip.h + 4)
+  r.stroke()
 }
 
 function drawLevelModalCell(r, x, y, number, completed) {
