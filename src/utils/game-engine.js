@@ -140,12 +140,8 @@ export class GameEngine {
       this.cub.reset();
     }
 
-    // Reset drag state
-    this.dragAngle = null;
-    this.cubDragMove = null;
-    this.isCubDragging = false;
-    this.cubLookTarget = null;
-    this.pointerBehavior = null;
+    // Reset pointer/drag state
+    this.resetPointerState();
     this.winAnim = null;
 
     // Save current level (only valid IDs)
@@ -195,7 +191,9 @@ export class GameEngine {
     this.ctx.clearRect(0, 0, this.canvasSize.width, this.canvasSize.height);
 
     // Render rotate handle (pie slice during rotation drag)
-    this.renderRotateHandle();
+    if (!this.winAnim) {
+      this.renderRotateHandle();
+    }
 
     // Render maze
     this.maze.render(
@@ -269,6 +267,11 @@ export class GameEngine {
   // is always a pre-normalized pointer object (not a raw DOM event).
 
   handlePointerDown(pointer) {
+    if (this.winAnim) {
+      this.resetPointerState();
+      return;
+    }
+
     // For touch devices, shift the hit-test position upward to compensate
     // for finger imprecision (the actual touch point is typically below
     // where the user is looking). Only applied to hit detection, not to
@@ -285,6 +288,8 @@ export class GameEngine {
   }
 
   handlePointerMove(pointer) {
+    if (this.winAnim) return;
+
     if (this.pointerBehavior === 'cubDrag') {
       this.cubDragPointerMove(pointer);
     } else if (this.pointerBehavior === 'mazeRotate') {
@@ -293,6 +298,11 @@ export class GameEngine {
   }
 
   handlePointerUp(pointer) {
+    if (this.winAnim) {
+      this.resetPointerState();
+      return;
+    }
+
     if (this.pointerBehavior === 'cubDrag') {
       this.cubDragPointerUp(pointer);
     } else if (this.pointerBehavior === 'mazeRotate') {
@@ -358,6 +368,20 @@ export class GameEngine {
   }
 
   // ---- cub drag ----
+
+  resetPointerState() {
+    this.pointerBehavior = null;
+    this.isCubDragging = false;
+    this.dragAngle = null;
+    this.cubDragMove = null;
+    this.dragStartPosition = null;
+    this.dragStartPegPosition = null;
+    this.dragStartAngle = null;
+    this.dragStartMazeAngle = null;
+    this.cubLookTarget = null;
+    this.moveAngle = null;
+    this.rotatePointer = null;
+  }
 
   cubDragPointerDown(pointer) {
     var segments = this.getCubConnections();
@@ -542,6 +566,7 @@ export class GameEngine {
 
   completeLevel() {
     // console.log('Level complete!')
+    this.resetPointerState();
     var cubPosition = this.getCubPosition();
     this.winAnim = createGoalSuccessAnimation(
       cubPosition.x,
