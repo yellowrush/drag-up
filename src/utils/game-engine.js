@@ -5,6 +5,7 @@ import { Maze } from './maze.js';
 import { Cub } from './cub.js';
 import { GameStorage } from './storage.js';
 import { LEVELS, LEVEL_MAP } from './levels-data.js';
+import { createGoalSuccessAnimation } from './goal-visuals.js';
 
 var TAU = Math.PI * 2;
 
@@ -32,6 +33,7 @@ export class GameEngine {
     this.dragStartPegPosition = null;
     this.dragStartAngle = null;
     this.dragStartMazeAngle = null;
+    this.cubLookTarget = null;
     this.moveAngle = null;
     this.rotatePointer = null;
 
@@ -142,6 +144,7 @@ export class GameEngine {
     this.dragAngle = null;
     this.cubDragMove = null;
     this.isCubDragging = false;
+    this.cubLookTarget = null;
     this.pointerBehavior = null;
     this.winAnim = null;
 
@@ -200,6 +203,9 @@ export class GameEngine {
       this.mazeCenter,
       this.gridSize,
       this.maze.flyWheel.angle,
+      {
+        hideGoal: !!this.winAnim,
+      },
     );
 
     // Render win animation
@@ -208,14 +214,20 @@ export class GameEngine {
     }
 
     // Render cub
-    var isHovered = this.isCubHovered || this.isCubDragging;
-    this.cub.render(
-      this.ctx,
-      this.mazeCenter,
-      this.gridSize,
-      this.maze.flyWheel.angle,
-      isHovered,
-    );
+    if (!this.winAnim) {
+      var isHovered = this.isCubHovered || this.isCubDragging;
+      this.cub.render(
+        this.ctx,
+        this.mazeCenter,
+        this.gridSize,
+        this.maze.flyWheel.angle,
+        isHovered,
+        {
+          isDragging: this.isCubDragging,
+          lookTarget: this.cubLookTarget,
+        },
+      );
+    }
   }
 
   renderRotateHandle() {
@@ -317,11 +329,31 @@ export class GameEngine {
         // fallback to cached values
       }
     }
-    var canvasX = pointer.x - left;
-    var canvasY = pointer.y - top;
+    var canvasPoint = this.getCanvasPoint(pointer, left, top);
     return {
-      x: canvasX - this.mazeCenter.x,
-      y: canvasY - this.mazeCenter.y,
+      x: canvasPoint.x - this.mazeCenter.x,
+      y: canvasPoint.y - this.mazeCenter.y,
+    };
+  }
+
+  getCanvasPoint(pointer, cachedLeft, cachedTop) {
+    var left = cachedLeft != null ? cachedLeft : this.canvasLeft;
+    var top = cachedTop != null ? cachedTop : this.canvasTop;
+    if (
+      (cachedLeft == null || cachedTop == null) &&
+      typeof this.canvas.getBoundingClientRect === 'function'
+    ) {
+      try {
+        var rect = this.canvas.getBoundingClientRect();
+        left = rect.left;
+        top = rect.top;
+      } catch (err) {
+        // fallback to cached values
+      }
+    }
+    return {
+      x: pointer.x - left,
+      y: pointer.y - top,
     };
   }
 
@@ -333,6 +365,7 @@ export class GameEngine {
       return;
     }
     this.isCubDragging = true;
+    this.cubLookTarget = this.getCanvasPoint(pointer);
     this.dragStartPosition = { x: pointer.x, y: pointer.y };
     this.dragStartPegPosition = {
       x: this.cub[this.maze.orientation].x * this.gridSize + this.mazeCenter.x,
@@ -342,6 +375,7 @@ export class GameEngine {
 
   cubDragPointerMove(pointer) {
     if (!this.isCubDragging) return;
+    this.cubLookTarget = this.getCanvasPoint(pointer);
     this.cubDragMove = {
       x: pointer.x - this.dragStartPosition.x,
       y: pointer.y - this.dragStartPosition.y,
@@ -352,6 +386,7 @@ export class GameEngine {
   cubDragPointerUp() {
     this.cubDragMove = null;
     this.isCubDragging = false;
+    this.cubLookTarget = null;
 
     // Set at peg (snap to peg)
     this.cub.setOffset({ x: 0, y: 0 }, this.maze.orientation);
@@ -508,7 +543,12 @@ export class GameEngine {
   completeLevel() {
     // console.log('Level complete!')
     var cubPosition = this.getCubPosition();
-    this.winAnim = new WinAnimation(cubPosition.x, cubPosition.y);
+    this.winAnim = createGoalSuccessAnimation(
+      cubPosition.x,
+      cubPosition.y,
+      this.maze.goalIcon,
+      this.gridSize,
+    );
 
     // Save completion
     GameStorage.markLevelCompleted(this.maze.id);
@@ -549,74 +589,3 @@ function addPegPoint(point, pegs) {
   }
 }
 
-// ---- win animation ----
-
-var winDuration = 1000;
-
-function WinAnimation(x, y) {
-  this.x = x;
-  this.y = y;
-  this.startTime = new Date();
-  this.isPlaying = true;
-}
-
-WinAnimation.prototype.update = function () {
-  if (!this.isPlaying) return;
-  this.t = (new Date() - this.startTime) / winDuration;
-  this.isPlaying = this.t <= 1;
-};
-
-WinAnimation.prototype.render = function (ctx) {
-  if (!this.isPlaying) return;
-
-  ctx.save();
-  ctx.translate(this.x, this.y);
-
-  // Big burst
-  this.renderBurst(ctx);
-  // Small burst
-  ctx.save();
-  ctx.scale(0.5, -0.5);
-  this.renderBurst(ctx);
-  ctx.restore();
-
-  ctx.restore();
-};
-
-WinAnimation.prototype.renderBurst = function (ctx) {
-  var t = this.t;
-  var dt = 1 - t;
-  var easeT = 1 - dt * dt * dt * dt * dt * dt * dt * dt;
-  var dy = easeT * -100;
-  var scale = (1 - t * t * t) * 1.5;
-  var spin = Math.PI * 1 * t * t * t;
-
-  for (var i = 0; i < 5; i++) {
-    ctx.save();
-    ctx.rotate(((Math.PI * 2) / 5) * i);
-    ctx.translate(0, dy);
-    ctx.scale(scale, scale);
-    ctx.rotate(spin);
-    renderStar(ctx);
-    ctx.restore();
-  }
-};
-
-function renderStar(ctx) {
-  ctx.lineWidth = 8;
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-  ctx.fillStyle = 'rgba(255,212,0,1)';
-  ctx.strokeStyle = 'rgba(255,212,0,1)';
-  ctx.beginPath();
-  for (var i = 0; i < 11; i++) {
-    var theta = (Math.PI * 2 * i) / 10 + Math.PI / 2;
-    var radius = i % 2 ? 20 : 10;
-    var dx = Math.cos(theta) * radius;
-    var dy = Math.sin(theta) * radius;
-    ctx[i ? 'lineTo' : 'moveTo'](dx, dy);
-  }
-  ctx.fill();
-  ctx.stroke();
-  ctx.closePath();
-}

@@ -7,6 +7,7 @@ import { PivotSegment } from './track-segments.js'
 import { RotateSegment } from './track-segments.js'
 import { FlyWheel } from './flywheel.js'
 import { Cub } from './cub.js'
+import { renderGoalIcon } from './goal-visuals.js'
 
 var TAU = Math.PI * 2
 
@@ -32,6 +33,7 @@ export class Maze {
     this.gridMax = 0
     this.startPosition = null
     this.goalPosition = null
+    this.goalIcon = 'box'
     this.id = null
     this.instruction = ''
   }
@@ -48,6 +50,7 @@ export class Maze {
     this.orientation = 'noon'
     this.startPosition = null
     this.goalPosition = null
+    this.goalIcon = 'box'
 
     var sections = text.split('---\n')
     var frontMatter = {}
@@ -55,6 +58,7 @@ export class Maze {
       frontMatter = getFrontMatter(sections[0])
     }
     this.instruction = frontMatter.instruction || ''
+    this.goalIcon = frontMatter.goal || 'box'
 
     var mazeSrc = sections[sections.length - 1]
     var lines = mazeSrc.split('\n')
@@ -137,7 +141,7 @@ export class Maze {
     this.flyWheel.applyForce(attraction)
   }
 
-  render(ctx, center, gridSize, angle) {
+  render(ctx, center, gridSize, angle, options) {
     var orientationAngle = orientationAngles[angle]
     var gridMax = this.gridMax
     angle = orientationAngle !== undefined ? orientationAngle : angle || 0
@@ -200,13 +204,10 @@ export class Maze {
     })
 
     // goal position
-    if (this.goalPosition) {
+    if (this.goalPosition && !options?.hideGoal) {
       var goalX = this.goalPosition.x * gridSize
       var goalY = this.goalPosition.y * gridSize
-      ctx.lineWidth = gridSize * 0.3
-      ctx.fillStyle = 'rgba(255,212,0,1)'
-      ctx.strokeStyle = 'rgba(255,212,0,1)'
-      renderGoal(ctx, goalX, goalY, angle, gridSize * 0.6, gridSize * 0.3)
+      renderGoalIcon(ctx, goalX, goalY, angle, gridSize, this.goalIcon)
     }
 
     ctx.restore()
@@ -222,6 +223,7 @@ export class Maze {
     this.orientation = 'noon'
     this.startPosition = null
     this.goalPosition = null
+    this.goalIcon = 'box'
   }
 }
 
@@ -428,24 +430,6 @@ function strokeCircle(ctx, x, y, radius) {
   ctx.arc(x, y, radius, 0, Math.PI * 2)
   ctx.stroke()
   ctx.closePath()
-}
-
-function renderGoal(ctx, x, y, mazeAngle, radiusA, radiusB) {
-  ctx.save()
-  ctx.translate(x, y)
-  ctx.rotate(-mazeAngle)
-  ctx.beginPath()
-  for (var i = 0; i < 11; i++) {
-    var theta = Math.PI * 2 * i / 10 + Math.PI / 2
-    var radius = i % 2 ? radiusA : radiusB
-    var dx = Math.cos(theta) * radius
-    var dy = Math.sin(theta) * radius
-    ctx[i ? 'lineTo' : 'moveTo'](dx, dy)
-  }
-  ctx.fill()
-  ctx.stroke()
-  ctx.closePath()
-  ctx.restore()
 }
 
 function getFrontMatter(text) {
