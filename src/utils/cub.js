@@ -1,4 +1,4 @@
-// Cub class - the player character
+// Cub class - the player character (cat)
 // Migrated from original game's cub object
 
 export const Cub = {
