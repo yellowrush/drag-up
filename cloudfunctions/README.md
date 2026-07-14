@@ -1,7 +1,7 @@
 # Leaderboard Cloud Functions
 
-Create a CloudBase production environment, then create the
-`leaderboard_scores` collection and deploy both functions:
+Create a WeChat Cloud environment that belongs to the Mini Game appid, then
+deploy both functions:
 
 - `syncLeaderboardScore`
 - `getLeaderboard` (returns the top 10)
@@ -13,18 +13,24 @@ npm run build:minigame
 npm run deploy:cloudfunctions
 ```
 
-The deploy script uses `cloudbaserc.json` and CloudBase CLI. If the CLI asks
-for authorization, open the printed URL and confirm with the shown user code.
+The deploy script uses `cloudbaserc.json` and `miniprogram-ci`, so it deploys
+through the Mini Game appid and upload private key.
 
 Each player record uses the normal `openid` field as the unique player key.
 Do not create or write a custom `_openid` field, and do not use level ids such
 as `level-1` as dynamic object keys.
+
+Only players who authorized profile display info are synced into the leaderboard.
+Anonymous/local preview records are rejected by `syncLeaderboardScore`, ignored
+by `getLeaderboard`, and old anonymous rows are cleaned during leaderboard reads.
 
 Player document shape:
 
 ```json
 {
   "schemaVersion": 2,
+  "authorized": true,
+  "playerKey": "openid:player-openid",
   "openid": "player-openid",
   "scores": [
     { "levelId": "level-1", "score": 10 },
@@ -32,8 +38,8 @@ Player document shape:
   ],
   "totalScore": 18,
   "completedCount": 2,
-  "nickname": "Anonymous",
-  "avatarUrl": "",
+  "nickname": "Player nickname",
+  "avatarUrl": "https://avatar.example",
   "createdAt": "server date",
   "updatedAt": "server date"
 }
@@ -47,4 +53,7 @@ Recommended collection index:
 - `openid` ascending
 
 Set `CLOUD_ENV_ID` in `src/utils/leaderboard-config.js` before publishing a
-live build.
+live build. For the `wx.cloud` client path this must be a WeChat Cloud
+environment that belongs to the same Mini Game appid used by `upload.js`;
+standalone Tencent CloudBase/qcloud environments are not visible to
+`wx.cloud.callFunction` and will report `INVALID_ENV`.

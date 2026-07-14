@@ -147,10 +147,19 @@
           <view v-else>
             <view class="leaderboard-actions">
               <view class="leaderboard-self">
-                <text class="leaderboard-self-label">&#25105;&#30340;&#25490;&#21517;</text>
-                <text class="leaderboard-self-score">
-                  {{ leaderboardSelf ? `#${leaderboardSelf.rank} / ${leaderboardSelf.totalScore}` : '--' }}
-                </text>
+                <image
+                  v-if="leaderboardProfileAvatar"
+                  class="leaderboard-self-avatar"
+                  :src="leaderboardProfileAvatar"
+                  mode="aspectFill"
+                />
+                <view v-else class="leaderboard-self-avatar placeholder"></view>
+                <view class="leaderboard-self-copy">
+                  <text class="leaderboard-self-label">{{ leaderboardProfileName }}</text>
+                  <text class="leaderboard-self-score">
+                    {{ leaderboardSelf ? `#${leaderboardSelf.rank} / ${leaderboardSelf.totalScore}` : '--' }}
+                  </text>
+                </view>
               </view>
               <view class="leaderboard-auth" @tap="onAuthorizeLeaderboard">
                 {{ leaderboardAuthText }}
@@ -171,8 +180,8 @@
             </view>
             <scroll-view v-else scroll-y class="leaderboard-scroll">
               <view
-                v-for="row in leaderboardRows"
-                :key="row.rank"
+                v-for="(row, index) in leaderboardRows"
+                :key="row.playerKey || row.openid || row.nickname || `rank-${row.rank || index}`"
                 class="leaderboard-row"
                 :class="{ self: row.isSelf }"
               >
@@ -227,10 +236,27 @@
   const totalScoreText = '\u603b\u79ef\u5206';
   const anonymousPlayerText = '\u533f\u540d\u73a9\u5bb6';
   const leaderboardLoadFailedText = '\u6392\u884c\u699c\u52a0\u8f7d\u5931\u8d25';
+  const leaderboardNoUserText = '\u672c\u5730\u73a9\u5bb6';
+  const leaderboardSyncDelay = 1200;
+  const leaderboardSyncMinInterval = 30000;
   let currentLevelId = '';
+  let leaderboardSyncTimer: any = null;
+  let leaderboardSyncPending = false;
+  let leaderboardSyncInFlight = false;
+  let leaderboardLastSyncAt = 0;
 
   const totalScore = computed(() => rewardState.value.totalScore || 0);
-  const leaderboardAuthText = computed(() => '\u6388\u6743');
+  const leaderboardAuthText = computed(() =>
+    leaderboardProfile.value ? '\u66f4\u65b0' : '\u6388\u6743',
+  );
+  const leaderboardProfileName = computed(() => {
+    return leaderboardProfile.value && leaderboardProfile.value.nickname
+      ? leaderboardProfile.value.nickname
+      : leaderboardNoUserText;
+  });
+  const leaderboardProfileAvatar = computed(() =>
+    leaderboardProfile.value ? leaderboardProfile.value.avatarUrl || '' : '',
+  );
   const rewardItems = computed(() => {
     const source = activeRewardTab.value === 'expression' ? EXPRESSIONS : ACCESSORIES;
     return source.map((item: any) => ({
@@ -336,8 +362,24 @@
     }
   }
 
-  async function syncLeaderboardInBackground() {
+  function syncLeaderboardInBackground() {
     if (!LeaderboardClient.isSupported()) return;
+    leaderboardSyncPending = true;
+    const elapsed = Date.now() - leaderboardLastSyncAt;
+    const wait = Math.max(
+      leaderboardSyncDelay,
+      leaderboardSyncMinInterval - elapsed,
+    );
+    if (leaderboardSyncTimer) return;
+    leaderboardSyncTimer = setTimeout(runQueuedLeaderboardSync, wait);
+  }
+
+  async function runQueuedLeaderboardSync() {
+    leaderboardSyncTimer = null;
+    if (!leaderboardSyncPending || leaderboardSyncInFlight) return;
+    leaderboardSyncPending = false;
+    leaderboardSyncInFlight = true;
+    leaderboardLastSyncAt = Date.now();
     try {
       await LeaderboardClient.syncScore(
         rewardState.value.levelScores || {},
@@ -345,6 +387,11 @@
       );
     } catch (e) {
       /* leaderboard sync is best-effort */
+    } finally {
+      leaderboardSyncInFlight = false;
+      if (leaderboardSyncPending) {
+        syncLeaderboardInBackground();
+      }
     }
   }
 
@@ -358,6 +405,11 @@
     }
     leaderboardStatus.value = 'loading';
     leaderboardError.value = '';
+    if (leaderboardSyncTimer) {
+      clearTimeout(leaderboardSyncTimer);
+      leaderboardSyncTimer = null;
+    }
+    leaderboardSyncPending = false;
     try {
       const result: any = await LeaderboardClient.syncAndFetch(
         rewardState.value.levelScores || {},
@@ -366,9 +418,17 @@
           limit: 10,
         },
       );
+      if (result && result.ok === false) {
+        leaderboardRows.value = [];
+        leaderboardSelf.value = null;
+        leaderboardError.value = leaderboardLoadFailedText;
+        leaderboardStatus.value = 'error';
+        return;
+      }
       leaderboardRows.value = result.rows || [];
       leaderboardSelf.value = result.self || null;
       leaderboardStatus.value = 'ready';
+      leaderboardLastSyncAt = Date.now();
     } catch (e: any) {
       leaderboardError.value = leaderboardLoadFailedText;
       leaderboardStatus.value = 'error';
@@ -377,7 +437,10 @@
 
   async function onAuthorizeLeaderboard() {
     const result: any = await LeaderboardClient.requestProfile();
-    if (!result.ok) return;
+    if (!result.ok) {
+      leaderboardProfile.value = LeaderboardClient.getStoredProfile();
+      return;
+    }
     leaderboardProfile.value = result.profile;
     await loadLeaderboard();
   }
@@ -797,17 +860,39 @@
     min-width: 0;
     height: 42px;
     display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 3px;
-    padding: 0 10px;
+    align-items: center;
+    gap: 8px;
+    padding: 0 8px;
     background: #34344f;
     border-radius: 8px;
     box-sizing: border-box;
   }
+  .leaderboard-self-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: #222238;
+    flex-shrink: 0;
+  }
+  .leaderboard-self-avatar.placeholder {
+    border: 2px solid #5c5f77;
+    box-sizing: border-box;
+  }
+  .leaderboard-self-copy {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+  }
   .leaderboard-self-label {
     color: #aeb0c8;
     font-size: 11px;
+    font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .leaderboard-self-score {
     color: #ffe8af;

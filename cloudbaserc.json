@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
-  "envId": "drag-meow-d8ggfohez51d8d1d7",
+  "envId": "cloudbase-d9gr8r6jkb1656853",
   "functionRoot": "dist/build/minigame/cloudfunctions",
   "functions": [
     {

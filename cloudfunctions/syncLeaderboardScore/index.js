@@ -1,15 +1,29 @@
 const cloudbase = require('@cloudbase/node-sdk')
 
 const app = cloudbase.init({
-  env: process.env.TCB_ENV || process.env.SCF_NAMESPACE || 'drag-meow-d8ggfohez51d8d1d7',
+  env: process.env.TCB_ENV || process.env.SCF_NAMESPACE || 'cloudbase-d9gr8r6jkb1656853',
 })
 const db = app.database()
-const _ = db.command
 const COLLECTION = 'leaderboard_scores'
 const SCORE_SCHEMA_VERSION = 2
 const MAX_LEVEL_SCORE = 10
 const MIN_LEVEL_SCORE = 1
 const MAX_LEVEL_ID_LENGTH = 48
+const DEFAULT_PLAYER_NAME = '\u5fae\u4fe1\u73a9\u5bb6'
+let collectionReady = false
+
+async function ensureCollection() {
+  if (collectionReady || typeof db.createCollection !== 'function') return
+  try {
+    await db.createCollection(COLLECTION)
+  } catch (err) {
+    const message = String((err && (err.message || err.errMsg || err.code)) || err || '')
+    if (!/exist|already/i.test(message)) {
+      console.warn('create collection skipped:', message)
+    }
+  }
+  collectionReady = true
+}
 
 function clampLevelScore(score) {
   const value = Math.round(Number(score) || 0)
@@ -106,76 +120,152 @@ function sanitizeText(value, maxLength) {
   return String(value || '').trim().slice(0, maxLength)
 }
 
-function getOpenId(context) {
+function pickOpenId(source) {
+  if (!source || typeof source !== 'object') return ''
+  const userInfo = source.userInfo || source.UserInfo || {}
+  return (
+    source.WX_OPENID ||
+    source.OPENID ||
+    source.openid ||
+    source.openId ||
+    source.wxOpenId ||
+    userInfo.WX_OPENID ||
+    userInfo.OPENID ||
+    userInfo.openid ||
+    userInfo.openId ||
+    userInfo.wxOpenId ||
+    ''
+  )
+}
+
+function getOpenId(event, context) {
   const wxContext =
     typeof cloudbase.getWXContext === 'function' ? cloudbase.getWXContext() : {}
   const auth = typeof app.auth === 'function' ? app.auth() : null
   const userInfo =
     auth && typeof auth.getUserInfo === 'function' ? auth.getUserInfo() : {}
   return (
-    wxContext.OPENID ||
-    wxContext.openid ||
-    userInfo.openId ||
-    userInfo.openid ||
-    (context && (context.OPENID || context.openid || context.openId)) ||
+    pickOpenId(wxContext) ||
+    pickOpenId(userInfo) ||
+    pickOpenId(event) ||
+    pickOpenId(context) ||
     ''
   )
 }
 
+function getPlayerIdentity(event, context) {
+  const openid = getOpenId(event, context)
+  if (!openid) return null
+  return {
+    openid,
+    playerKey: `openid:${openid}`,
+  }
+}
+
+async function findFirst(collection, condition) {
+  try {
+    const res = await collection.where(condition).limit(1).get()
+    return res.data && res.data[0]
+  } catch (err) {
+    console.warn('find leaderboard player skipped:', condition, err && (err.message || err.errMsg || err))
+    return null
+  }
+}
+
+async function findExistingPlayer(collection, identity) {
+  let existing = await findFirst(collection, { playerKey: identity.playerKey })
+  if (!existing && identity.openid) {
+    existing = await findFirst(collection, { openid: identity.openid })
+  }
+  if (!existing) {
+    existing = await findFirst(collection, { 'data.playerKey': identity.playerKey })
+  }
+  if (!existing && identity.openid) {
+    existing = await findFirst(collection, { 'data.openid': identity.openid })
+  }
+  return existing
+}
+
 exports.main = async function (event, context) {
-  const openid = getOpenId(context)
-  if (!openid) {
+  event = event || {}
+  const identity = getPlayerIdentity(event, context)
+  if (!identity) {
+    console.warn('leaderboard sync missing openid', {
+      eventKeys: Object.keys(event || {}),
+      contextKeys: Object.keys(context || {}),
+      hasEventUserInfo: !!(event && event.userInfo),
+    })
     return { ok: false, reason: 'missing-openid' }
   }
 
-  const incomingRaw = event.scores || event.levelScores
-  const incomingScores = normalizeScores(incomingRaw)
-  const nickname = sanitizeText(event.nickname, 24)
-  const avatarUrl = sanitizeText(event.avatarUrl, 300)
-  const collection = db.collection(COLLECTION)
+  try {
+    const incomingRaw = event.scores || event.levelScores
+    const incomingScores = normalizeScores(incomingRaw)
+    const nickname = sanitizeText(event.nickname, 24)
+    const avatarUrl = sanitizeText(event.avatarUrl, 300)
+    if (event.authorized !== true || (!nickname && !avatarUrl)) {
+      return { ok: false, reason: 'profile-required' }
+    }
+    await ensureCollection()
+    const collection = db.collection(COLLECTION)
 
-  const existingRes = await collection.where({ openid }).limit(1).get()
-  const existing = existingRes.data && existingRes.data[0]
-  const storedScores = mergeScoreMaps(
-    normalizeScores(existing && existing.levelScores),
-    normalizeScores(existing && existing.scores),
-  )
-  const scoreMap = mergeScoreMaps(storedScores, incomingScores)
-  const summary = summarize(scoreMap)
-  const now = db.serverDate()
+    const existing = await findExistingPlayer(collection, identity)
+    const existingData = existing && existing.data
+    const storedScores = mergeScoreMaps(
+      mergeScoreMaps(
+        normalizeScores(existing && existing.levelScores),
+        normalizeScores(existingData && existingData.levelScores),
+      ),
+      mergeScoreMaps(
+        normalizeScores(existing && existing.scores),
+        normalizeScores(existingData && existingData.scores),
+      ),
+    )
+    const scoreMap = mergeScoreMaps(storedScores, incomingScores)
+    const summary = summarize(scoreMap)
+    const now = db.serverDate()
 
-  const data = {
-    schemaVersion: SCORE_SCHEMA_VERSION,
-    openid,
-    scores: toScoreArray(scoreMap),
-    totalScore: summary.totalScore,
-    completedCount: summary.completedCount,
-    updatedAt: now,
-  }
-  if (nickname) data.nickname = nickname
-  if (avatarUrl) data.avatarUrl = avatarUrl
+    const data = {
+      schemaVersion: SCORE_SCHEMA_VERSION,
+      authorized: true,
+      playerKey: identity.playerKey,
+      openid: identity.openid,
+      scores: toScoreArray(scoreMap),
+      totalScore: summary.totalScore,
+      completedCount: summary.completedCount,
+      updatedAt: now,
+    }
+    data.nickname = nickname || DEFAULT_PLAYER_NAME
+    if (avatarUrl) data.avatarUrl = avatarUrl
 
-  if (existing) {
-    await collection.doc(existing._id).update({
-      data: {
+    let docId = existing && existing._id
+    if (existing) {
+      await collection.doc(existing._id).update(data)
+    } else {
+      const addResult = await collection.add({
         ...data,
-        levelScores: _.remove(),
-      },
-    })
-  } else {
-    await collection.add({
-      data: {
-        ...data,
-        nickname: nickname || '\u533f\u540d\u73a9\u5bb6',
         avatarUrl: avatarUrl || '',
         createdAt: now,
-      },
-    })
-  }
+      })
+      docId = addResult && (addResult.id || (addResult.ids && addResult.ids[0]))
+    }
 
-  return {
-    ok: true,
-    totalScore: summary.totalScore,
-    completedCount: summary.completedCount,
+    return {
+      ok: true,
+      totalScore: summary.totalScore,
+      completedCount: summary.completedCount,
+      scoreCount: data.scores.length,
+      updatedExisting: !!existing,
+      docId: docId || '',
+      openidTail: String(identity.openid || '').slice(-6),
+    }
+  } catch (err) {
+    const message = String((err && (err.message || err.errMsg || err.code)) || err || '')
+    console.error('syncLeaderboardScore write failed:', message)
+    return {
+      ok: false,
+      reason: 'db-write-failed',
+      errMsg: message,
+    }
   }
 }

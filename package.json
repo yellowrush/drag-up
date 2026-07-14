@@ -12,7 +12,8 @@
     "build:minigame": "node build-minigame.js",
     "upload:mp-weixin": "node upload.js",
     "upload:minigame": "node upload.js minigame",
-    "deploy:cloudfunctions": "npx --package @cloudbase/cli cloudbase --config-file cloudbaserc.json fn deploy --all --force",
+    "deploy:cloudfunctions": "node deploy-cloudfunctions-minigame.js",
+    "deploy:cloudfunctions:cloudbase": "npx --package @cloudbase/cli cloudbase --config-file cloudbaserc.json fn deploy --all --force",
     "deploy:mp-weixin": "uni build --platform mp-weixin && node upload.js"
   },
   "dependencies": {

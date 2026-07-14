@@ -54,6 +54,20 @@ var leaderboardState = {
 var avatarImageCache = {}
 var leaderboardAuthButton = null
 var leaderboardAuthButtonKey = ''
+var LEADERBOARD_NO_USER_TEXT = '\u6ca1\u6709\u7528\u6237'
+var LEADERBOARD_LOAD_FAILED_TEXT = '\u6392\u884c\u699c\u52a0\u8f7d\u5931\u8d25'
+var LEADERBOARD_INVALID_ENV_TEXT = '\u4e91\u73af\u5883\u672a\u7ed1\u5b9a\u5f53\u524d\u5c0f\u6e38\u620f'
+var LEADERBOARD_FUNCTION_MISSING_TEXT = '\u6392\u884c\u699c\u4e91\u51fd\u6570\u672a\u90e8\u7f72'
+var LEADERBOARD_IDENTITY_FAILED_TEXT = '\u65e0\u6cd5\u83b7\u53d6\u5fae\u4fe1\u7528\u6237\u8eab\u4efd'
+var LEADERBOARD_PRIVACY_UNDECLARED_TEXT = '\u8bf7\u5148\u914d\u7f6e\u9690\u79c1\u4fdd\u62a4\u6307\u5f15'
+var LEADERBOARD_WRITE_FAILED_TEXT = '\u79ef\u5206\u540c\u6b65\u5931\u8d25'
+var LEADERBOARD_READ_FAILED_TEXT = '\u6392\u884c\u699c\u8bfb\u53d6\u5931\u8d25'
+var LEADERBOARD_SYNC_DELAY = 1200
+var LEADERBOARD_SYNC_MIN_INTERVAL = 30000
+var leaderboardSyncTimer = null
+var leaderboardSyncPending = false
+var leaderboardSyncInFlight = false
+var leaderboardLastSyncAt = 0
 
 var LEVEL_WORLDS = [
   { id: 'cat-box', label: '\u732b\u7bb1\u5b50', levels: LEVELS, enabled: true },
@@ -236,14 +250,54 @@ function useReward(item) {
 
 function syncLeaderboardInBackground() {
   if (!LeaderboardClient.isSupported()) return
+  if (!leaderboardState.profile) return
+  leaderboardSyncPending = true
+  var elapsed = Date.now() - leaderboardLastSyncAt
+  var wait = Math.max(LEADERBOARD_SYNC_DELAY, LEADERBOARD_SYNC_MIN_INTERVAL - elapsed)
+  if (leaderboardSyncTimer) return
+  leaderboardSyncTimer = setTimeout(runQueuedLeaderboardSync, wait)
+}
+
+function runQueuedLeaderboardSync() {
+  leaderboardSyncTimer = null
+  if (!leaderboardSyncPending || leaderboardSyncInFlight) return
+  if (!leaderboardState.profile) return
+  leaderboardSyncPending = false
+  leaderboardSyncInFlight = true
+  leaderboardLastSyncAt = Date.now()
   LeaderboardClient.syncScore(
     rewardState.levelScores || {},
     leaderboardState.profile,
-  ).catch(function () {})
+  ).catch(function () {}).then(function () {
+    leaderboardSyncInFlight = false
+    if (leaderboardSyncPending) {
+      syncLeaderboardInBackground()
+    }
+  })
+}
+
+function logLeaderboardUi(message, detail) {
+  if (typeof console === 'undefined' || typeof console.log !== 'function') return
+  console.log('[leaderboard-ui] ' + message, detail || '')
+}
+
+function getLeaderboardErrorText(reason) {
+  if (reason === 'invalid-env') return LEADERBOARD_INVALID_ENV_TEXT
+  if (reason === 'function-not-found') return LEADERBOARD_FUNCTION_MISSING_TEXT
+  if (reason === 'missing-openid') return LEADERBOARD_IDENTITY_FAILED_TEXT
+  if (reason === 'privacy-undeclared' || reason === 'privacy-required') return LEADERBOARD_PRIVACY_UNDECLARED_TEXT
+  if (reason === 'db-write-failed') return LEADERBOARD_WRITE_FAILED_TEXT
+  if (reason === 'db-read-failed') return LEADERBOARD_READ_FAILED_TEXT
+  return LEADERBOARD_LOAD_FAILED_TEXT
 }
 
 function loadLeaderboard() {
   refreshRewards()
+  logLeaderboardUi('load leaderboard', {
+    hasProfile: !!leaderboardState.profile,
+    localTotalScore: rewardState.totalScore || 0,
+    localLevelCount: rewardState.levelScores ? Object.keys(rewardState.levelScores).length : 0,
+  })
   if (!LeaderboardClient.isSupported()) {
     leaderboardState.status = 'unavailable'
     leaderboardState.rows = []
@@ -253,18 +307,37 @@ function loadLeaderboard() {
   }
   leaderboardState.status = 'loading'
   leaderboardState.error = ''
-  LeaderboardClient.syncAndFetch(rewardState.levelScores || {}, {
-    profile: leaderboardState.profile,
-    limit: 10,
+  if (leaderboardSyncTimer) {
+    clearTimeout(leaderboardSyncTimer)
+    leaderboardSyncTimer = null
+  }
+  leaderboardSyncPending = false
+  LeaderboardClient.refreshProfileFromCache().then(function (profileResult) {
+    if (profileResult && profileResult.profile) {
+      leaderboardState.profile = profileResult.profile
+    }
+    return LeaderboardClient.syncAndFetch(rewardState.levelScores || {}, {
+      profile: leaderboardState.profile,
+      limit: 10,
+    })
   }).then(function (result) {
+    if (result && result.ok === false) {
+      leaderboardState.rows = []
+      leaderboardState.self = null
+      leaderboardState.error = getLeaderboardErrorText(result.reason)
+      leaderboardState.status = 'error'
+      scoreScrollY = 0
+      return
+    }
     leaderboardState.rows = result.rows || []
     leaderboardState.self = result.self || null
     leaderboardState.status = 'ready'
+    leaderboardLastSyncAt = Date.now()
     scoreScrollY = 0
-  }).catch(function () {
+  }).catch(function (err) {
     leaderboardState.rows = []
     leaderboardState.self = null
-    leaderboardState.error = '\u6392\u884c\u699c\u52a0\u8f7d\u5931\u8d25'
+    leaderboardState.error = getLeaderboardErrorText(err && err.reason)
     leaderboardState.status = 'error'
     scoreScrollY = 0
   })
@@ -272,8 +345,25 @@ function loadLeaderboard() {
 
 function authorizeLeaderboard() {
   if (!LeaderboardClient.isSupported()) return
+  logLeaderboardUi('authorize/update tapped', {
+    hadProfile: !!leaderboardState.profile,
+    localTotalScore: rewardState.totalScore || 0,
+  })
+  leaderboardState.status = 'loading'
+  leaderboardState.error = ''
   LeaderboardClient.requestProfile().then(function (result) {
-    if (!result.ok) return
+    if (!result.ok) {
+      leaderboardState.profile = LeaderboardClient.getStoredProfile()
+      if (result.reason === 'privacy-undeclared' || result.reason === 'privacy-required') {
+        leaderboardState.rows = []
+        leaderboardState.self = null
+        leaderboardState.error = getLeaderboardErrorText(result.reason)
+        leaderboardState.status = 'error'
+        return
+      }
+      loadLeaderboard()
+      return
+    }
     leaderboardState.profile = result.profile
     loadLeaderboard()
   })
@@ -299,56 +389,25 @@ function destroyLeaderboardAuthButton() {
 }
 
 function syncLeaderboardAuthButton() {
-  if (
-    !showScoreModal ||
-    activeRewardTab !== 'leaderboard' ||
-    leaderboardState.status === 'unavailable' ||
-    typeof wx.createUserInfoButton !== 'function'
-  ) {
-    destroyLeaderboardAuthButton()
-    return
-  }
-
-  var mx = (W - SCORE_MODAL_W) / 2
-  var my = (H - SCORE_MODAL_H) / 2
-  var rect = getLeaderboardAuthRect(mx, my)
-  var key = [
-    Math.round(rect.x),
-    Math.round(rect.y),
-    Math.round(rect.w),
-    Math.round(rect.h),
-  ].join(':')
-  if (leaderboardAuthButton && leaderboardAuthButtonKey === key) return
-
+  // Use the canvas tap handler to call wx.getUserProfile directly. Some
+  // experience-build runtimes do not return userInfo from createUserInfoButton.
   destroyLeaderboardAuthButton()
-  leaderboardAuthButton = wx.createUserInfoButton({
-    type: 'text',
-    text: '',
-    style: {
-      left: rect.x,
-      top: rect.y,
-      width: rect.w,
-      height: rect.h,
-      lineHeight: rect.h,
-      backgroundColor: 'rgba(0,0,0,0)',
-      color: 'rgba(0,0,0,0)',
-      borderColor: 'rgba(0,0,0,0)',
-      borderWidth: 0,
-      borderRadius: 8,
-      fontSize: 1,
-      textAlign: 'center',
-    },
-  })
-  leaderboardAuthButtonKey = key
-  leaderboardAuthButton.onTap(function (res) {
-    var userInfo = res && res.userInfo
-    if (!userInfo) return
-    leaderboardState.profile = LeaderboardClient.saveProfile({
-      nickname: userInfo.nickName || '',
-      avatarUrl: userInfo.avatarUrl || '',
-    })
-    loadLeaderboard()
-  })
+}
+
+function getLeaderboardAuthText() {
+  return leaderboardState.profile ? '\u66f4\u65b0' : '\u6388\u6743'
+}
+
+function getLeaderboardProfileName() {
+  return leaderboardState.profile && leaderboardState.profile.nickname
+    ? leaderboardState.profile.nickname
+    : LEADERBOARD_NO_USER_TEXT
+}
+
+function getLeaderboardProfileAvatar() {
+  return leaderboardState.profile && leaderboardState.profile.avatarUrl
+    ? leaderboardState.profile.avatarUrl
+    : ''
 }
 
 function drawRoundRect(r, x, y, w, h, radius) {
@@ -565,12 +624,10 @@ wx.onTouchEnd(function (e) {
             isInsideRect(st.clientX, st.clientY, getLeaderboardRetryRect(smx, smy))
           ) {
             loadLeaderboard()
-          } else if (isInsideRect(st.clientX, st.clientY, getLeaderboardAuthRect(smx, smy))) {
-            if (leaderboardAuthButton) {
-              modalTouchId = null
-              modalTouchMode = ''
-              return
-            }
+          } else if (
+            !leaderboardAuthButton &&
+            isInsideRect(st.clientX, st.clientY, getLeaderboardAuthRect(smx, smy))
+          ) {
             authorizeLeaderboard()
           }
           modalTouchId = null
@@ -1121,12 +1178,18 @@ function drawLeaderboardPanel(r, mx, my) {
   }
 
   if (leaderboardState.status === 'error') {
-    drawLeaderboardError(r, mx, my, leaderboardState.error || '\u6392\u884c\u699c\u52a0\u8f7d\u5931\u8d25')
+    drawLeaderboardError(r, mx, my, leaderboardState.error || LEADERBOARD_LOAD_FAILED_TEXT)
     return
   }
 
   if (!leaderboardState.rows.length) {
-    drawLeaderboardMessage(r, getLeaderboardListRect(mx, my), '\u6682\u65e0\u6392\u540d\u6570\u636e')
+    drawLeaderboardMessage(
+      r,
+      getLeaderboardListRect(mx, my),
+      leaderboardState.profile
+        ? '\u6682\u65e0\u6392\u540d\u6570\u636e'
+        : '\u8bf7\u70b9\u51fb\u6388\u6743\u540c\u6b65\u6392\u540d',
+    )
     return
   }
 
@@ -1136,25 +1199,27 @@ function drawLeaderboardPanel(r, mx, my) {
 function drawLeaderboardSummary(r, mx, my) {
   var content = getScoreContentRect(mx, my)
   var authRect = getLeaderboardAuthRect(mx, my)
+  var avatar = getLeaderboardProfileAvatar()
   r.fillStyle = '#34344f'
   drawRoundRect(r, content.x, content.y + 4, content.w - 96, 38, 8)
   r.fill()
+  drawLeaderboardAvatar(r, avatar, content.x + 8, content.y + 8, 30)
   r.fillStyle = '#aeb0c8'
-  r.font = '10px sans-serif'
+  r.font = 'bold 11px sans-serif'
   r.textAlign = 'left'
   r.textBaseline = 'middle'
-  r.fillText('\u6211\u7684\u6392\u540d', content.x + 10, content.y + 15)
+  r.fillText(truncateText(getLeaderboardProfileName(), 9), content.x + 46, content.y + 15)
   r.fillStyle = '#ffe8af'
   r.font = 'bold 14px sans-serif'
   var selfText = leaderboardState.self
     ? '#' + leaderboardState.self.rank + ' / ' + leaderboardState.self.totalScore
     : '--'
-  r.fillText(selfText, content.x + 10, content.y + 32)
+  r.fillText(selfText, content.x + 46, content.y + 32)
 
   drawLeaderboardButton(
     r,
     authRect,
-    '\u6388\u6743',
+    getLeaderboardAuthText(),
   )
 }
 

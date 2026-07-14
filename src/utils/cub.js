@@ -36,6 +36,12 @@ const CAT_FACE = {
   shadow: 'rgba(0,0,0,0.1)',
 };
 
+const ROUND_EYE_RADIUS = 17;
+const ROUND_PUPIL_RADIUS = 8;
+const ROUND_PUPIL_REST_X = 6;
+const ROUND_PUPIL_MAX_CENTER_DISTANCE =
+  ROUND_EYE_RADIUS - ROUND_PUPIL_RADIUS - 0.5;
+
 const CAT_EXPRESSIONS = {
   idle: {
     id: 'idle',
@@ -666,15 +672,39 @@ function renderEye(ctx, x, y, scaleY, lookOffset) {
 
   ctx.fillStyle = CAT_FACE.eye;
   ctx.beginPath();
-  ctx.arc(0, 0, 17, 0, Math.PI * 2);
+  ctx.arc(0, 0, ROUND_EYE_RADIUS, 0, Math.PI * 2);
   ctx.fill();
+
+  const pupilCenter = constrainRoundPupilCenter({
+    x: ROUND_PUPIL_REST_X + lookOffset.x,
+    y: lookOffset.y,
+  });
 
   ctx.fillStyle = CAT_FACE.pupil;
   ctx.beginPath();
-  ctx.arc(6 + lookOffset.x, lookOffset.y, 8, 0, Math.PI * 2);
+  ctx.arc(
+    pupilCenter.x,
+    pupilCenter.y,
+    ROUND_PUPIL_RADIUS,
+    0,
+    Math.PI * 2,
+  );
   ctx.fill();
 
   ctx.restore();
+}
+
+function constrainRoundPupilCenter(center) {
+  const distance = Math.sqrt(center.x * center.x + center.y * center.y);
+  if (distance <= ROUND_PUPIL_MAX_CENTER_DISTANCE || !distance) {
+    return center;
+  }
+
+  const scale = ROUND_PUPIL_MAX_CENTER_DISTANCE / distance;
+  return {
+    x: center.x * scale,
+    y: center.y * scale,
+  };
 }
 
 function renderAngryEye(ctx, x, y, direction, frame) {
