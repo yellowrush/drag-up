@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "envId": "drag-meow-d8ggfohez51d8d1d7",
+  "functionRoot": "dist/build/minigame/cloudfunctions",
+  "functions": [
+    {
+      "name": "syncLeaderboardScore",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout": 10,
+      "memorySize": 256,
+      "description": "Sync and merge player leaderboard scores"
+    },
+    {
+      "name": "getLeaderboard",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout": 10,
+      "memorySize": 256,
+      "description": "Read top leaderboard rows and current player rank"
+    }
+  ]
+}

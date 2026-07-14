@@ -1,6 +1,7 @@
 import { GameEngine } from './utils/game-engine.js'
 import { GameStorage } from './utils/storage.js'
 import { LEVELS, getNextLevel, LEVEL_MAP } from './utils/levels-data.js'
+import { LeaderboardClient } from './utils/leaderboard.js'
 import { ACCESSORIES, EXPRESSIONS, RewardStorage } from './utils/rewards.js'
 
 var sysInfo = wx.getSystemInfoSync()
@@ -39,8 +40,20 @@ var modalTouchStartY = 0
 var modalScrollStartY = 0
 var modalTabScrollX = 0
 var modalTabScrollStartX = 0
+var scoreScrollY = 0
+var scoreScrollStartY = 0
 var activeWorldIndex = 0
 var activeRewardTab = 'accessory'
+var leaderboardState = {
+  status: 'idle',
+  rows: [],
+  self: null,
+  error: '',
+  profile: LeaderboardClient.getStoredProfile(),
+}
+var avatarImageCache = {}
+var leaderboardAuthButton = null
+var leaderboardAuthButtonKey = ''
 
 var LEVEL_WORLDS = [
   { id: 'cat-box', label: '\u732b\u7bb1\u5b50', levels: LEVELS, enabled: true },
@@ -65,6 +78,7 @@ var SCORE_MODAL_PAD = 14
 var SCORE_MODAL_ROW_H = 58
 var SCORE_MODAL_GAP = 8
 var SCORE_MODAL_HEADER_H = 96
+var LEADERBOARD_ROW_H = 48
 var SCORE_MODAL_H = Math.min(
   SCORE_MODAL_PAD * 2 + SCORE_MODAL_HEADER_H + ACCESSORIES.length * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP),
   H - 40,
@@ -72,6 +86,10 @@ var SCORE_MODAL_H = Math.min(
 
 function isInside(x, y, rx, ry, rw, rh) {
   return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh
+}
+
+function isInsideRect(x, y, rect) {
+  return isInside(x, y, rect.x, rect.y, rect.w, rect.h)
 }
 
 function getActiveWorld() {
@@ -216,6 +234,123 @@ function useReward(item) {
   refreshRewards()
 }
 
+function syncLeaderboardInBackground() {
+  if (!LeaderboardClient.isSupported()) return
+  LeaderboardClient.syncScore(
+    rewardState.levelScores || {},
+    leaderboardState.profile,
+  ).catch(function () {})
+}
+
+function loadLeaderboard() {
+  refreshRewards()
+  if (!LeaderboardClient.isSupported()) {
+    leaderboardState.status = 'unavailable'
+    leaderboardState.rows = []
+    leaderboardState.self = null
+    leaderboardState.error = ''
+    return
+  }
+  leaderboardState.status = 'loading'
+  leaderboardState.error = ''
+  LeaderboardClient.syncAndFetch(rewardState.levelScores || {}, {
+    profile: leaderboardState.profile,
+    limit: 10,
+  }).then(function (result) {
+    leaderboardState.rows = result.rows || []
+    leaderboardState.self = result.self || null
+    leaderboardState.status = 'ready'
+    scoreScrollY = 0
+  }).catch(function () {
+    leaderboardState.rows = []
+    leaderboardState.self = null
+    leaderboardState.error = '\u6392\u884c\u699c\u52a0\u8f7d\u5931\u8d25'
+    leaderboardState.status = 'error'
+    scoreScrollY = 0
+  })
+}
+
+function authorizeLeaderboard() {
+  if (!LeaderboardClient.isSupported()) return
+  LeaderboardClient.requestProfile().then(function (result) {
+    if (!result.ok) return
+    leaderboardState.profile = result.profile
+    loadLeaderboard()
+  })
+}
+
+function setActiveRewardTab(tab) {
+  activeRewardTab = tab
+  scoreScrollY = 0
+  if (tab !== 'leaderboard') {
+    destroyLeaderboardAuthButton()
+  }
+  if (tab === 'leaderboard') {
+    loadLeaderboard()
+  }
+}
+
+function destroyLeaderboardAuthButton() {
+  if (leaderboardAuthButton && typeof leaderboardAuthButton.destroy === 'function') {
+    leaderboardAuthButton.destroy()
+  }
+  leaderboardAuthButton = null
+  leaderboardAuthButtonKey = ''
+}
+
+function syncLeaderboardAuthButton() {
+  if (
+    !showScoreModal ||
+    activeRewardTab !== 'leaderboard' ||
+    leaderboardState.status === 'unavailable' ||
+    typeof wx.createUserInfoButton !== 'function'
+  ) {
+    destroyLeaderboardAuthButton()
+    return
+  }
+
+  var mx = (W - SCORE_MODAL_W) / 2
+  var my = (H - SCORE_MODAL_H) / 2
+  var rect = getLeaderboardAuthRect(mx, my)
+  var key = [
+    Math.round(rect.x),
+    Math.round(rect.y),
+    Math.round(rect.w),
+    Math.round(rect.h),
+  ].join(':')
+  if (leaderboardAuthButton && leaderboardAuthButtonKey === key) return
+
+  destroyLeaderboardAuthButton()
+  leaderboardAuthButton = wx.createUserInfoButton({
+    type: 'text',
+    text: '',
+    style: {
+      left: rect.x,
+      top: rect.y,
+      width: rect.w,
+      height: rect.h,
+      lineHeight: rect.h,
+      backgroundColor: 'rgba(0,0,0,0)',
+      color: 'rgba(0,0,0,0)',
+      borderColor: 'rgba(0,0,0,0)',
+      borderWidth: 0,
+      borderRadius: 8,
+      fontSize: 1,
+      textAlign: 'center',
+    },
+  })
+  leaderboardAuthButtonKey = key
+  leaderboardAuthButton.onTap(function (res) {
+    var userInfo = res && res.userInfo
+    if (!userInfo) return
+    leaderboardState.profile = LeaderboardClient.saveProfile({
+      nickname: userInfo.nickName || '',
+      avatarUrl: userInfo.avatarUrl || '',
+    })
+    loadLeaderboard()
+  })
+}
+
 function drawRoundRect(r, x, y, w, h, radius) {
   r.beginPath()
   r.moveTo(x + radius, y)
@@ -244,9 +379,12 @@ function init() {
   engine.onLevelComplete = function (stats) {
     showNext = true
     GameStorage.markLevelCompleted(engine.maze.id)
-    RewardStorage.recordLevelResult(engine.maze.id, stats)
+    var result = RewardStorage.recordLevelResult(engine.maze.id, stats)
     completedLevels = GameStorage.getCompletedLevels()
     refreshRewards()
+    if (result.isNewBest) {
+      syncLeaderboardInBackground()
+    }
   }
   engine.onInstructionChange = function (text) {
     instruction = text
@@ -279,6 +417,7 @@ function handleTouchStart(e) {
     modalTouchId = t.identifier
     modalTouchStartX = x
     modalTouchStartY = y
+    scoreScrollStartY = scoreScrollY
     modalTouchMode = getScoreTabAt(x, y, smx, smy) ? 'score-tabs' : 'score-list'
     return
   }
@@ -350,6 +489,9 @@ function handleTouchStart(e) {
       refreshRewards()
       showLevelSelect = false
       showScoreModal = true
+      if (activeRewardTab === 'leaderboard') {
+        loadLeaderboard()
+      }
       return
     }
     return
@@ -370,7 +512,18 @@ function findTouch(list, id) {
 }
 
 wx.onTouchMove(function (e) {
-  if (showScoreModal) return
+  if (showScoreModal) {
+    var scoreTouch = findTouch(e.touches, modalTouchId)
+    if (scoreTouch && modalTouchMode === 'score-list') {
+      var smx = (W - SCORE_MODAL_W) / 2
+      var smy = (H - SCORE_MODAL_H) / 2
+      scoreScrollY = scoreScrollStartY + (modalTouchStartY - scoreTouch.clientY)
+      var maxScoreScroll = getScoreMaxScroll(smx, smy)
+      if (scoreScrollY < 0) scoreScrollY = 0
+      if (scoreScrollY > maxScoreScroll) scoreScrollY = maxScoreScroll
+    }
+    return
+  }
   if (showLevelSelect) {
     var t = findTouch(e.touches, modalTouchId)
     if (t) {
@@ -403,9 +556,27 @@ wx.onTouchEnd(function (e) {
       if (modalTouchMode === 'score-tabs') {
         var scoreTab = getScoreTabAt(st.clientX, st.clientY, smx, smy)
         if (scoreTab) {
-          activeRewardTab = scoreTab
+          setActiveRewardTab(scoreTab)
         }
       } else if (modalTouchMode === 'score-list') {
+        if (activeRewardTab === 'leaderboard') {
+          if (
+            leaderboardState.status === 'error' &&
+            isInsideRect(st.clientX, st.clientY, getLeaderboardRetryRect(smx, smy))
+          ) {
+            loadLeaderboard()
+          } else if (isInsideRect(st.clientX, st.clientY, getLeaderboardAuthRect(smx, smy))) {
+            if (leaderboardAuthButton) {
+              modalTouchId = null
+              modalTouchMode = ''
+              return
+            }
+            authorizeLeaderboard()
+          }
+          modalTouchId = null
+          modalTouchMode = ''
+          return
+        }
         var rewards = getActiveRewards()
         for (var ai = 0; ai < rewards.length; ai++) {
           var action = getScoreActionRect(ai, smx, smy)
@@ -465,6 +636,7 @@ function render() {
   engine.render()
   ctx.restore()
   drawUI()
+  syncLeaderboardAuthButton()
 }
 
 function drawUI() {
@@ -742,8 +914,11 @@ function getScoreActionRect(index, mx, my) {
 
 function getScoreTabRect(type, mx, my) {
   var gap = 8
-  var tabW = (SCORE_MODAL_W - SCORE_MODAL_PAD * 2 - gap) / 2
-  var tabX = mx + SCORE_MODAL_PAD + (type === 'expression' ? tabW + gap : 0)
+  var types = ['accessory', 'expression', 'leaderboard']
+  var index = types.indexOf(type)
+  if (index < 0) index = 0
+  var tabW = (SCORE_MODAL_W - SCORE_MODAL_PAD * 2 - gap * 2) / 3
+  var tabX = mx + SCORE_MODAL_PAD + index * (tabW + gap)
   return {
     x: tabX,
     y: my + 56,
@@ -761,7 +936,60 @@ function getScoreTabAt(x, y, mx, my) {
   if (isInside(x, y, expression.x, expression.y, expression.w, expression.h)) {
     return 'expression'
   }
+  var leaderboard = getScoreTabRect('leaderboard', mx, my)
+  if (isInside(x, y, leaderboard.x, leaderboard.y, leaderboard.w, leaderboard.h)) {
+    return 'leaderboard'
+  }
   return ''
+}
+
+function getScoreContentRect(mx, my) {
+  var y = my + SCORE_MODAL_PAD + SCORE_MODAL_HEADER_H
+  return {
+    x: mx + SCORE_MODAL_PAD,
+    y: y,
+    w: SCORE_MODAL_W - SCORE_MODAL_PAD * 2,
+    h: my + SCORE_MODAL_H - SCORE_MODAL_PAD - y,
+  }
+}
+
+function getLeaderboardAuthRect(mx, my) {
+  var content = getScoreContentRect(mx, my)
+  return {
+    x: content.x + content.w - 88,
+    y: content.y + 5,
+    w: 82,
+    h: 32,
+  }
+}
+
+function getLeaderboardRetryRect(mx, my) {
+  var list = getLeaderboardListRect(mx, my)
+  var y = list.y + list.h / 2 + 16
+  y = Math.min(list.y + list.h - 30, Math.max(list.y + 44, y))
+  return {
+    x: list.x + list.w / 2 - 38,
+    y: y,
+    w: 76,
+    h: 30,
+  }
+}
+
+function getLeaderboardListRect(mx, my) {
+  var content = getScoreContentRect(mx, my)
+  return {
+    x: content.x,
+    y: content.y + 58,
+    w: content.w,
+    h: content.h - 58,
+  }
+}
+
+function getScoreMaxScroll(mx, my) {
+  if (activeRewardTab !== 'leaderboard') return 0
+  var list = getLeaderboardListRect(mx, my)
+  var contentH = leaderboardState.rows.length * (LEADERBOARD_ROW_H + SCORE_MODAL_GAP)
+  return Math.max(0, contentH - list.h)
 }
 
 function drawScoreModal() {
@@ -790,14 +1018,19 @@ function drawScoreModal() {
 
   drawScoreTabs(ctx, mx, my)
 
-  getActiveRewards().forEach(function (item, index) {
-    drawScoreAccessoryRow(ctx, item, index, mx, my)
-  })
+  if (activeRewardTab === 'leaderboard') {
+    drawLeaderboardPanel(ctx, mx, my)
+  } else {
+    getActiveRewards().forEach(function (item, index) {
+      drawScoreAccessoryRow(ctx, item, index, mx, my)
+    })
+  }
 }
 
 function drawScoreTabs(r, mx, my) {
   drawScoreTab(r, getScoreTabRect('accessory', mx, my), '\u9970\u54c1', activeRewardTab === 'accessory')
   drawScoreTab(r, getScoreTabRect('expression', mx, my), '\u8868\u60c5', activeRewardTab === 'expression')
+  drawScoreTab(r, getScoreTabRect('leaderboard', mx, my), '\u6392\u884c\u699c', activeRewardTab === 'leaderboard')
   r.strokeStyle = 'rgba(255,255,255,0.16)'
   r.lineWidth = 1
   r.beginPath()
@@ -871,6 +1104,171 @@ function drawScoreAccessoryRow(r, item, index, mx, my) {
   r.font = 'bold 11px sans-serif'
   r.textAlign = 'center'
   r.fillText(rewardActionText(item), action.x + action.w / 2, action.y + action.h / 2 + 1)
+}
+
+function drawLeaderboardPanel(r, mx, my) {
+  var content = getScoreContentRect(mx, my)
+  if (leaderboardState.status === 'unavailable') {
+    drawLeaderboardMessage(r, content, '\u8bf7\u5728\u5fae\u4fe1\u5c0f\u6e38\u620f\u4e2d\u67e5\u770b\u5168\u670d\u6392\u884c\u699c')
+    return
+  }
+
+  drawLeaderboardSummary(r, mx, my)
+
+  if (leaderboardState.status === 'loading') {
+    drawLeaderboardMessage(r, getLeaderboardListRect(mx, my), '\u6392\u884c\u699c\u52a0\u8f7d\u4e2d...')
+    return
+  }
+
+  if (leaderboardState.status === 'error') {
+    drawLeaderboardError(r, mx, my, leaderboardState.error || '\u6392\u884c\u699c\u52a0\u8f7d\u5931\u8d25')
+    return
+  }
+
+  if (!leaderboardState.rows.length) {
+    drawLeaderboardMessage(r, getLeaderboardListRect(mx, my), '\u6682\u65e0\u6392\u540d\u6570\u636e')
+    return
+  }
+
+  drawLeaderboardRows(r, mx, my)
+}
+
+function drawLeaderboardSummary(r, mx, my) {
+  var content = getScoreContentRect(mx, my)
+  var authRect = getLeaderboardAuthRect(mx, my)
+  r.fillStyle = '#34344f'
+  drawRoundRect(r, content.x, content.y + 4, content.w - 96, 38, 8)
+  r.fill()
+  r.fillStyle = '#aeb0c8'
+  r.font = '10px sans-serif'
+  r.textAlign = 'left'
+  r.textBaseline = 'middle'
+  r.fillText('\u6211\u7684\u6392\u540d', content.x + 10, content.y + 15)
+  r.fillStyle = '#ffe8af'
+  r.font = 'bold 14px sans-serif'
+  var selfText = leaderboardState.self
+    ? '#' + leaderboardState.self.rank + ' / ' + leaderboardState.self.totalScore
+    : '--'
+  r.fillText(selfText, content.x + 10, content.y + 32)
+
+  drawLeaderboardButton(
+    r,
+    authRect,
+    '\u6388\u6743',
+  )
+}
+
+function drawLeaderboardRows(r, mx, my) {
+  var list = getLeaderboardListRect(mx, my)
+  r.save()
+  r.beginPath()
+  r.rect(list.x, list.y, list.w, list.h)
+  r.clip()
+  leaderboardState.rows.forEach(function (row, index) {
+    var y = list.y + index * (LEADERBOARD_ROW_H + SCORE_MODAL_GAP) - scoreScrollY
+    if (y > list.y + list.h || y + LEADERBOARD_ROW_H < list.y) return
+    drawLeaderboardRow(r, row, list.x, y, list.w)
+  })
+  r.restore()
+}
+
+function drawLeaderboardRow(r, row, x, y, w) {
+  r.fillStyle = row.isSelf ? '#3d3f51' : '#34344f'
+  r.strokeStyle = row.isSelf ? '#d5a544' : '#565873'
+  r.lineWidth = 1.3
+  drawRoundRect(r, x, y, w, LEADERBOARD_ROW_H, 8)
+  r.fill()
+  r.stroke()
+
+  r.fillStyle = '#ffe8af'
+  r.font = 'bold 12px sans-serif'
+  r.textAlign = 'left'
+  r.textBaseline = 'middle'
+  r.fillText('#' + row.rank, x + 9, y + LEADERBOARD_ROW_H / 2 + 1)
+
+  drawLeaderboardAvatar(r, row.avatarUrl, x + 45, y + 9, 30)
+
+  r.fillStyle = '#f2f2f7'
+  r.font = 'bold 12px sans-serif'
+  r.fillText(truncateText(row.nickname || '\u533f\u540d\u73a9\u5bb6', 9), x + 84, y + LEADERBOARD_ROW_H / 2 + 1)
+
+  r.fillStyle = '#ffe8af'
+  r.font = 'bold 15px sans-serif'
+  r.textAlign = 'right'
+  r.fillText(String(row.totalScore || 0), x + w - 10, y + LEADERBOARD_ROW_H / 2 + 1)
+}
+
+function drawLeaderboardAvatar(r, url, x, y, size) {
+  var cached = getAvatarImage(url)
+  if (cached && cached.ready) {
+    r.drawImage(cached.image, x, y, size, size)
+    return
+  }
+  r.fillStyle = '#222238'
+  drawRoundRect(r, x, y, size, size, 8)
+  r.fill()
+  r.strokeStyle = '#5c5f77'
+  r.lineWidth = 2
+  r.stroke()
+}
+
+function getAvatarImage(url) {
+  if (!url || typeof wx.createImage !== 'function') return null
+  if (avatarImageCache[url]) return avatarImageCache[url]
+  var image = wx.createImage()
+  var cached = {
+    image: image,
+    ready: false,
+  }
+  image.onload = function () {
+    cached.ready = true
+  }
+  image.onerror = function () {
+    cached.ready = false
+  }
+  image.src = url
+  avatarImageCache[url] = cached
+  return cached
+}
+
+function drawLeaderboardMessage(r, rect, text) {
+  r.fillStyle = '#aeb0c8'
+  r.font = '13px sans-serif'
+  r.textAlign = 'center'
+  r.textBaseline = 'middle'
+  r.fillText(text, rect.x + rect.w / 2, rect.y + rect.h / 2)
+}
+
+function drawLeaderboardError(r, mx, my, text) {
+  var retry = getLeaderboardRetryRect(mx, my)
+  r.fillStyle = '#aeb0c8'
+  r.font = '13px sans-serif'
+  r.textAlign = 'center'
+  r.textBaseline = 'middle'
+  r.fillText(text, retry.x + retry.w / 2, retry.y - 18)
+  drawLeaderboardButton(r, retry, '\u91cd\u8bd5')
+}
+
+function drawLeaderboardButton(r, rect, label) {
+  var grd = r.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.h)
+  grd.addColorStop(0, '#ffe1a2')
+  grd.addColorStop(1, '#f2b653')
+  r.fillStyle = grd
+  r.strokeStyle = '#98621f'
+  r.lineWidth = 2
+  drawRoundRect(r, rect.x, rect.y, rect.w, rect.h, 8)
+  r.fill()
+  r.stroke()
+  r.fillStyle = '#5f3713'
+  r.font = 'bold 11px sans-serif'
+  r.textAlign = 'center'
+  r.textBaseline = 'middle'
+  r.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 1)
+}
+
+function truncateText(text, maxLength) {
+  var value = String(text || '')
+  return value.length > maxLength ? value.slice(0, maxLength - 1) + '...' : value
 }
 
 function drawRewardPreview(r, item, cx, cy) {

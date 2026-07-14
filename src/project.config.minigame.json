@@ -11,6 +11,8 @@
     "bigPackageSizeSupport": true
   },
   "compileType": "game",
+  "cloudfunctionRoot": "cloudfunctions/",
+  "cloudfunctionRoot": "cloudfunctions/",
   "libVersion": "3.3.0",
   "appid": "",
   "projectname": "drag-up",

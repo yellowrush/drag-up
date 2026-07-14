@@ -3,6 +3,8 @@
   "appid": "",
   "version": "1.0.0",
   "description": "Drag Up - Physics Puzzle Game",
+  "cloudfunctionRoot": "cloudfunctions/",
+  "cloudfunctionRoot": "cloudfunctions/",
   "uni-app": {
     "scripts": {}
   },

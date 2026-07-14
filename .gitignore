@@ -4,3 +4,4 @@ dist
 private.*.key
 project.config.minigame.json
 .env
+leaderboard-config.js

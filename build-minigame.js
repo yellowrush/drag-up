@@ -3,6 +3,22 @@ const path = require('path')
 const fs = require('fs')
 
 const DIST = path.resolve(__dirname, 'dist/build/minigame')
+const CLOUD_FUNCTIONS = path.resolve(__dirname, 'cloudfunctions')
+
+function copyDir(src, dest) {
+  if (!fs.existsSync(src)) return
+  fs.mkdirSync(dest, { recursive: true })
+  fs.readdirSync(src, { withFileTypes: true }).forEach(function (entry) {
+    if (entry.name === 'node_modules') return
+    const from = path.join(src, entry.name)
+    const to = path.join(dest, entry.name)
+    if (entry.isDirectory()) {
+      copyDir(from, to)
+    } else {
+      fs.copyFileSync(from, to)
+    }
+  })
+}
 
 async function build() {
   fs.mkdirSync(DIST, { recursive: true })
@@ -26,6 +42,8 @@ async function build() {
     path.resolve(__dirname, 'src/project.config.minigame.json'),
     path.join(DIST, 'project.config.json'),
   )
+
+  copyDir(CLOUD_FUNCTIONS, path.join(DIST, 'cloudfunctions'))
 
   console.log('Mini-game build complete:', DIST)
 }

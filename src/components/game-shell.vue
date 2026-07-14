@@ -92,20 +92,31 @@
           <view
             class="reward-tab"
             :class="{ active: activeRewardTab === 'accessory' }"
-            @tap="activeRewardTab = 'accessory'"
+            @tap="onRewardTabTap('accessory')"
           >
             &#39280;&#21697;
           </view>
           <view
             class="reward-tab"
             :class="{ active: activeRewardTab === 'expression' }"
-            @tap="activeRewardTab = 'expression'"
+            @tap="onRewardTabTap('expression')"
           >
             &#34920;&#24773;
           </view>
+          <view
+            class="reward-tab"
+            :class="{ active: activeRewardTab === 'leaderboard' }"
+            @tap="onRewardTabTap('leaderboard')"
+          >
+            &#25490;&#34892;&#27036;
+          </view>
         </view>
 
-        <scroll-view scroll-y class="reward-scroll">
+        <scroll-view
+          v-if="activeRewardTab !== 'leaderboard'"
+          scroll-y
+          class="reward-scroll"
+        >
           <view
             v-for="item in rewardItems"
             :key="`${item.type}-${item.id}`"
@@ -128,6 +139,57 @@
             </view>
           </view>
         </scroll-view>
+
+        <view v-else class="leaderboard-panel">
+          <view v-if="leaderboardStatus === 'unavailable'" class="leaderboard-empty">
+            &#35831;&#22312;&#24494;&#20449;&#23567;&#28216;&#25103;&#20013;&#26597;&#30475;&#20840;&#26381;&#25490;&#34892;&#27036;
+          </view>
+          <view v-else>
+            <view class="leaderboard-actions">
+              <view class="leaderboard-self">
+                <text class="leaderboard-self-label">&#25105;&#30340;&#25490;&#21517;</text>
+                <text class="leaderboard-self-score">
+                  {{ leaderboardSelf ? `#${leaderboardSelf.rank} / ${leaderboardSelf.totalScore}` : '--' }}
+                </text>
+              </view>
+              <view class="leaderboard-auth" @tap="onAuthorizeLeaderboard">
+                {{ leaderboardAuthText }}
+              </view>
+            </view>
+
+            <view v-if="leaderboardStatus === 'loading'" class="leaderboard-empty">
+              &#25490;&#34892;&#27036;&#21152;&#36733;&#20013;...
+            </view>
+            <view v-else-if="leaderboardStatus === 'error'" class="leaderboard-empty">
+              <text>{{ leaderboardError || leaderboardLoadFailedText }}</text>
+              <view class="leaderboard-retry" @tap="loadLeaderboard">
+                &#37325;&#35797;
+              </view>
+            </view>
+            <view v-else-if="leaderboardRows.length === 0" class="leaderboard-empty">
+              &#26242;&#26080;&#25490;&#21517;&#25968;&#25454;
+            </view>
+            <scroll-view v-else scroll-y class="leaderboard-scroll">
+              <view
+                v-for="row in leaderboardRows"
+                :key="row.rank"
+                class="leaderboard-row"
+                :class="{ self: row.isSelf }"
+              >
+                <text class="leaderboard-rank">#{{ row.rank }}</text>
+                <image
+                  v-if="row.avatarUrl"
+                  class="leaderboard-avatar"
+                  :src="row.avatarUrl"
+                  mode="aspectFill"
+                />
+                <view v-else class="leaderboard-avatar placeholder"></view>
+                <text class="leaderboard-name">{{ playerName(row) }}</text>
+                <text class="leaderboard-score">{{ row.totalScore }}</text>
+              </view>
+            </scroll-view>
+          </view>
+        </view>
       </view>
     </view>
 
@@ -142,6 +204,7 @@
   import gameCanvas from '@/components/game-canvas.vue';
   import { GameStorage } from '@/utils/storage.js';
   import { LEVELS, getNextLevel } from '@/utils/levels-data.js';
+  import { LeaderboardClient } from '@/utils/leaderboard.js';
   import { ACCESSORIES, EXPRESSIONS, RewardStorage } from '@/utils/rewards.js';
 
   const engine = shallowRef<any>(null);
@@ -153,13 +216,21 @@
   const completedLevels = ref<string[]>([]);
   const rewardState = ref(RewardStorage.getState());
   const activeRewardTab = ref('accessory');
+  const leaderboardStatus = ref('idle');
+  const leaderboardRows = ref<any[]>([]);
+  const leaderboardSelf = ref<any>(null);
+  const leaderboardError = ref('');
+  const leaderboardProfile = ref<any>(LeaderboardClient.getStoredProfile());
   const topBarPadding = ref('56px');
   const ownedText = '\u5df2\u5b8c\u6210';
   const lockedText = '\u672a\u5b8c\u6210';
   const totalScoreText = '\u603b\u79ef\u5206';
+  const anonymousPlayerText = '\u533f\u540d\u73a9\u5bb6';
+  const leaderboardLoadFailedText = '\u6392\u884c\u699c\u52a0\u8f7d\u5931\u8d25';
   let currentLevelId = '';
 
   const totalScore = computed(() => rewardState.value.totalScore || 0);
+  const leaderboardAuthText = computed(() => '\u6388\u6743');
   const rewardItems = computed(() => {
     const source = activeRewardTab.value === 'expression' ? EXPRESSIONS : ACCESSORIES;
     return source.map((item: any) => ({
@@ -191,9 +262,12 @@
     eng.onLevelComplete = (stats: any) => {
       showNext.value = true;
       GameStorage.markLevelCompleted(eng.maze.id);
-      RewardStorage.recordLevelResult(eng.maze.id, stats);
+      const result = RewardStorage.recordLevelResult(eng.maze.id, stats);
       completedLevels.value = GameStorage.getCompletedLevels();
       refreshRewards();
+      if (result.isNewBest) {
+        syncLeaderboardInBackground();
+      }
     };
 
     eng.onInstructionChange = (text: string) => {
@@ -215,6 +289,9 @@
     refreshRewards();
     showLevelSelect.value = false;
     showScoreModal.value = true;
+    if (activeRewardTab.value === 'leaderboard') {
+      loadLeaderboard();
+    }
   }
 
   function onSelectLevel(id: string) {
@@ -250,6 +327,59 @@
   function refreshRewards() {
     rewardState.value = RewardStorage.getState();
     applyEquippedRewards();
+  }
+
+  function onRewardTabTap(tab: string) {
+    activeRewardTab.value = tab;
+    if (tab === 'leaderboard') {
+      loadLeaderboard();
+    }
+  }
+
+  async function syncLeaderboardInBackground() {
+    if (!LeaderboardClient.isSupported()) return;
+    try {
+      await LeaderboardClient.syncScore(
+        rewardState.value.levelScores || {},
+        leaderboardProfile.value,
+      );
+    } catch (e) {
+      /* leaderboard sync is best-effort */
+    }
+  }
+
+  async function loadLeaderboard() {
+    refreshRewards();
+    if (!LeaderboardClient.isSupported()) {
+      leaderboardStatus.value = 'unavailable';
+      leaderboardRows.value = [];
+      leaderboardSelf.value = null;
+      return;
+    }
+    leaderboardStatus.value = 'loading';
+    leaderboardError.value = '';
+    try {
+      const result: any = await LeaderboardClient.syncAndFetch(
+        rewardState.value.levelScores || {},
+        {
+          profile: leaderboardProfile.value,
+          limit: 10,
+        },
+      );
+      leaderboardRows.value = result.rows || [];
+      leaderboardSelf.value = result.self || null;
+      leaderboardStatus.value = 'ready';
+    } catch (e: any) {
+      leaderboardError.value = leaderboardLoadFailedText;
+      leaderboardStatus.value = 'error';
+    }
+  }
+
+  async function onAuthorizeLeaderboard() {
+    const result: any = await LeaderboardClient.requestProfile();
+    if (!result.ok) return;
+    leaderboardProfile.value = result.profile;
+    await loadLeaderboard();
   }
 
   function applyEquippedRewards() {
@@ -326,6 +456,10 @@
 
   function levelTitle(index: number) {
     return `\u7b2c ${index + 1} \u5173`;
+  }
+
+  function playerName(row: any) {
+    return row && row.nickname ? row.nickname : anonymousPlayerText;
   }
 
 </script>
@@ -648,6 +782,123 @@
   }
   .reward-scroll {
     max-height: 54vh;
+  }
+  .leaderboard-panel {
+    min-height: 260px;
+  }
+  .leaderboard-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .leaderboard-self {
+    flex: 1;
+    min-width: 0;
+    height: 42px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    padding: 0 10px;
+    background: #34344f;
+    border-radius: 8px;
+    box-sizing: border-box;
+  }
+  .leaderboard-self-label {
+    color: #aeb0c8;
+    font-size: 11px;
+  }
+  .leaderboard-self-score {
+    color: #ffe8af;
+    font-size: 15px;
+    font-weight: 900;
+  }
+  .leaderboard-auth,
+  .leaderboard-retry {
+    min-width: 82px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #5f3713;
+    background: linear-gradient(180deg, #ffe1a2 0%, #f2b653 100%);
+    border: 2px solid #98621f;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 900;
+    box-sizing: border-box;
+  }
+  .leaderboard-scroll {
+    max-height: 46vh;
+  }
+  .leaderboard-retry {
+    margin-top: 4px;
+  }
+  .leaderboard-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 48px;
+    padding: 7px 9px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    background: #34344f;
+    border: 1px solid #565873;
+    box-sizing: border-box;
+  }
+  .leaderboard-row.self {
+    border-color: #d5a544;
+    background: #3d3f51;
+  }
+  .leaderboard-rank {
+    width: 38px;
+    color: #ffe8af;
+    font-size: 13px;
+    font-weight: 900;
+  }
+  .leaderboard-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: #222238;
+    flex-shrink: 0;
+  }
+  .leaderboard-avatar.placeholder {
+    border: 2px solid #5c5f77;
+    box-sizing: border-box;
+  }
+  .leaderboard-name {
+    flex: 1;
+    min-width: 0;
+    color: #f2f2f7;
+    font-size: 13px;
+    font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .leaderboard-score {
+    min-width: 40px;
+    color: #ffe8af;
+    text-align: right;
+    font-size: 15px;
+    font-weight: 900;
+  }
+  .leaderboard-empty {
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    color: #aeb0c8;
+    font-size: 13px;
+    line-height: 1.45;
+    text-align: center;
+  }
+  .leaderboard-empty > text {
+    max-width: 220px;
   }
   .reward-row {
     display: flex;
