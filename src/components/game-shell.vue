@@ -355,6 +355,15 @@
     applyEquippedRewards();
   }
 
+  function applySyncedRewardScores(result: any) {
+    const scores = result && (result.syncedScores || result.scores);
+    if (!scores) return;
+    const merged = RewardStorage.mergeLevelScores(scores);
+    if (!merged.changed) return;
+    rewardState.value = merged.state;
+    applyEquippedRewards();
+  }
+
   function onRewardTabTap(tab: string) {
     activeRewardTab.value = tab;
     if (tab === 'leaderboard') {
@@ -381,10 +390,11 @@
     leaderboardSyncInFlight = true;
     leaderboardLastSyncAt = Date.now();
     try {
-      await LeaderboardClient.syncScore(
+      const result = await LeaderboardClient.syncScore(
         rewardState.value.levelScores || {},
         leaderboardProfile.value,
       );
+      applySyncedRewardScores(result);
     } catch (e) {
       /* leaderboard sync is best-effort */
     } finally {
@@ -425,6 +435,7 @@
         leaderboardStatus.value = 'error';
         return;
       }
+      applySyncedRewardScores(result);
       leaderboardRows.value = result.rows || [];
       leaderboardSelf.value = result.self || null;
       leaderboardStatus.value = 'ready';

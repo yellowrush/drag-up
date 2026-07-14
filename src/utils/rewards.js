@@ -81,6 +81,47 @@ function normalizeLevelScore(score) {
   );
 }
 
+function normalizeLevelId(levelId) {
+  return String(levelId || '').trim().slice(0, 48);
+}
+
+function normalizeScoreMap(levelScores, rawVersion) {
+  var normalized = {};
+  var version = Number(rawVersion) || CURRENT_REWARD_VERSION;
+
+  function addScore(levelId, rawScore) {
+    var safeLevelId = normalizeLevelId(levelId);
+    var score = Number(rawScore) || 0;
+    if (!safeLevelId || score <= 0) return;
+    var normalizedScore = normalizeLevelScore(
+      version < CURRENT_REWARD_VERSION && score > MAX_LEVEL_SCORE
+        ? score / 100
+        : score,
+    );
+    normalized[safeLevelId] = Math.max(
+      Number(normalized[safeLevelId]) || 0,
+      normalizedScore,
+    );
+  }
+
+  if (!levelScores || typeof levelScores !== 'object') {
+    return normalized;
+  }
+
+  if (Array.isArray(levelScores)) {
+    levelScores.forEach(function (item) {
+      if (!item || typeof item !== 'object') return;
+      addScore(item.levelId || item.id, item.score);
+    });
+    return normalized;
+  }
+
+  Object.keys(levelScores).forEach(function (levelId) {
+    addScore(levelId, levelScores[levelId]);
+  });
+  return normalized;
+}
+
 export function calculateLevelScore(stats) {
   var dragCount = Math.max(0, Number(stats && stats.dragCount) || 0);
   var rotateCount = Math.max(0, Number(stats && stats.rotateCount) || 0);
@@ -121,18 +162,7 @@ function normalizeState(raw) {
   }
 
   var rawVersion = Number(raw.version) || 1;
-  if (raw.levelScores && typeof raw.levelScores === 'object') {
-    Object.keys(raw.levelScores).forEach(function (levelId) {
-      var score = Number(raw.levelScores[levelId]) || 0;
-      if (score > 0) {
-        state.levelScores[levelId] = normalizeLevelScore(
-          rawVersion < CURRENT_REWARD_VERSION && score > MAX_LEVEL_SCORE
-            ? score / 100
-            : score,
-        );
-      }
-    });
-  }
+  state.levelScores = normalizeScoreMap(raw.levelScores, rawVersion);
 
   if (Array.isArray(raw.ownedAccessoryIds)) {
     raw.ownedAccessoryIds.forEach(function (id) {
@@ -222,6 +252,27 @@ export const RewardStorage = {
       addedScore: 0,
       isNewBest: false,
     };
+  },
+
+  mergeLevelScores(levelScores) {
+    var state = this.getState();
+    var incomingScores = normalizeScoreMap(levelScores, CURRENT_REWARD_VERSION);
+    var changed = false;
+
+    Object.keys(incomingScores).forEach(function (levelId) {
+      var score = incomingScores[levelId];
+      var previousBest = Number(state.levelScores[levelId]) || 0;
+      if (score > previousBest) {
+        state.levelScores[levelId] = score;
+        changed = true;
+      }
+    });
+
+    if (!changed) {
+      return { changed: false, state: cloneState(state) };
+    }
+
+    return { changed: true, state: this.saveState(state) };
   },
 
   redeemAccessory(accessoryId) {

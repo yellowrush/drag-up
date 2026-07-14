@@ -28,7 +28,7 @@ Player document shape:
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "authorized": true,
   "playerKey": "openid:player-openid",
   "openid": "player-openid",

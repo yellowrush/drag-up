@@ -355,6 +355,15 @@ async function getLeaderboard(limit) {
   });
 }
 
+function attachSyncResult(result, syncResult) {
+  if (!syncResult || syncResult.ok === false) return result;
+  return {
+    ...(result || {}),
+    syncedScores: syncResult.scores || [],
+    syncedTotalScore: Number(syncResult.totalScore) || 0,
+  };
+}
+
 async function syncAndFetch(levelScores, options) {
   var profile = getAuthorizedProfile(options && options.profile);
   logLeaderboard('syncAndFetch start', {
@@ -394,7 +403,7 @@ async function syncAndFetch(levelScores, options) {
     }
     return syncResult;
   }
-  return result;
+  return attachSyncResult(result, syncResult);
 }
 
 async function requestProfile() {

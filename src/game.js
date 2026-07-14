@@ -182,6 +182,15 @@ function refreshRewards() {
   }
 }
 
+function applySyncedRewardScores(result) {
+  var scores = result && (result.syncedScores || result.scores)
+  if (!scores) return
+  var merged = RewardStorage.mergeLevelScores(scores)
+  if (!merged.changed) return
+  rewardState = merged.state
+  refreshRewards()
+}
+
 function getActiveRewards() {
   var source = activeRewardTab === 'expression' ? EXPRESSIONS : ACCESSORIES
   return source.map(function (item) {
@@ -268,7 +277,9 @@ function runQueuedLeaderboardSync() {
   LeaderboardClient.syncScore(
     rewardState.levelScores || {},
     leaderboardState.profile,
-  ).catch(function () {}).then(function () {
+  ).then(function (result) {
+    applySyncedRewardScores(result)
+  }).catch(function () {}).then(function () {
     leaderboardSyncInFlight = false
     if (leaderboardSyncPending) {
       syncLeaderboardInBackground()
@@ -329,6 +340,7 @@ function loadLeaderboard() {
       scoreScrollY = 0
       return
     }
+    applySyncedRewardScores(result)
     leaderboardState.rows = result.rows || []
     leaderboardState.self = result.self || null
     leaderboardState.status = 'ready'

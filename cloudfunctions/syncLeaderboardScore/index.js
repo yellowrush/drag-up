@@ -5,7 +5,7 @@ const app = cloudbase.init({
 })
 const db = app.database()
 const COLLECTION = 'leaderboard_scores'
-const SCORE_SCHEMA_VERSION = 2
+const SCORE_SCHEMA_VERSION = 3
 const MAX_LEVEL_SCORE = 10
 const MIN_LEVEL_SCORE = 1
 const MAX_LEVEL_ID_LENGTH = 48
@@ -25,8 +25,13 @@ async function ensureCollection() {
   collectionReady = true
 }
 
-function clampLevelScore(score) {
-  const value = Math.round(Number(score) || 0)
+function clampLevelScore(score, options) {
+  const rawValue = Number(score) || 0
+  const normalizedValue =
+    options && options.migrateLegacyScale && rawValue > MAX_LEVEL_SCORE
+      ? rawValue / 100
+      : rawValue
+  const value = Math.round(normalizedValue)
   if (value < MIN_LEVEL_SCORE) return 0
   if (value > MAX_LEVEL_SCORE) return MAX_LEVEL_SCORE
   return value
@@ -36,7 +41,7 @@ function sanitizeLevelId(levelId) {
   return String(levelId || '').trim().slice(0, MAX_LEVEL_ID_LENGTH)
 }
 
-function normalizeScores(input) {
+function normalizeScores(input, options) {
   const normalized = {}
   if (!input || typeof input !== 'object') {
     return normalized
@@ -46,7 +51,7 @@ function normalizeScores(input) {
     input.forEach(function (item) {
       if (!item || typeof item !== 'object') return
       const levelId = sanitizeLevelId(item.levelId || item.id)
-      const score = clampLevelScore(item.score)
+      const score = clampLevelScore(item.score, options)
       if (levelId && score > 0) {
         normalized[levelId] = Math.max(Number(normalized[levelId]) || 0, score)
       }
@@ -56,7 +61,7 @@ function normalizeScores(input) {
 
   Object.keys(input).forEach(function (levelId) {
     const sanitizedLevelId = sanitizeLevelId(levelId)
-    const score = clampLevelScore(input[levelId])
+    const score = clampLevelScore(input[levelId], options)
     if (sanitizedLevelId && score > 0) {
       normalized[sanitizedLevelId] = Math.max(
         Number(normalized[sanitizedLevelId]) || 0,
@@ -65,6 +70,17 @@ function normalizeScores(input) {
     }
   })
   return normalized
+}
+
+function getScoreSchemaVersion(row) {
+  return Number(row && row.schemaVersion) || 1
+}
+
+function normalizeStoredScores(row, key) {
+  const schemaVersion = getScoreSchemaVersion(row)
+  return normalizeScores(row && row[key], {
+    migrateLegacyScale: schemaVersion < SCORE_SCHEMA_VERSION,
+  })
 }
 
 function mergeScoreMaps(existing, incoming) {
@@ -213,16 +229,17 @@ exports.main = async function (event, context) {
     const existingData = existing && existing.data
     const storedScores = mergeScoreMaps(
       mergeScoreMaps(
-        normalizeScores(existing && existing.levelScores),
-        normalizeScores(existingData && existingData.levelScores),
+        normalizeStoredScores(existing, 'levelScores'),
+        normalizeStoredScores(existingData, 'levelScores'),
       ),
       mergeScoreMaps(
-        normalizeScores(existing && existing.scores),
-        normalizeScores(existingData && existingData.scores),
+        normalizeStoredScores(existing, 'scores'),
+        normalizeStoredScores(existingData, 'scores'),
       ),
     )
     const scoreMap = mergeScoreMaps(storedScores, incomingScores)
     const summary = summarize(scoreMap)
+    const scoreArray = toScoreArray(scoreMap)
     const now = db.serverDate()
 
     const data = {
@@ -230,7 +247,7 @@ exports.main = async function (event, context) {
       authorized: true,
       playerKey: identity.playerKey,
       openid: identity.openid,
-      scores: toScoreArray(scoreMap),
+      scores: scoreArray,
       totalScore: summary.totalScore,
       completedCount: summary.completedCount,
       updatedAt: now,
@@ -252,6 +269,8 @@ exports.main = async function (event, context) {
 
     return {
       ok: true,
+      schemaVersion: SCORE_SCHEMA_VERSION,
+      scores: scoreArray,
       totalScore: summary.totalScore,
       completedCount: summary.completedCount,
       scoreCount: data.scores.length,
