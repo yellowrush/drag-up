@@ -38,7 +38,8 @@ const CAT_FACE = {
 
 const ROUND_EYE_RADIUS = 17;
 const ROUND_PUPIL_RADIUS = 8;
-const ROUND_PUPIL_REST_X = 6;
+const ROUND_PUPIL_REST_X = 0;
+const ROUND_PUPIL_LOOK_MAX_OFFSET = 7;
 const ROUND_PUPIL_MAX_CENTER_DISTANCE =
   ROUND_EYE_RADIUS - ROUND_PUPIL_RADIUS - 0.5;
 
@@ -626,7 +627,7 @@ function getLookOffset(lookTarget, cubCenter, gridSize) {
     return { x: 0, y: 0 };
   }
 
-  const maxOffset = 5;
+  const maxOffset = ROUND_PUPIL_LOOK_MAX_OFFSET;
   const strength = Math.min(1, distance / (gridSize * 1.4));
   return {
     x: (dx / distance) * maxOffset * strength,

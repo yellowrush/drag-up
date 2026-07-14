@@ -883,59 +883,64 @@ function drawLevelButton(r, x, y) {
 
 function drawScoreButton(r, x, y) {
   var cx = x + 23
-  var cy = y + 20
+  var cy = y + 21
   r.save()
-  var grd = r.createLinearGradient(cx, cy - 20, cx, cy + 20)
-  grd.addColorStop(0, '#ffe8af')
-  grd.addColorStop(1, '#f3b545')
+  r.translate(cx, cy)
+  r.scale(0.36, 0.36)
+  r.translate(-64, -64)
+
+  var grd = r.createLinearGradient(38, 22, 94, 108)
+  grd.addColorStop(0, '#fff27a')
+  grd.addColorStop(1, '#ffb928')
+
+  r.shadowColor = 'rgba(216,133,21,0.35)'
+  r.shadowBlur = 3
+  r.shadowOffsetY = 3
   r.fillStyle = grd
-  r.strokeStyle = '#9f6a18'
-  r.lineWidth = 2.4
-  drawRoundedStar(r, cx, cy, 20, 8, 8)
+  r.strokeStyle = '#e89117'
+  r.lineWidth = 6
+  r.lineJoin = 'round'
+  traceScoreStar(r)
   r.fill()
+  r.stroke()
+
+  r.shadowColor = 'transparent'
+  r.shadowBlur = 0
+  r.shadowOffsetY = 0
+  r.strokeStyle = 'rgba(255,249,191,0.75)'
+  r.lineWidth = 7
+  r.lineCap = 'round'
+  r.beginPath()
+  r.moveTo(39, 55)
+  r.bezierCurveTo(46, 40, 57, 31, 70, 28)
   r.stroke()
   r.restore()
 }
 
-function drawRoundedStar(r, cx, cy, outerRadius, innerRadius, corner) {
-  var points = []
-  for (var i = 0; i < 10; i++) {
-    var angle = -Math.PI / 2 + i * Math.PI / 5
-    var radius = i % 2 === 0 ? outerRadius : innerRadius
-    points.push({
-      x: cx + Math.cos(angle) * radius,
-      y: cy + Math.sin(angle) * radius,
-    })
-  }
-  drawRoundedPolygon(r, points, corner)
-}
-
-function drawRoundedPolygon(r, points, corner) {
+function traceScoreStar(r) {
   r.beginPath()
-  for (var i = 0; i < points.length; i++) {
-    var prev = points[(i - 1 + points.length) % points.length]
-    var point = points[i]
-    var next = points[(i + 1) % points.length]
-    var from = moveToward(point, prev, corner)
-    var to = moveToward(point, next, corner)
-    if (i === 0) {
-      r.moveTo(from.x, from.y)
-    } else {
-      r.lineTo(from.x, from.y)
-    }
-    r.quadraticCurveTo(point.x, point.y, to.x, to.y)
-  }
+  r.moveTo(64, 15)
+  r.bezierCurveTo(67, 15, 69.5, 17, 71, 20)
+  r.lineTo(82.5, 43.5)
+  r.lineTo(108.5, 47.2)
+  r.bezierCurveTo(112, 47.7, 114.2, 50, 114.8, 53)
+  r.bezierCurveTo(115.3, 56, 114, 58.5, 111.5, 61)
+  r.lineTo(92.7, 79.3)
+  r.lineTo(97.2, 105.2)
+  r.bezierCurveTo(97.8, 108.8, 96.3, 111.7, 93.7, 113.3)
+  r.bezierCurveTo(91, 115, 88.2, 114.7, 85.2, 113.1)
+  r.lineTo(64, 101.8)
+  r.lineTo(40.8, 113.9)
+  r.bezierCurveTo(37.8, 115.4, 34.7, 115.1, 32.3, 113.3)
+  r.bezierCurveTo(29.8, 111.5, 28.8, 108.7, 29.3, 105.5)
+  r.lineTo(33.8, 79.5)
+  r.lineTo(15, 61.1)
+  r.bezierCurveTo(12.6, 58.8, 11.6, 55.8, 12.5, 52.8)
+  r.bezierCurveTo(13.4, 49.8, 15.7, 47.8, 19, 47.3)
+  r.lineTo(45, 43.5)
+  r.lineTo(56.6, 20)
+  r.bezierCurveTo(58, 17, 61, 15, 64, 15)
   r.closePath()
-}
-
-function moveToward(from, to, distance) {
-  var dx = to.x - from.x
-  var dy = to.y - from.y
-  var length = Math.sqrt(dx * dx + dy * dy) || 1
-  return {
-    x: from.x + dx / length * distance,
-    y: from.y + dy / length * distance,
-  }
 }
 
 function drawNextButton(r) {
