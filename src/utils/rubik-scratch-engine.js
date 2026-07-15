@@ -5,7 +5,6 @@ import {
   RUBIK_SCRATCH_LEVEL_MAP,
 } from './rubik-scratch-levels.js';
 import {
-  getNormalAxis,
   getRubikFaceNormals,
   getRubikStickerCenterScreen,
   getRubikStickerHit,
@@ -16,6 +15,8 @@ import {
 } from './rubik-scratch-renderer.js';
 
 var TURN_DRAG_THRESHOLD = 12;
+var TURN_DIRECTION_MIN_SCORE = 0.58;
+var TURN_DIRECTION_MARGIN = 0.1;
 var TURN_DURATION = 330;
 
 export class RubikScratchEngine {
@@ -177,6 +178,11 @@ export class RubikScratchEngine {
   handlePointerMove(pointer) {
     if (!this.pointer) return;
     this.pointer.current = this.getCanvasPoint(pointer);
+    var turn = this.getTurnFromDrag(this.pointer.hit, this.pointer.start, this.pointer.current);
+    if (turn) {
+      this.pointer = null;
+      this.startTurn(turn);
+    }
   }
 
   handlePointerUp(pointer) {
@@ -214,10 +220,62 @@ export class RubikScratchEngine {
     var dx = end.x - start.x;
     var dy = end.y - start.y;
     var distance = Math.sqrt(dx * dx + dy * dy);
-    if (distance < TURN_DRAG_THRESHOLD) return null;
+    var threshold = this.getTurnDragThreshold(hit);
+    if (distance < threshold) return null;
 
-    var axis = getNormalAxis(hit.sticker.normal);
-    var layer = hit.cubie.position[axis];
+    var drag = {
+      x: dx / distance,
+      y: dy / distance,
+    };
+    var candidates = this.getTurnCandidatesForHit(hit);
+    var scored = candidates
+      .map(function (candidate) {
+        var length = Math.sqrt(
+          candidate.vector.x * candidate.vector.x +
+          candidate.vector.y * candidate.vector.y,
+        );
+        if (length <= 0) return null;
+        return {
+          axis: candidate.axis,
+          layer: candidate.layer,
+          dir: candidate.dir,
+          score: (candidate.vector.x / length) * drag.x + (candidate.vector.y / length) * drag.y,
+        };
+      })
+      .filter(Boolean)
+      .filter(function (candidate) {
+        return candidate.score > 0;
+      })
+      .sort(function (a, b) {
+        return b.score - a.score;
+      });
+
+    if (!scored.length || scored[0].score < TURN_DIRECTION_MIN_SCORE) {
+      return null;
+    }
+    if (
+      scored[1] &&
+      scored[0].score - scored[1].score < TURN_DIRECTION_MARGIN &&
+      distance < threshold * 1.75
+    ) {
+      return null;
+    }
+
+    return {
+      axis: scored[0].axis,
+      layer: scored[0].layer,
+      dir: scored[0].dir,
+    };
+  }
+
+  getTurnDragThreshold(hit) {
+    return Math.max(TURN_DRAG_THRESHOLD, (hit && hit.unit ? hit.unit : 40) * 0.34);
+  }
+
+  getTurnCandidatesForHit(hit) {
+    if (!hit || !hit.cubie || !hit.cubie.position || !hit.sticker) {
+      return [];
+    }
     var baseCenter = getRubikStickerCenterScreen(
       hit.cubie,
       hit.sticker.normal,
@@ -225,37 +283,40 @@ export class RubikScratchEngine {
       this.canvasSize,
       this.rubik.size,
     );
-    var plusCenter = getRubikStickerCenterScreen(
-      hit.cubie,
-      hit.sticker.normal,
-      {
-        axis: axis,
-        layer: layer,
-        dir: 1,
-        progress: 1,
-      },
-      this.canvasSize,
-      this.rubik.size,
-    );
-    var minusCenter = getRubikStickerCenterScreen(
-      hit.cubie,
-      hit.sticker.normal,
-      {
-        axis: axis,
-        layer: layer,
-        dir: -1,
-        progress: 1,
-      },
-      this.canvasSize,
-      this.rubik.size,
-    );
-    var plusScore = (plusCenter.x - baseCenter.x) * dx + (plusCenter.y - baseCenter.y) * dy;
-    var minusScore = (minusCenter.x - baseCenter.x) * dx + (minusCenter.y - baseCenter.y) * dy;
-    return {
-      axis: axis,
-      layer: layer,
-      dir: plusScore >= minusScore ? 1 : -1,
-    };
+    var self = this;
+    var candidates = [];
+    ['x', 'y', 'z'].forEach(function (axis) {
+      var layer = hit.cubie.position[axis];
+      [-1, 1].forEach(function (dir) {
+        var nextCenter = getRubikStickerCenterScreen(
+          hit.cubie,
+          hit.sticker.normal,
+          {
+            axis: axis,
+            layer: layer,
+            dir: dir,
+            progress: 1,
+          },
+          self.canvasSize,
+          self.rubik.size,
+        );
+        var vector = {
+          x: nextCenter.x - baseCenter.x,
+          y: nextCenter.y - baseCenter.y,
+        };
+        var length = Math.sqrt(vector.x * vector.x + vector.y * vector.y);
+        if (length < self.getTurnDragThreshold(hit) * 0.35) {
+          return;
+        }
+        candidates.push({
+          axis: axis,
+          layer: layer,
+          dir: dir,
+          vector: vector,
+        });
+      });
+    });
+    return candidates;
   }
 
   startTurn(turn) {

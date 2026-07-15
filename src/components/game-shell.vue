@@ -630,6 +630,9 @@
     flex: 1;
     min-width: 0;
     line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .tool-actions {
     display: flex;

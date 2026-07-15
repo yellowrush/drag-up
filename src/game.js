@@ -774,7 +774,7 @@ function drawUI() {
     ctx.font = '13px sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText(instruction, W / 2, SAFE_TOP + TOP_BAR + TEXT_H / 2)
+    drawTopInstructionText(ctx, instruction)
   }
   if (showNext) {
     ctx.fillStyle = '#5c2'
@@ -814,7 +814,7 @@ function drawModernUI() {
     ctx.font = '13px sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText(instruction, W / 2, SAFE_TOP + TOP_BAR + TEXT_H / 2)
+    drawTopInstructionText(ctx, instruction)
   }
   if (showNext) {
     drawNextButton(ctx)
@@ -825,6 +825,28 @@ function drawModernUI() {
   if (showScoreModal) {
     drawScoreModal()
   }
+}
+
+function drawTopInstructionText(r, text) {
+  var maxW = Math.max(80, W - 32)
+  r.fillText(ellipsizeCanvasText(r, text, maxW), W / 2, SAFE_TOP + TOP_BAR + TEXT_H / 2)
+}
+
+function ellipsizeCanvasText(r, text, maxW) {
+  var source = String(text || '')
+  if (!source || !r.measureText || r.measureText(source).width <= maxW) return source
+  var ellipsis = '...'
+  var lo = 0
+  var hi = source.length
+  while (lo < hi) {
+    var mid = Math.ceil((lo + hi) / 2)
+    if (r.measureText(source.slice(0, mid) + ellipsis).width <= maxW) {
+      lo = mid
+    } else {
+      hi = mid - 1
+    }
+  }
+  return source.slice(0, lo) + ellipsis
 }
 
 function drawToolLabel(r, x, y, text) {
