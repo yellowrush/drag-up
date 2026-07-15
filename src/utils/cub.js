@@ -495,10 +495,7 @@ function renderPawHairpin(ctx) {
   ctx.lineWidth = 3.2;
   ctx.fillStyle = '#8ec5ff';
   ctx.beginPath();
-  ctx.roundRect?.(-18, -7, 36, 14, 7);
-  if (!ctx.roundRect) {
-    drawLocalRoundRect(ctx, -18, -7, 36, 14, 7);
-  }
+  drawLocalRoundRect(ctx, -18, -7, 36, 14, 7);
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = '#d9f0ff';
@@ -601,16 +598,10 @@ function renderNurseHat(ctx) {
   ctx.stroke();
   ctx.fillStyle = '#e4474e';
   ctx.beginPath();
-  ctx.roundRect?.(-3.5, -8, 7, 17, 2);
-  if (!ctx.roundRect) {
-    drawLocalRoundRect(ctx, -3.5, -8, 7, 17, 2);
-  }
+  drawLocalRoundRect(ctx, -3.5, -8, 7, 17, 2);
   ctx.fill();
   ctx.beginPath();
-  ctx.roundRect?.(-8.5, -3, 17, 7, 2);
-  if (!ctx.roundRect) {
-    drawLocalRoundRect(ctx, -8.5, -3, 17, 7, 2);
-  }
+  drawLocalRoundRect(ctx, -8.5, -3, 17, 7, 2);
   ctx.fill();
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
   ctx.beginPath();

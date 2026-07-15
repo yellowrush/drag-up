@@ -31,15 +31,19 @@ export function renderRubikScratch(ctx, state, canvasSize, options) {
   var viewTurn = state.turn || state.previewTurn || null;
   var items = getStickerItems(state, canvasSize, viewTurn);
   var goalItem = getGoalItem(state, canvasSize);
+  var lockedItems = getLockedSlotItems(state, canvasSize);
+  var wormholeItems = getWormholeItems(state, canvasSize);
+  var wormholePairs = getWormholePairItems(state, canvasSize);
   var queue = items.map(function (item) {
     return { type: 'sticker', item: item, order: 0 };
   });
-  if (goalItem && !options.hideGoal) {
+  if (goalItem && !options.hideGoal && !goalItem.isBackSideGoal) {
     queue.push({ type: 'goal', item: goalItem, order: 1 });
   }
 
   drawRubikStage(ctx, layout, state);
   drawExtendedCubeEdges(ctx, layout, state);
+  drawWormholeTunnels(ctx, wormholePairs, layout);
   if (state.interaction && !state.turn) {
     drawRubikInteractionLayer(ctx, items, state.interaction);
   }
@@ -59,12 +63,18 @@ export function renderRubikScratch(ctx, state, canvasSize, options) {
     }
   });
 
+  drawRubikSlotMarkers(ctx, lockedItems, wormholeItems, state);
+
+  if (goalItem && !options.hideGoal && goalItem.isBackSideGoal) {
+    drawBackSideGoalSticker(ctx, goalItem);
+  }
+
   if (state.interaction && !state.turn) {
     drawRubikTurnGuides(ctx, state.interaction, layout);
   }
 
   items.forEach(function (item) {
-    if (item.sticker.kind === 'cat' && !options.hideCat) {
+    if (item.sticker.kind === 'cat' && !options.hideCat && !state.teleport) {
       drawCatSticker(
         ctx,
         item.center,
@@ -76,6 +86,10 @@ export function renderRubikScratch(ctx, state, canvasSize, options) {
       );
     }
   });
+
+  if (state.teleport) {
+    drawWormholeTeleport(ctx, state, canvasSize, options || {});
+  }
 
   if (options && options.completed) {
     drawCompletionPulse(ctx, state, canvasSize);
@@ -323,6 +337,192 @@ function getIsSameTurn(candidate, turn) {
     candidate.dir === turn.dir;
 }
 
+function drawRubikSlotMarkers(ctx, lockedItems, wormholeItems, state) {
+  wormholeItems.forEach(function (item) {
+    drawWormholeIcon(ctx, item);
+  });
+  lockedItems.forEach(function (item) {
+    var pulse = 0;
+    if (state.blockedTouch && state.blockedTouch.key === item.slotKey) {
+      pulse = Math.max(0, 1 - (Date.now() - state.blockedTouch.startedAt) / 520);
+    }
+    drawNoTouchIcon(ctx, item, pulse);
+  });
+}
+
+function drawWormholeTunnels(ctx, pairs, layout) {
+  if (!pairs || !pairs.length) return;
+  pairs.forEach(function (pair) {
+    if (!pair.fromItem || !pair.toItem) return;
+    var palette = getWormholePalette(pair.id);
+    var center = layout.center;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = 0.7;
+    ctx.strokeStyle = palette.tunnelShadow;
+    ctx.lineWidth = Math.max(5, layout.unit * 0.16);
+    ctx.beginPath();
+    ctx.moveTo(pair.fromItem.center.x, pair.fromItem.center.y);
+    ctx.quadraticCurveTo(center.x, center.y, pair.toItem.center.x, pair.toItem.center.y);
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.78;
+    ctx.strokeStyle = palette.tunnel;
+    ctx.lineWidth = Math.max(2, layout.unit * 0.055);
+    if (ctx.setLineDash) ctx.setLineDash([layout.unit * 0.18, layout.unit * 0.12]);
+    ctx.beginPath();
+    ctx.moveTo(pair.fromItem.center.x, pair.fromItem.center.y);
+    ctx.quadraticCurveTo(center.x, center.y, pair.toItem.center.x, pair.toItem.center.y);
+    ctx.stroke();
+    if (ctx.setLineDash) ctx.setLineDash([]);
+
+    ctx.globalAlpha = 0.24;
+    ctx.fillStyle = palette.inner;
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, layout.unit * 0.16, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+}
+
+function drawNoTouchIcon(ctx, item, pulse) {
+  var radius = item.unit * (0.22 + pulse * 0.04);
+  var center = item.center;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, item.faceAlpha + 0.3);
+  ctx.fillStyle = pulse > 0 ? 'rgba(255,218,137,0.32)' : 'rgba(61,45,56,0.34)';
+  traceInsetPolygon(ctx, item.polygon, item.center, 0.74);
+  ctx.fill();
+
+  ctx.strokeStyle = pulse > 0 ? 'rgba(255,231,166,0.96)' : 'rgba(255,240,210,0.78)';
+  ctx.lineWidth = Math.max(2, item.unit * 0.055);
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.strokeStyle = pulse > 0 ? 'rgba(218,72,86,0.95)' : 'rgba(224,92,104,0.84)';
+  ctx.lineWidth = Math.max(2.4, item.unit * 0.06);
+  ctx.beginPath();
+  ctx.moveTo(center.x - radius * 0.72, center.y + radius * 0.72);
+  ctx.lineTo(center.x + radius * 0.72, center.y - radius * 0.72);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawWormholeIcon(ctx, item) {
+  var palette = getWormholePalette(item.wormholeId);
+  var center = item.center;
+  var radius = item.unit * 0.29;
+  var t = Date.now() / 1000;
+  ctx.save();
+  ctx.globalAlpha = item.forceVisible
+    ? 0.48
+    : Math.min(1, item.faceAlpha + 0.34);
+  ctx.fillStyle = palette.fill;
+  traceInsetPolygon(ctx, item.polygon, item.center, item.forceVisible ? 0.76 : 0.68);
+  ctx.fill();
+
+  ctx.fillStyle = palette.depth;
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, radius * 0.82, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = palette.outer;
+  ctx.lineWidth = Math.max(2.2, item.unit * 0.052);
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.strokeStyle = palette.rimLight;
+  ctx.lineWidth = Math.max(1.3, item.unit * 0.024);
+  ctx.beginPath();
+  ctx.arc(center.x - radius * 0.08, center.y - radius * 0.1, radius * 0.62, Math.PI * 1.08, Math.PI * 1.92);
+  ctx.stroke();
+
+  ctx.strokeStyle = palette.inner;
+  ctx.lineWidth = Math.max(1.5, item.unit * 0.032);
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, radius * 0.58, t * 1.8, t * 1.8 + Math.PI * 1.35);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, radius * 0.28, -t * 2.2, -t * 2.2 + Math.PI * 1.25);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawWormholeTeleport(ctx, state, canvasSize, options) {
+  var teleport = state.teleport;
+  var layout = getRubikLayout(canvasSize, state.size);
+  var fromItem = getSlotItem(teleport.from, canvasSize, 'teleport', state.size, 0.32, true);
+  var toItem = getSlotItem(teleport.to, canvasSize, 'teleport', state.size, 0.32, true);
+  if (!fromItem || !toItem) return;
+  var t = easeInOutCubic(teleport.progress || 0);
+  var mid = {
+    x: layout.center.x,
+    y: layout.center.y,
+  };
+  var center = getQuadraticPoint(fromItem.center, mid, toItem.center, t);
+  var unit = Math.min(fromItem.unit, toItem.unit);
+  var palette = getWormholePalette(teleport.id);
+
+  ctx.save();
+  ctx.strokeStyle = palette.tunnelShadow;
+  ctx.lineWidth = Math.max(4, unit * 0.13);
+  ctx.beginPath();
+  ctx.moveTo(fromItem.center.x, fromItem.center.y);
+  ctx.quadraticCurveTo(mid.x, mid.y, toItem.center.x, toItem.center.y);
+  ctx.stroke();
+
+  ctx.strokeStyle = palette.trail;
+  ctx.lineWidth = Math.max(2, unit * 0.045);
+  ctx.beginPath();
+  ctx.moveTo(fromItem.center.x, fromItem.center.y);
+  ctx.quadraticCurveTo(mid.x, mid.y, center.x, center.y);
+  ctx.stroke();
+
+  ctx.globalAlpha = 0.92;
+  drawWormholeIcon(ctx, fromItem);
+  drawWormholeIcon(ctx, toItem);
+  ctx.restore();
+
+  drawCatSticker(ctx, center, unit, false, 1, 1, options);
+}
+
+function getWormholePalette(id) {
+  if (id === 'violet') {
+    return {
+      fill: 'rgba(129,102,222,0.24)',
+      depth: 'rgba(35,24,80,0.58)',
+      outer: 'rgba(224,214,255,0.9)',
+      rimLight: 'rgba(255,245,255,0.72)',
+      inner: 'rgba(161,126,255,0.9)',
+      trail: 'rgba(198,176,255,0.5)',
+      tunnel: 'rgba(174,146,255,0.5)',
+      tunnelShadow: 'rgba(43,26,88,0.34)',
+    };
+  }
+  return {
+    fill: 'rgba(75,183,235,0.22)',
+    depth: 'rgba(16,54,78,0.58)',
+    outer: 'rgba(210,244,255,0.92)',
+    rimLight: 'rgba(248,255,255,0.74)',
+    inner: 'rgba(88,205,255,0.88)',
+    trail: 'rgba(144,224,255,0.52)',
+    tunnel: 'rgba(104,218,255,0.5)',
+    tunnelShadow: 'rgba(17,58,82,0.34)',
+  };
+}
+
+function getQuadraticPoint(a, b, c, t) {
+  var inv = 1 - t;
+  return {
+    x: inv * inv * a.x + 2 * inv * t * b.x + t * t * c.x,
+    y: inv * inv * a.y + 2 * inv * t * b.y + t * t * c.y,
+  };
+}
+
 function drawSticker(ctx, item) {
   ctx.save();
   ctx.lineJoin = 'round';
@@ -392,6 +592,30 @@ function drawGoalSticker(ctx, item, alphaScale) {
 
   drawPawPrintOnPlane(ctx, item.center, basis.u, basis.v, item.unit * 0.3);
   ctx.restore();
+}
+
+function drawBackSideGoalSticker(ctx, item) {
+  var pulse = (Math.sin(Date.now() / 260) + 1) * 0.5;
+  var alpha = 0.6 + pulse * 0.16;
+  var radius = item.unit * (0.54 + pulse * 0.04);
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = 'rgba(255,244,204,0.2)';
+  ctx.strokeStyle = 'rgba(255,238,166,0.72)';
+  ctx.lineWidth = Math.max(2, item.unit * 0.04);
+  traceRoundedPolygon(ctx, getInsetPolygon(item.polygon, item.center, 0.92), Math.max(3, item.unit * 0.11));
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(255,238,166,0.55)';
+  ctx.lineWidth = Math.max(1.5, item.unit * 0.025);
+  ctx.beginPath();
+  ctx.arc(item.center.x, item.center.y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  drawGoalSticker(ctx, item, 0.78);
 }
 
 function drawCatSticker(ctx, center, unit, completed, faceAlpha, normalDepth, options) {
@@ -744,11 +968,66 @@ function getStickerItems(state, canvasSize, turn) {
 
 function getGoalItem(state, canvasSize) {
   if (!state.goal) return null;
-  var layout = getRubikLayout(canvasSize, state.size);
-  var fakeCubie = { id: 'goal', position: state.goal.position };
-  var fakeSticker = { kind: 'goal', normal: state.goal.normal, lift: 0.34 };
+  var item = getSlotItem(state.goal, canvasSize, 'goal', state.size, 0.34, true);
+  if (item) {
+    item.isBackSideGoal = item.normalDepth <= -0.42 || !item.visible;
+  }
+  return item;
+}
+
+function getLockedSlotItems(state, canvasSize) {
+  return (state.lockedSlots || [])
+    .map(function (slot) {
+      var item = getSlotItem(slot, canvasSize, 'locked', state.size, 0.36);
+      if (item) {
+        item.slotKey = getSlotKey(slot);
+      }
+      return item;
+    })
+    .filter(Boolean);
+}
+
+function getWormholeItems(state, canvasSize) {
+  var items = [];
+  (state.wormholes || []).forEach(function (wormhole) {
+    [wormhole.from, wormhole.to].forEach(function (slot) {
+      var item = getSlotItem(slot, canvasSize, 'wormhole', state.size, 0.32, true);
+      if (item) {
+        item.wormholeId = wormhole.id || '';
+        items.push(item);
+      }
+    });
+  });
+  return items;
+}
+
+function getWormholePairItems(state, canvasSize) {
+  return (state.wormholes || [])
+    .map(function (wormhole) {
+      return {
+        id: wormhole.id || '',
+        fromItem: getSlotItem(wormhole.from, canvasSize, 'wormhole', state.size, 0.32, true),
+        toItem: getSlotItem(wormhole.to, canvasSize, 'wormhole', state.size, 0.32, true),
+      };
+    })
+    .filter(function (pair) {
+      return pair.fromItem && pair.toItem;
+    });
+}
+
+function getSlotItem(slot, canvasSize, kind, size, lift, forceVisible) {
+  if (!slot) return null;
+  var layout = getRubikLayout(canvasSize, size || 2);
+  var fakeCubie = { id: kind || 'slot', position: slot.position };
+  var fakeSticker = { kind: kind || 'slot', normal: slot.normal, lift: lift || 0 };
   var item = getStickerItem(fakeCubie, fakeSticker, null, layout);
-  return item && item.visible ? item : null;
+  if (!item || (!item.visible && !forceVisible)) return null;
+  item.forceVisible = !!forceVisible && !item.visible;
+  return item;
+}
+
+function getSlotKey(slot) {
+  return vectorKey(slot.position) + '|' + vectorKey(slot.normal);
 }
 
 function getStickerItem(cubie, sticker, turn, layout) {
@@ -1011,6 +1290,13 @@ function rgbaFromHex(hex, alpha) {
 function easeOutCubic(t) {
   var d = 1 - Math.max(0, Math.min(1, t));
   return 1 - d * d * d;
+}
+
+function easeInOutCubic(t) {
+  t = Math.max(0, Math.min(1, t));
+  return t < 0.5
+    ? 4 * t * t * t
+    : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
 function easeOutBack(t) {

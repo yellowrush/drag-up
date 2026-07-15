@@ -23,6 +23,7 @@ var TURN_AMBIGUOUS_DISTANCE_MULTIPLIER = 2.4;
 var TURN_COMMIT_PROGRESS = 0.38;
 var TURN_PREVIEW_MAX_PROGRESS = 0.88;
 var TURN_DURATION = 330;
+var TELEPORT_DURATION = 620;
 
 export class RubikScratchEngine {
   constructor(canvas, ctx) {
@@ -142,6 +143,15 @@ export class RubikScratchEngine {
     if (this.winAnim) {
       this.winAnim.update();
     }
+    if (this.rubik.teleport) {
+      this.rubik.teleport.elapsed += dt;
+      this.rubik.teleport.progress = Math.min(1, this.rubik.teleport.elapsed / this.rubik.teleport.duration);
+      if (this.rubik.teleport.progress >= 1) {
+        this.rubik.teleport = null;
+        this.checkLevelComplete();
+      }
+      return;
+    }
     if (!this.rubik.turn) return;
 
     this.rubik.turn.elapsed += dt;
@@ -165,7 +175,7 @@ export class RubikScratchEngine {
   }
 
   handlePointerDown(pointer) {
-    if (!this.rubik || this.completed || this.rubik.turn) {
+    if (!this.rubik || this.completed || this.rubik.turn || this.rubik.teleport) {
       this.pointer = null;
       return;
     }
@@ -174,6 +184,15 @@ export class RubikScratchEngine {
     if (!hit) {
       this.pointer = null;
       this.clearInteractionState();
+      return;
+    }
+    if (getIsSlotInList(hit.cubie.position, hit.sticker.normal, this.rubik.lockedSlots)) {
+      this.pointer = null;
+      this.clearInteractionState();
+      this.rubik.blockedTouch = {
+        key: getSlotKey(hit.cubie.position, hit.sticker.normal),
+        startedAt: Date.now(),
+      };
       return;
     }
     var candidates = this.getTurnCandidatesForHit(hit);
@@ -441,7 +460,35 @@ export class RubikScratchEngine {
       }];
     }
     this.levelStats.rotateCount += 1;
+    if (!turn.isUndo && this.resolveWormhole()) {
+      return;
+    }
     this.checkLevelComplete();
+  }
+
+  resolveWormhole() {
+    if (!this.rubik || !this.rubik.wormholes || !this.rubik.wormholes.length) {
+      return false;
+    }
+    var cat = findCatSticker(this.rubik);
+    if (!cat) return false;
+    var endpoint = findWormholeEndpoint(
+      this.rubik.wormholes,
+      cat.cubie.position,
+      cat.sticker.normal,
+    );
+    if (!endpoint) return false;
+    if (!moveCatToSlot(this.rubik, endpoint.to)) return false;
+    this.rubik.wormholeCount += 1;
+    this.rubik.teleport = {
+      id: endpoint.id || '',
+      from: cloneSlot(endpoint.from),
+      to: cloneSlot(endpoint.to),
+      elapsed: 0,
+      duration: TELEPORT_DURATION,
+      progress: 0,
+    };
+    return true;
   }
 
   undoLastTurn() {
@@ -457,7 +504,12 @@ export class RubikScratchEngine {
   checkLevelComplete() {
     if (this.completed || !this.rubik) return;
     var cat = findCatSticker(this.rubik);
+    var enoughTurns = this.levelStats.rotateCount >= (this.rubik.minTurns || 0);
+    var enoughWormholes =
+      (this.rubik.wormholeCount || 0) >= (this.rubik.requiredWormholes || 0);
     if (
+      enoughTurns &&
+      enoughWormholes &&
       cat &&
       sameVector(cat.cubie.position, this.rubik.goal.position) &&
       sameVector(cat.sticker.normal, this.rubik.goal.normal)
@@ -492,9 +544,16 @@ function createRubikState(level) {
     size: size,
     cubies: createCubies(size, level.cat),
     goal: cloneSlot(level.goal),
+    minTurns: level.minTurns || 0,
+    requiredWormholes: level.requiredWormholes || 0,
+    wormholeCount: 0,
+    lockedSlots: cloneSlots(level.lockedSlots || []),
+    wormholes: cloneWormholes(level.wormholes || []),
     turn: null,
     previewTurn: null,
     interaction: null,
+    blockedTouch: null,
+    teleport: null,
   };
 }
 
@@ -555,6 +614,83 @@ function isSameSlot(position, normal, slot) {
     sameVector(position, slot.position) &&
     sameVector(normal, slot.normal)
   );
+}
+
+function getIsSlotInList(position, normal, slots) {
+  return !!slots && slots.some(function (slot) {
+    return isSameSlot(position, normal, slot);
+  });
+}
+
+function getSlotKey(position, normal) {
+  return vectorKey(position) + '|' + vectorKey(normal);
+}
+
+function cloneSlots(slots) {
+  return (slots || []).map(function (slot) {
+    return cloneSlot(slot);
+  });
+}
+
+function cloneWormholes(wormholes) {
+  return (wormholes || []).map(function (wormhole, index) {
+    return {
+      id: wormhole.id || 'wormhole-' + index,
+      from: cloneSlot(wormhole.from),
+      to: cloneSlot(wormhole.to),
+    };
+  });
+}
+
+function findWormholeEndpoint(wormholes, position, normal) {
+  for (var i = 0; i < wormholes.length; i++) {
+    var wormhole = wormholes[i];
+    if (isSameSlot(position, normal, wormhole.from)) {
+      return {
+        id: wormhole.id,
+        from: wormhole.from,
+        to: wormhole.to,
+      };
+    }
+    if (isSameSlot(position, normal, wormhole.to)) {
+      return {
+        id: wormhole.id,
+        from: wormhole.to,
+        to: wormhole.from,
+      };
+    }
+  }
+  return null;
+}
+
+function moveCatToSlot(state, slot) {
+  var target = findStickerAtSlot(state, slot);
+  if (!target) return false;
+  state.cubies.forEach(function (cubie) {
+    cubie.stickers.forEach(function (sticker) {
+      if (sticker.kind === 'cat') {
+        sticker.kind = 'color';
+      }
+    });
+  });
+  target.sticker.kind = 'cat';
+  return true;
+}
+
+function findStickerAtSlot(state, slot) {
+  for (var i = 0; i < state.cubies.length; i++) {
+    var cubie = state.cubies[i];
+    if (!sameVector(cubie.position, slot.position)) continue;
+    for (var j = 0; j < cubie.stickers.length; j++) {
+      if (sameVector(cubie.stickers[j].normal, slot.normal)) {
+        return {
+          cubie: cubie,
+          sticker: cubie.stickers[j],
+        };
+      }
+    }
+  }
+  return null;
 }
 
 function clamp(value, min, max) {
