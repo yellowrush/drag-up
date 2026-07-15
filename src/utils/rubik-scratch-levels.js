@@ -4,7 +4,8 @@ export const RUBIK_SCRATCH_LEVELS = [
     label: '\u732b\u6293\u677f 1\uff1a\u6559\u7a0b',
     blurb: 'rubik-scratch',
     size: 2,
-    instruction: '\u8f6c\u9762\u5230\u6293\u677f',
+    instruction:
+      '\u62d6\u62fd\u65cb\u8f6c\u8ba9\u5c0f\u732b\u5230\u8fbe\u732b\u6293\u677f\u6240\u5728\u7684\u5e73\u9762',
     cat: {
       position: { x: 1, y: 1, z: 1 },
       normal: { x: 0, y: 0, z: 1 },
