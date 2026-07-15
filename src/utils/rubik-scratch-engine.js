@@ -12,11 +12,16 @@ import {
   renderRubikScratch,
   rotateRubikQuarter,
   sameVector,
+  vectorKey,
 } from './rubik-scratch-renderer.js';
 
 var TURN_DRAG_THRESHOLD = 12;
+var TURN_PREVIEW_MIN_SCORE = 0.5;
 var TURN_DIRECTION_MIN_SCORE = 0.58;
 var TURN_DIRECTION_MARGIN = 0.1;
+var TURN_AMBIGUOUS_DISTANCE_MULTIPLIER = 2.4;
+var TURN_COMMIT_PROGRESS = 0.38;
+var TURN_PREVIEW_MAX_PROGRESS = 0.88;
 var TURN_DURATION = 330;
 
 export class RubikScratchEngine {
@@ -36,6 +41,7 @@ export class RubikScratchEngine {
     };
     this.rubik = null;
     this.pointer = null;
+    this.undoStack = [];
     this.levelStats = this.createLevelStats('');
     this.completed = false;
     this.winAnim = null;
@@ -83,6 +89,7 @@ export class RubikScratchEngine {
     };
     this.rubik = createRubikState(level);
     this.pointer = null;
+    this.undoStack = [];
     this.completed = false;
     this.winAnim = null;
     this.lastUpdateAt = Date.now();
@@ -166,35 +173,63 @@ export class RubikScratchEngine {
     var hit = getRubikStickerHit(this.rubik, point, this.canvasSize);
     if (!hit) {
       this.pointer = null;
+      this.clearInteractionState();
+      return;
+    }
+    var candidates = this.getTurnCandidatesForHit(hit);
+    if (!candidates.length) {
+      this.pointer = null;
+      this.clearInteractionState();
       return;
     }
     this.pointer = {
       start: point,
       current: point,
       hit: hit,
+      candidates: candidates,
     };
+    this.updateInteractionState(this.pointer, null);
   }
 
   handlePointerMove(pointer) {
-    if (!this.pointer) return;
+    if (!this.pointer || !this.rubik || this.rubik.turn) return;
     this.pointer.current = this.getCanvasPoint(pointer);
-    var turn = this.getTurnFromDrag(this.pointer.hit, this.pointer.start, this.pointer.current);
-    if (turn) {
-      this.pointer = null;
-      this.startTurn(turn);
+    var choice = this.getTurnChoiceFromDrag(
+      this.pointer.hit,
+      this.pointer.start,
+      this.pointer.current,
+      this.pointer.candidates,
+    );
+    this.updateInteractionState(this.pointer, choice);
+    if (choice && choice.canPreview) {
+      this.rubik.previewTurn = {
+        axis: choice.turn.axis,
+        layer: choice.turn.layer,
+        dir: choice.turn.dir,
+        progress: choice.previewProgress,
+      };
+    } else {
+      this.rubik.previewTurn = null;
     }
   }
 
   handlePointerUp(pointer) {
     if (!this.pointer || !this.rubik || this.rubik.turn) {
       this.pointer = null;
+      this.clearInteractionState();
       return;
     }
     var end = this.getCanvasPoint(pointer);
-    var turn = this.getTurnFromDrag(this.pointer.hit, this.pointer.start, end);
+    var choice = this.getTurnChoiceFromDrag(
+      this.pointer.hit,
+      this.pointer.start,
+      end,
+      this.pointer.candidates,
+    );
     this.pointer = null;
-    if (turn) {
-      this.startTurn(turn);
+    this.clearInteractionState();
+    if (choice && choice.canCommit) {
+      this.startTurn(choice.turn, choice.previewProgress);
     }
   }
 
@@ -217,6 +252,11 @@ export class RubikScratchEngine {
   }
 
   getTurnFromDrag(hit, start, end) {
+    var choice = this.getTurnChoiceFromDrag(hit, start, end);
+    return choice && choice.canCommit ? choice.turn : null;
+  }
+
+  getTurnChoiceFromDrag(hit, start, end, candidates) {
     var dx = end.x - start.x;
     var dy = end.y - start.y;
     var distance = Math.sqrt(dx * dx + dy * dy);
@@ -227,44 +267,61 @@ export class RubikScratchEngine {
       x: dx / distance,
       y: dy / distance,
     };
-    var candidates = this.getTurnCandidatesForHit(hit);
-    var scored = candidates
+    var scored = (candidates || this.getTurnCandidatesForHit(hit))
       .map(function (candidate) {
-        var length = Math.sqrt(
-          candidate.vector.x * candidate.vector.x +
-          candidate.vector.y * candidate.vector.y,
+        var length = candidate.length || Math.sqrt(
+          candidate.vector.x * candidate.vector.x + candidate.vector.y * candidate.vector.y,
         );
         if (length <= 0) return null;
+        var ux = candidate.vector.x / length;
+        var uy = candidate.vector.y / length;
+        var score = ux * drag.x + uy * drag.y;
+        var projection = dx * ux + dy * uy;
         return {
           axis: candidate.axis,
           layer: candidate.layer,
           dir: candidate.dir,
-          score: (candidate.vector.x / length) * drag.x + (candidate.vector.y / length) * drag.y,
+          candidate: candidate,
+          length: length,
+          projection: projection,
+          progress: projection / length,
+          score: score,
         };
       })
       .filter(Boolean)
       .filter(function (candidate) {
-        return candidate.score > 0;
+        return candidate.score > 0 && candidate.projection > 0;
       })
       .sort(function (a, b) {
         return b.score - a.score;
       });
 
-    if (!scored.length || scored[0].score < TURN_DIRECTION_MIN_SCORE) {
+    if (!scored.length || scored[0].score < TURN_PREVIEW_MIN_SCORE) {
       return null;
     }
-    if (
-      scored[1] &&
-      scored[0].score - scored[1].score < TURN_DIRECTION_MARGIN &&
-      distance < threshold * 1.75
-    ) {
-      return null;
-    }
+    var best = scored[0];
+    var margin = scored[1] ? best.score - scored[1].score : 1;
+    var progress = clamp(best.progress, 0, TURN_PREVIEW_MAX_PROGRESS);
+    var directionReady = best.score >= TURN_DIRECTION_MIN_SCORE;
+    var ambiguityCleared =
+      margin >= TURN_DIRECTION_MARGIN ||
+      distance >= threshold * TURN_AMBIGUOUS_DISTANCE_MULTIPLIER;
+    var progressReady = best.progress >= TURN_COMMIT_PROGRESS;
 
     return {
-      axis: scored[0].axis,
-      layer: scored[0].layer,
-      dir: scored[0].dir,
+      turn: {
+        axis: best.axis,
+        layer: best.layer,
+        dir: best.dir,
+      },
+      candidate: best.candidate,
+      score: best.score,
+      margin: margin,
+      distance: distance,
+      previewProgress: progress,
+      canPreview: best.score >= TURN_PREVIEW_MIN_SCORE,
+      canCommit: directionReady && progressReady && ambiguityCleared,
+      ambiguous: directionReady && progressReady && !ambiguityCleared,
     };
   }
 
@@ -313,21 +370,54 @@ export class RubikScratchEngine {
           layer: layer,
           dir: dir,
           vector: vector,
+          start: { x: baseCenter.x, y: baseCenter.y },
+          end: { x: nextCenter.x, y: nextCenter.y },
+          length: length,
         });
       });
     });
     return candidates;
   }
 
-  startTurn(turn) {
+  updateInteractionState(pointer, choice) {
+    if (!this.rubik || !pointer) return;
+    this.rubik.interaction = {
+      hitCubieId: pointer.hit.cubie.id,
+      hitNormalKey: vectorKey(pointer.hit.sticker.normal),
+      candidates: pointer.candidates.map(function (candidate) {
+        return {
+          axis: candidate.axis,
+          layer: candidate.layer,
+          dir: candidate.dir,
+          vector: { x: candidate.vector.x, y: candidate.vector.y },
+          start: { x: candidate.start.x, y: candidate.start.y },
+          end: { x: candidate.end.x, y: candidate.end.y },
+          length: candidate.length,
+        };
+      }),
+      activeTurn: choice && choice.canPreview ? choice.turn : null,
+      ambiguous: !!(choice && choice.ambiguous),
+    };
+  }
+
+  clearInteractionState() {
+    if (!this.rubik) return;
+    this.rubik.interaction = null;
+    this.rubik.previewTurn = null;
+  }
+
+  startTurn(turn, initialProgress) {
     if (!this.rubik || this.rubik.turn) return;
+    var progress = clamp(initialProgress || 0, 0, TURN_PREVIEW_MAX_PROGRESS);
+    this.clearInteractionState();
     this.rubik.turn = {
       axis: turn.axis,
       layer: turn.layer,
       dir: turn.dir,
-      elapsed: 0,
+      elapsed: TURN_DURATION * progress,
       duration: TURN_DURATION,
-      progress: 0,
+      progress: progress,
+      isUndo: !!turn.isUndo,
     };
   }
 
@@ -342,8 +432,26 @@ export class RubikScratchEngine {
       });
     });
     this.rubik.turn = null;
+    if (!turn.isUndo) {
+      this.undoStack = [{
+        axis: turn.axis,
+        layer: turn.layer,
+        dir: -turn.dir,
+        isUndo: true,
+      }];
+    }
     this.levelStats.rotateCount += 1;
     this.checkLevelComplete();
+  }
+
+  undoLastTurn() {
+    if (!this.rubik || this.rubik.turn || this.completed) return false;
+    this.pointer = null;
+    this.clearInteractionState();
+    var turn = this.undoStack.pop();
+    if (!turn) return false;
+    this.startTurn(turn, 0);
+    return true;
   }
 
   checkLevelComplete() {
@@ -374,6 +482,7 @@ export class RubikScratchEngine {
     this.rubik = null;
     this.level = null;
     this.pointer = null;
+    this.undoStack = [];
   }
 }
 
@@ -384,6 +493,8 @@ function createRubikState(level) {
     cubies: createCubies(size, level.cat),
     goal: cloneSlot(level.goal),
     turn: null,
+    previewTurn: null,
+    interaction: null,
   };
 }
 
@@ -444,6 +555,10 @@ function isSameSlot(position, normal, slot) {
     sameVector(position, slot.position) &&
     sameVector(normal, slot.normal)
   );
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function cloneSlot(slot) {

@@ -183,6 +183,13 @@ export class PlayEngine {
     }
   }
 
+  undoLastTurn() {
+    if (this.engine && this.engine.undoLastTurn) {
+      return this.engine.undoLastTurn();
+    }
+    return false;
+  }
+
   destroy() {
     if (this.engine && this.engine.destroy) {
       this.engine.destroy();

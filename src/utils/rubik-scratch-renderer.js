@@ -28,7 +28,8 @@ export function renderRubikScratch(ctx, state, canvasSize, options) {
   if (!ctx || !state) return;
   options = options || {};
   var layout = getRubikLayout(canvasSize, state.size);
-  var items = getStickerItems(state, canvasSize, state.turn);
+  var viewTurn = state.turn || state.previewTurn || null;
+  var items = getStickerItems(state, canvasSize, viewTurn);
   var goalItem = getGoalItem(state, canvasSize);
   var queue = items.map(function (item) {
     return { type: 'sticker', item: item, order: 0 };
@@ -39,6 +40,9 @@ export function renderRubikScratch(ctx, state, canvasSize, options) {
 
   drawRubikStage(ctx, layout, state);
   drawExtendedCubeEdges(ctx, layout, state);
+  if (state.interaction && !state.turn) {
+    drawRubikInteractionLayer(ctx, items, state.interaction);
+  }
 
   queue.sort(function (a, b) {
     if (a.item.depth === b.item.depth) {
@@ -54,6 +58,10 @@ export function renderRubikScratch(ctx, state, canvasSize, options) {
       drawSticker(ctx, entry.item);
     }
   });
+
+  if (state.interaction && !state.turn) {
+    drawRubikTurnGuides(ctx, state.interaction, layout);
+  }
 
   items.forEach(function (item) {
     if (item.sticker.kind === 'cat' && !options.hideCat) {
@@ -201,6 +209,118 @@ function drawExtendedCubeEdges(ctx, layout, state) {
     ctx.stroke();
   });
   ctx.restore();
+}
+
+function drawRubikInteractionLayer(ctx, items, interaction) {
+  if (!interaction) return;
+  var activeTurn = interaction.activeTurn;
+  ctx.save();
+  if (activeTurn) {
+    items.forEach(function (item) {
+      if (!item.cubie || !item.cubie.position) return;
+      if (item.cubie.position[activeTurn.axis] !== activeTurn.layer) return;
+      drawLayerPreviewOverlay(ctx, item, interaction.ambiguous);
+    });
+  }
+
+  items.forEach(function (item) {
+    if (
+      item.cubie &&
+      item.cubie.id === interaction.hitCubieId &&
+      vectorKey(roundVector(item.sticker.normal)) === interaction.hitNormalKey
+    ) {
+      drawHitStickerOutline(ctx, item, interaction.ambiguous);
+    }
+  });
+  ctx.restore();
+}
+
+function drawLayerPreviewOverlay(ctx, item, ambiguous) {
+  ctx.save();
+  ctx.fillStyle = ambiguous ? 'rgba(255,191,98,0.11)' : 'rgba(255,238,168,0.12)';
+  ctx.strokeStyle = ambiguous ? 'rgba(255,202,128,0.34)' : 'rgba(255,244,196,0.38)';
+  ctx.lineWidth = Math.max(1, item.unit * 0.018);
+  traceInsetPolygon(ctx, item.polygon, item.center, 0.96);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawHitStickerOutline(ctx, item, ambiguous) {
+  ctx.save();
+  ctx.strokeStyle = ambiguous ? 'rgba(255,202,128,0.86)' : 'rgba(255,249,208,0.92)';
+  ctx.lineWidth = Math.max(2, item.unit * 0.045);
+  traceInsetPolygon(ctx, item.polygon, item.center, 0.9);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawRubikTurnGuides(ctx, interaction, layout) {
+  if (!interaction || !interaction.candidates || !interaction.candidates.length) return;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  interaction.candidates.forEach(function (candidate) {
+    drawTurnGuideArrow(
+      ctx,
+      candidate,
+      layout.unit,
+      getIsSameTurn(candidate, interaction.activeTurn),
+      interaction.ambiguous,
+    );
+  });
+  ctx.restore();
+}
+
+function drawTurnGuideArrow(ctx, candidate, unit, active, ambiguous) {
+  var length = candidate.length || vectorLength(candidate.vector);
+  if (!length) return;
+  var ux = candidate.vector.x / length;
+  var uy = candidate.vector.y / length;
+  var startOffset = unit * (active ? 0.34 : 0.42);
+  var guideLength = Math.max(unit * 0.36, Math.min(unit * 0.78, length * 0.33));
+  var sx = candidate.start.x + ux * startOffset;
+  var sy = candidate.start.y + uy * startOffset;
+  var ex = sx + ux * guideLength;
+  var ey = sy + uy * guideLength;
+  var alpha = active ? (ambiguous ? 0.72 : 0.92) : 0.19;
+  var color = active
+    ? ambiguous ? 'rgba(255,205,118,' + alpha + ')' : 'rgba(255,246,188,' + alpha + ')'
+    : 'rgba(255,255,255,' + alpha + ')';
+  var head = unit * (active ? 0.14 : 0.1);
+  var angle = Math.atan2(uy, ux);
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = Math.max(1.5, unit * (active ? 0.045 : 0.028));
+  ctx.shadowColor = active ? 'rgba(255,226,150,0.38)' : 'transparent';
+  ctx.shadowBlur = active ? unit * 0.08 : 0;
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(ex, ey);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(ex, ey);
+  ctx.lineTo(
+    ex - Math.cos(angle - 0.62) * head,
+    ey - Math.sin(angle - 0.62) * head,
+  );
+  ctx.lineTo(
+    ex - Math.cos(angle + 0.62) * head,
+    ey - Math.sin(angle + 0.62) * head,
+  );
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function getIsSameTurn(candidate, turn) {
+  return !!turn &&
+    candidate.axis === turn.axis &&
+    candidate.layer === turn.layer &&
+    candidate.dir === turn.dir;
 }
 
 function drawSticker(ctx, item) {
