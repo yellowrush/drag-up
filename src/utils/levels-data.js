@@ -371,6 +371,8 @@ export const LEVELS = [
   },
 ];
 
+export const CAT_BOX_LEVELS = LEVELS;
+
 // Build a lookup map by id
 export const LEVEL_MAP = {};
 LEVELS.forEach(function (level) {

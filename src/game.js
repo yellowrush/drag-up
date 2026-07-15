@@ -1,6 +1,7 @@
-import { GameEngine } from './utils/game-engine.js'
+import { PlayEngine } from './utils/play-engine.js'
 import { GameStorage } from './utils/storage.js'
-import { LEVELS, getNextLevel, LEVEL_MAP } from './utils/levels-data.js'
+import { LEVELS, getNextLevel } from './utils/levels-data.js'
+import { RUBIK_SCRATCH_LEVELS, getNextRubikScratchLevel } from './utils/rubik-scratch-levels.js'
 import { LeaderboardClient } from './utils/leaderboard.js'
 import { ACCESSORIES, EXPRESSIONS, RewardStorage } from './utils/rewards.js'
 
@@ -71,7 +72,7 @@ var leaderboardLastSyncAt = 0
 
 var LEVEL_WORLDS = [
   { id: 'cat-box', label: '\u732b\u7bb1\u5b50', levels: LEVELS, enabled: true },
-  { id: 'cat-scratcher', label: '\u732b\u6293\u677f', levels: [], enabled: false },
+  { id: 'cat-scratcher', label: '\u732b\u6293\u677f', levels: RUBIK_SCRATCH_LEVELS, enabled: true },
   { id: 'yarn-ball', label: '\u6bdb\u7ebf\u7403', levels: [], enabled: false },
 ]
 var MODAL_W = 300
@@ -83,7 +84,9 @@ var MODAL_TAB_W = 106
 var MODAL_TAB_GAP = 8
 var MODAL_CELL_H = 54
 var MODAL_CELL_W = (MODAL_W - MODAL_GAP * (MODAL_COLS + 1)) / MODAL_COLS
-var MODAL_CONTENT_ROWS = Math.ceil(LEVELS.length / MODAL_COLS)
+var MODAL_CONTENT_ROWS = Math.max.apply(null, LEVEL_WORLDS.map(function (world) {
+  return Math.ceil((world.levels || []).length / MODAL_COLS)
+}))
 var MODAL_CONTENT_H = MODAL_CONTENT_ROWS * (MODAL_CELL_H + MODAL_GAP) + MODAL_GAP
 var MODAL_INNER_H = MODAL_PAD * 2 + MODAL_TAB_H + MODAL_GAP + MODAL_CONTENT_H
 var MODAL_H = Math.min(MODAL_INNER_H, H - HEADER_H - 40)
@@ -112,6 +115,29 @@ function getActiveWorld() {
 
 function getActiveWorldLevels() {
   return getActiveWorld().levels || []
+}
+
+function getWorldIndexForLevel(levelId) {
+  for (var i = 0; i < LEVEL_WORLDS.length; i++) {
+    var levels = LEVEL_WORLDS[i].levels || []
+    for (var j = 0; j < levels.length; j++) {
+      if (levels[j].id === levelId) return i
+    }
+  }
+  return 0
+}
+
+function syncActiveWorldForLevel(levelId) {
+  activeWorldIndex = getWorldIndexForLevel(levelId)
+  modalScrollY = 0
+}
+
+function getNextPlayableLevel(levelId) {
+  var world = LEVEL_WORLDS[getWorldIndexForLevel(levelId)] || LEVEL_WORLDS[0]
+  if (world.id === 'cat-scratcher') {
+    return getNextRubikScratchLevel(levelId)
+  }
+  return getNextLevel(levelId)
 }
 
 function getModalGridHeight() {
@@ -439,7 +465,7 @@ function drawRoundRect(r, x, y, w, h, radius) {
 function init() {
   completedLevels = GameStorage.getCompletedLevels()
   rewardState = RewardStorage.getState()
-  engine = new GameEngine(canvas, ctx)
+  engine = new PlayEngine(canvas, ctx)
   engine.setupCanvas(W, H - HEADER_H)
   engine.canvasLeft = 0
   engine.canvasTop = 0
@@ -447,6 +473,7 @@ function init() {
   refreshRewards()
   currentLevelId = engine.maze.id
   instruction = engine.maze.instruction || ''
+  syncActiveWorldForLevel(currentLevelId)
   engine.onLevelComplete = function (stats) {
     showNext = true
     GameStorage.markLevelCompleted(engine.maze.id)
@@ -464,7 +491,8 @@ function init() {
 
 function loadLevel(id) {
   engine.loadLevel(id)
-  currentLevelId = id
+  currentLevelId = engine.maze.id
+  syncActiveWorldForLevel(currentLevelId)
   instruction = engine.maze.instruction || ''
   showLevelSelect = false
   showScoreModal = false
@@ -520,12 +548,12 @@ function handleTouchStart(e) {
     var nx = (W - nextW) / 2
     var ny = H - 88
     if (isInside(x, y, nx, ny, nextW, nextH)) {
-      var nextId = getNextLevel(engine.maze.id)
+      var nextId = getNextPlayableLevel(engine.maze.id)
       if (nextId) {
         loadLevel(nextId)
       } else {
         completedLevels = GameStorage.getCompletedLevels()
-        activeWorldIndex = 0
+        syncActiveWorldForLevel(engine.maze.id)
         modalScrollY = 0
         modalTabScrollX = 0
         showLevelSelect = true
@@ -542,6 +570,8 @@ function handleTouchStart(e) {
     if (isInside(x, y, bx, by, bw, bh)) {
       if (engine) {
         engine.loadLevel(currentLevelId)
+        currentLevelId = engine.maze.id
+        syncActiveWorldForLevel(currentLevelId)
         showNext = false
         instruction = engine.maze.instruction || ''
       }
@@ -549,7 +579,7 @@ function handleTouchStart(e) {
     }
     if (isInside(x, y, bx + bw + 18, by, bw, bh)) {
       completedLevels = GameStorage.getCompletedLevels()
-      activeWorldIndex = 0
+      syncActiveWorldForLevel(currentLevelId)
       modalScrollY = 0
       modalTabScrollX = 0
       showScoreModal = false
@@ -1607,7 +1637,7 @@ function drawModal() {
     var cx = startX + col * (MODAL_CELL_W + MODAL_GAP)
     var cy = startY + row * (MODAL_CELL_H + MODAL_GAP) - modalScrollY
     if (cy > startY + gridH || cy + MODAL_CELL_H < startY) return
-    drawLevelModalCell(ctx, cx, cy, i + 1, completedLevels.includes(lv.id))
+    drawLevelModalCell(ctx, cx, cy, i + 1, completedLevels.includes(lv.id), lv)
   })
 
   ctx.restore()
@@ -1671,7 +1701,7 @@ function drawWorldTabs(r, mx, my) {
   r.stroke()
 }
 
-function drawLevelModalCell(r, x, y, number, completed) {
+function drawLevelModalCell(r, x, y, number, completed, level) {
   if (completed) {
     var grd = r.createLinearGradient(x, y, x, y + MODAL_CELL_H)
     grd.addColorStop(0, '#ffe8af')
@@ -1690,8 +1720,9 @@ function drawLevelModalCell(r, x, y, number, completed) {
   r.textAlign = 'center'
   r.textBaseline = 'middle'
   r.fillStyle = completed ? '#6b4518' : '#d9daec'
-  r.font = '13px sans-serif'
-  r.fillText('\u7b2c ' + number + ' \u5173', x + MODAL_CELL_W / 2, y + 20)
+  var title = level && level.label ? level.label : '\u7b2c ' + number + ' \u5173'
+  r.font = title.length > 8 ? '11px sans-serif' : '13px sans-serif'
+  r.fillText(title, x + MODAL_CELL_W / 2, y + 20)
   r.fillStyle = completed ? '#7a4d16' : '#9093ad'
   r.font = '10px sans-serif'
   r.fillText(completed ? '\u5df2\u5b8c\u6210' : '\u672a\u5b8c\u6210', x + MODAL_CELL_W / 2, y + 38)

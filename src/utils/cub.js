@@ -133,14 +133,6 @@ Cub.render = function (ctx, mazeCenter, gridSize, angle, isHovered, options) {
   const x = this.peg.x * gridSize + this.offset.x;
   const y = this.peg.y * gridSize + this.offset.y;
   const t = Date.now() / 1000;
-  const equippedExpression = getEquippedExpression(options?.expressionId);
-  const expression = options?.isDragging
-    ? CAT_EXPRESSIONS.dragging
-    : equippedExpression
-      ? equippedExpression
-    : isHovered
-      ? CAT_EXPRESSIONS.happy
-      : CAT_EXPRESSIONS.idle;
   const cubCenter = getCubScreenCenter(mazeCenter, x, y, angle);
   const lookOffset = getLookOffset(options?.lookTarget, cubCenter, gridSize);
 
@@ -156,14 +148,14 @@ Cub.render = function (ctx, mazeCenter, gridSize, angle, isHovered, options) {
   ctx.translate(0, isHovered ? Math.sin(t * 6) * gridSize * 0.025 : 0);
   ctx.scale(scale, scale);
 
-  renderCatIcon(
-    ctx,
-    gridSize,
-    expression,
-    t,
-    lookOffset,
-    options?.accessoryId,
-  );
+  renderCubAvatar(ctx, gridSize, {
+    accessoryId: options?.accessoryId,
+    expressionId: options?.expressionId,
+    isDragging: options?.isDragging,
+    isHovered: isHovered,
+    lookOffset: lookOffset,
+    time: t,
+  });
 
   ctx.restore();
 };
@@ -177,6 +169,27 @@ Cub.reset = function () {
   this.six = null;
   this.nine = null;
 };
+
+export function renderCubAvatar(ctx, gridSize, options = {}) {
+  const t = options.time || Date.now() / 1000;
+  const equippedExpression = getEquippedExpression(options.expressionId);
+  const expression = options.isDragging
+    ? CAT_EXPRESSIONS.dragging
+    : equippedExpression
+      ? equippedExpression
+      : options.isHovered
+        ? CAT_EXPRESSIONS.happy
+        : CAT_EXPRESSIONS.idle;
+
+  renderCatIcon(
+    ctx,
+    gridSize,
+    expression,
+    t,
+    options.lookOffset || { x: 0, y: 0 },
+    options.accessoryId,
+  );
+}
 
 function renderCatIcon(ctx, gridSize, expression, t, lookOffset, accessoryId) {
   const scale = gridSize / 58;

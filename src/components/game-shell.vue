@@ -54,18 +54,29 @@
       class="modal-mask"
       @tap.self="showLevelSelect = false"
     >
-      <view class="modal-box level-modal" @tap.stop>
-        <view class="modal-title">&#36873;&#25321;&#20851;&#21345;</view>
-        <scroll-view scroll-y class="level-scroll">
-          <view class="level-grid">
+        <view class="modal-box level-modal" @tap.stop>
+          <view class="modal-title">&#36873;&#25321;&#20851;&#21345;</view>
+          <view class="level-tabs">
             <view
+              v-for="world in levelWorlds"
+              :key="world.id"
+              class="level-tab"
+              :class="{ active: activeLevelWorldId === world.id }"
+              @tap="onLevelWorldTap(world.id)"
+            >
+              {{ world.label }}
+            </view>
+          </view>
+          <scroll-view scroll-y class="level-scroll">
+            <view class="level-grid">
+              <view
               v-for="(lv, index) in levels"
               :key="lv.id"
               class="level-cell"
               :class="{ completed: completedLevels.includes(lv.id) }"
               @tap="onSelectLevel(lv.id)"
             >
-              <text class="level-number">{{ levelTitle(index) }}</text>
+              <text class="level-number">{{ levelTitle(lv, index) }}</text>
               <text class="level-status">
                 {{ completedLevels.includes(lv.id) ? ownedText : lockedText }}
               </text>
@@ -212,7 +223,11 @@
   import { computed, markRaw, onMounted, ref, shallowRef } from 'vue';
   import gameCanvas from '@/components/game-canvas.vue';
   import { GameStorage } from '@/utils/storage.js';
-  import { LEVELS, getNextLevel } from '@/utils/levels-data.js';
+  import { CAT_BOX_LEVELS, getNextLevel } from '@/utils/levels-data.js';
+  import {
+    RUBIK_SCRATCH_LEVELS,
+    getNextRubikScratchLevel,
+  } from '@/utils/rubik-scratch-levels.js';
   import { LeaderboardClient } from '@/utils/leaderboard.js';
   import { ACCESSORIES, EXPRESSIONS, RewardStorage } from '@/utils/rewards.js';
 
@@ -221,7 +236,12 @@
   const showLevelSelect = ref(false);
   const showScoreModal = ref(false);
   const showNext = ref(false);
-  const levels = shallowRef(LEVELS);
+  const activeLevelWorldId = ref('cat-box');
+  const levelWorlds = [
+    { id: 'cat-box', label: '\u732b\u7bb1\u5b50', levels: CAT_BOX_LEVELS },
+    { id: 'cat-scratcher', label: '\u732b\u6293\u677f', levels: RUBIK_SCRATCH_LEVELS },
+  ];
+  const levels = computed(() => getActiveLevelWorld().levels);
   const completedLevels = ref<string[]>([]);
   const rewardState = ref(RewardStorage.getState());
   const activeRewardTab = ref('accessory');
@@ -283,6 +303,7 @@
     }
     currentLevelId = eng.maze.id;
     instruction.value = eng.maze.instruction || '';
+    syncActiveWorldForLevel(currentLevelId);
     applyEquippedRewards();
 
     eng.onLevelComplete = (stats: any) => {
@@ -307,6 +328,7 @@
 
   function onLevelsTap() {
     completedLevels.value = GameStorage.getCompletedLevels();
+    syncActiveWorldForLevel(currentLevelId || (engine.value && engine.value.maze.id));
     showScoreModal.value = false;
     showLevelSelect.value = true;
   }
@@ -324,6 +346,7 @@
     if (!engine.value) return;
     engine.value.loadLevel(id);
     currentLevelId = id;
+    syncActiveWorldForLevel(id);
     showLevelSelect.value = false;
     showNext.value = false;
     instruction.value = engine.value.maze.instruction || '';
@@ -331,13 +354,15 @@
 
   function onNextLevel() {
     if (!engine.value) return;
-    const next = getNextLevel(engine.value.maze.id);
+    const next = getNextLevelForId(engine.value.maze.id);
     if (next) {
       engine.value.loadLevel(next);
       currentLevelId = next;
+      syncActiveWorldForLevel(next);
       instruction.value = engine.value.maze.instruction || '';
     } else {
       completedLevels.value = GameStorage.getCompletedLevels();
+      syncActiveWorldForLevel(engine.value.maze.id);
       showLevelSelect.value = true;
     }
     showNext.value = false;
@@ -345,9 +370,42 @@
 
   function onResetTap() {
     if (!engine.value) return;
-    engine.value.loadLevel(currentLevelId);
+    engine.value.loadLevel(currentLevelId || engine.value.maze.id);
+    currentLevelId = engine.value.maze.id;
+    syncActiveWorldForLevel(currentLevelId);
     showNext.value = false;
     instruction.value = engine.value.maze.instruction || '';
+  }
+
+  function onLevelWorldTap(id: string) {
+    activeLevelWorldId.value = id;
+  }
+
+  function getActiveLevelWorld() {
+    return (
+      levelWorlds.find((world) => world.id === activeLevelWorldId.value) ||
+      levelWorlds[0]
+    );
+  }
+
+  function getLevelWorldForId(id: string) {
+    return (
+      levelWorlds.find((world) =>
+        world.levels.some((level: any) => level.id === id),
+      ) || levelWorlds[0]
+    );
+  }
+
+  function syncActiveWorldForLevel(id: string) {
+    if (!id) return;
+    activeLevelWorldId.value = getLevelWorldForId(id).id;
+  }
+
+  function getNextLevelForId(id: string) {
+    if (getLevelWorldForId(id).id === 'cat-scratcher') {
+      return getNextRubikScratchLevel(id);
+    }
+    return getNextLevel(id);
   }
 
   function refreshRewards() {
@@ -528,8 +586,8 @@
     applyEquippedRewards();
   }
 
-  function levelTitle(index: number) {
-    return `\u7b2c ${index + 1} \u5173`;
+  function levelTitle(level: any, index: number) {
+    return level && level.label ? level.label : `\u7b2c ${index + 1} \u5173`;
   }
 
   function playerName(row: any) {
@@ -769,6 +827,30 @@
     margin-bottom: 16px;
     font-weight: 800;
   }
+  .level-tabs {
+    display: flex;
+    gap: 8px;
+    padding-bottom: 4px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  }
+  .level-tab {
+    flex: 1;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #d9daec;
+    background: #2f2f50;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 800;
+    box-sizing: border-box;
+  }
+  .level-tab.active {
+    color: #ffe8af;
+    border-bottom: 3px solid #ffe8af;
+  }
   .level-scroll {
     max-height: 62vh;
   }
@@ -800,8 +882,10 @@
     color: #6b4518;
   }
   .level-number {
+    max-width: 78px;
     font-size: 13px;
     font-weight: 800;
+    line-height: 1.15;
   }
   .level-status {
     margin-top: 4px;

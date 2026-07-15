@@ -29,7 +29,7 @@
     watch,
     nextTick,
   } from 'vue';
-  import { GameEngine } from '@/utils/game-engine.js';
+  import { PlayEngine } from '@/utils/play-engine.js';
 
   const props = defineProps({
     paused: { type: Boolean, default: false },
@@ -158,7 +158,7 @@
       // });
 
       if (!engine.value) {
-        const eng = new GameEngine(canvas, ctx);
+        const eng = new PlayEngine(canvas, ctx);
         engine.value = markRaw(eng);
         eng.setupCanvas(w, h);
         eng.loadCurrentLevel();
@@ -210,7 +210,7 @@
         canvasNode.height = res[0].height * dpr;
         ctx.scale(dpr, dpr);
 
-        const eng = new GameEngine(canvasNode, ctx);
+        const eng = new PlayEngine(canvasNode, ctx);
         engine.value = markRaw(eng);
         // Pass the actual canvas size (CSS pixels) from the query result
         eng.setupCanvas(res[0].width, res[0].height);
