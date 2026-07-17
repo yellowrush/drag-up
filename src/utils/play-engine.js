@@ -6,6 +6,11 @@ import {
   RUBIK_SCRATCH_LEVEL_MAP,
   RUBIK_SCRATCH_LEVELS,
 } from './rubik-scratch-levels.js';
+import { YarnTimeEngine } from './yarn-time-engine.js';
+import {
+  YARN_TIME_LEVEL_MAP,
+  YARN_TIME_LEVELS,
+} from './yarn-time-levels.js';
 
 export class PlayEngine {
   constructor(canvas, ctx) {
@@ -68,6 +73,10 @@ export class PlayEngine {
 
   loadCurrentLevel() {
     var currentLevelId = GameStorage.getCurrentLevel();
+    if (YARN_TIME_LEVEL_MAP[currentLevelId]) {
+      this.loadLevel(currentLevelId);
+      return;
+    }
     if (RUBIK_SCRATCH_LEVEL_MAP[currentLevelId]) {
       this.loadLevel(currentLevelId);
       return;
@@ -80,6 +89,11 @@ export class PlayEngine {
   }
 
   loadLevel(levelId) {
+    if (YARN_TIME_LEVEL_MAP[levelId]) {
+      this.ensureEngine('yarn-time');
+      this.engine.loadLevel(levelId);
+      return;
+    }
     if (RUBIK_SCRATCH_LEVEL_MAP[levelId]) {
       this.ensureEngine('scratch');
       this.engine.loadLevel(levelId);
@@ -103,7 +117,9 @@ export class PlayEngine {
     this.engineKind = kind;
     this.engine = kind === 'scratch'
       ? new RubikScratchEngine(this.canvas, this.ctx)
-      : new GameEngine(this.canvas, this.ctx);
+      : kind === 'yarn-time'
+        ? new YarnTimeEngine(this.canvas, this.ctx)
+        : new GameEngine(this.canvas, this.ctx);
     this.syncEngineCallbacks();
     this.syncEngineSurface();
     this.engine.setupCanvas(this.canvasSize.width, this.canvasSize.height);
@@ -205,4 +221,12 @@ export function getIsScratchRuntimeLevel(levelId) {
 
 export function getFirstScratchRuntimeLevelId() {
   return RUBIK_SCRATCH_LEVELS[0].id;
+}
+
+export function getIsYarnTimeRuntimeLevel(levelId) {
+  return !!YARN_TIME_LEVEL_MAP[levelId];
+}
+
+export function getFirstYarnTimeRuntimeLevelId() {
+  return YARN_TIME_LEVELS[0].id;
 }

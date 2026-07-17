@@ -2,6 +2,7 @@ import { PlayEngine } from './utils/play-engine.js'
 import { GameStorage } from './utils/storage.js'
 import { LEVELS, getNextLevel } from './utils/levels-data.js'
 import { RUBIK_SCRATCH_LEVELS, getNextRubikScratchLevel } from './utils/rubik-scratch-levels.js'
+import { YARN_TIME_LEVELS, getNextYarnTimeLevel } from './utils/yarn-time-levels.js'
 import { LeaderboardClient } from './utils/leaderboard.js'
 import { ACCESSORIES, EXPRESSIONS, RewardStorage } from './utils/rewards.js'
 
@@ -73,15 +74,19 @@ var leaderboardLastSyncAt = 0
 var LEVEL_WORLDS = [
   { id: 'cat-box', label: '\u732b\u7bb1\u5b50', levels: LEVELS, enabled: true },
   { id: 'cat-scratcher', label: '\u732b\u6293\u677f', levels: RUBIK_SCRATCH_LEVELS, enabled: true },
-  { id: 'yarn-ball', label: '\u6bdb\u7ebf\u7403', levels: [], enabled: false },
+  { id: 'yarn-ball', label: '\u6bdb\u7ebf\u7403', levels: YARN_TIME_LEVELS, enabled: true },
 ]
 var MODAL_W = 300
 var MODAL_COLS = 3
 var MODAL_GAP = 8
 var MODAL_PAD = 14
 var MODAL_TAB_H = 42
-var MODAL_TAB_W = 106
 var MODAL_TAB_GAP = 8
+var MODAL_VISIBLE_TABS = Math.min(3, LEVEL_WORLDS.length)
+var MODAL_TAB_W = Math.min(
+  106,
+  Math.floor((MODAL_W - MODAL_PAD * 2 - MODAL_TAB_GAP * (MODAL_VISIBLE_TABS - 1)) / MODAL_VISIBLE_TABS),
+)
 var MODAL_CELL_H = 54
 var MODAL_CELL_W = (MODAL_W - MODAL_GAP * (MODAL_COLS + 1)) / MODAL_COLS
 var MODAL_CONTENT_ROWS = Math.max.apply(null, LEVEL_WORLDS.map(function (world) {
@@ -150,6 +155,9 @@ function getNextPlayableLevel(levelId) {
   var world = LEVEL_WORLDS[getWorldIndexForLevel(levelId)] || LEVEL_WORLDS[0]
   if (world.id === 'cat-scratcher') {
     return getNextRubikScratchLevel(levelId)
+  }
+  if (world.id === 'yarn-ball') {
+    return getNextYarnTimeLevel(levelId)
   }
   return getNextLevel(levelId)
 }
