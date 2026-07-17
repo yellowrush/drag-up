@@ -79,7 +79,7 @@ var MODAL_W = 300
 var MODAL_COLS = 3
 var MODAL_GAP = 8
 var MODAL_PAD = 14
-var MODAL_TAB_H = 38
+var MODAL_TAB_H = 42
 var MODAL_TAB_W = 106
 var MODAL_TAB_GAP = 8
 var MODAL_CELL_H = 54
@@ -125,6 +125,20 @@ function getWorldIndexForLevel(levelId) {
     }
   }
   return 0
+}
+
+function getLevelIndexInWorld(world, levelId) {
+  if (!world || !levelId) return -1
+  var levels = world.levels || []
+  for (var i = 0; i < levels.length; i++) {
+    if (levels[i].id === levelId) return i
+  }
+  return -1
+}
+
+function getWorldCurrentLevelText(world) {
+  var index = getLevelIndexInWorld(world, currentLevelId)
+  return index >= 0 ? '\u7b2c ' + (index + 1) + ' \u5173' : ''
 }
 
 function syncActiveWorldForLevel(levelId) {
@@ -829,24 +843,33 @@ function drawModernUI() {
 
 function drawTopInstructionText(r, text) {
   var maxW = Math.max(80, W - 32)
-  r.fillText(ellipsizeCanvasText(r, text, maxW), W / 2, SAFE_TOP + TOP_BAR + TEXT_H / 2)
+  var source = String(text || '')
+  if (!source) return
+  var y = SAFE_TOP + TOP_BAR + TEXT_H / 2
+  var fontSize = getCanvasInstructionFontSize(r, source, maxW)
+  r.font = fontSize + 'px sans-serif'
+  var width = r.measureText ? r.measureText(source).width : maxW
+  if (width > maxW && r.save && r.scale) {
+    var scale = Math.max(0.42, maxW / width)
+    r.save()
+    r.translate(W / 2, y)
+    r.scale(scale, 1)
+    r.fillText(source, 0, 0)
+    r.restore()
+    return
+  }
+  r.fillText(source, W / 2, y)
 }
 
-function ellipsizeCanvasText(r, text, maxW) {
-  var source = String(text || '')
-  if (!source || !r.measureText || r.measureText(source).width <= maxW) return source
-  var ellipsis = '...'
-  var lo = 0
-  var hi = source.length
-  while (lo < hi) {
-    var mid = Math.ceil((lo + hi) / 2)
-    if (r.measureText(source.slice(0, mid) + ellipsis).width <= maxW) {
-      lo = mid
-    } else {
-      hi = mid - 1
-    }
+function getCanvasInstructionFontSize(r, text, maxW) {
+  var size = 13
+  if (!r.measureText) return size
+  while (size > 8) {
+    r.font = size + 'px sans-serif'
+    if (r.measureText(text).width <= maxW) return size
+    size -= 1
   }
-  return source.slice(0, lo) + ellipsis
+  return size
 }
 
 function drawToolLabel(r, x, y, text) {
@@ -1703,8 +1726,17 @@ function drawWorldTabs(r, mx, my) {
     r.textAlign = 'center'
     r.textBaseline = 'middle'
     if (enabled) {
-      r.font = '13px sans-serif'
-      r.fillText(world.label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 1)
+      var currentText = getWorldCurrentLevelText(world)
+      if (currentText) {
+        r.font = '13px sans-serif'
+        r.fillText(world.label, rect.x + rect.w / 2, rect.y + rect.h / 2 - 6)
+        r.fillStyle = active ? '#fff2c4' : '#aeb1ca'
+        r.font = '9px sans-serif'
+        r.fillText(currentText, rect.x + rect.w / 2, rect.y + rect.h / 2 + 10)
+      } else {
+        r.font = '13px sans-serif'
+        r.fillText(world.label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 1)
+      }
     } else {
       r.font = '12px sans-serif'
       r.fillText(world.label, rect.x + rect.w / 2, rect.y + rect.h / 2 - 5)
@@ -1742,8 +1774,8 @@ function drawLevelModalCell(r, x, y, number, completed, level) {
   r.textAlign = 'center'
   r.textBaseline = 'middle'
   r.fillStyle = completed ? '#6b4518' : '#d9daec'
-  var title = level && level.label ? level.label : '\u7b2c ' + number + ' \u5173'
-  r.font = title.length > 8 ? '11px sans-serif' : '13px sans-serif'
+  var title = '\u7b2c ' + number + ' \u5173'
+  r.font = '14px sans-serif'
   r.fillText(title, x + MODAL_CELL_W / 2, y + 20)
   r.fillStyle = completed ? '#7a4d16' : '#9093ad'
   r.font = '10px sans-serif'

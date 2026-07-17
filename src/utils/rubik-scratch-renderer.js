@@ -31,9 +31,14 @@ export function renderRubikScratch(ctx, state, canvasSize, options) {
   var viewTurn = state.turn || state.previewTurn || null;
   var items = getStickerItems(state, canvasSize, viewTurn);
   var goalItem = getGoalItem(state, canvasSize);
-  var lockedItems = getLockedSlotItems(state, canvasSize);
   var wormholeItems = getWormholeItems(state, canvasSize);
   var wormholePairs = getWormholePairItems(state, canvasSize);
+  var forcedItems = getForcedTurnItems(state, canvasSize);
+  var pawButtonItems = getPawButtonItems(state, canvasSize);
+  var stickyItems = getStickyItems(state, canvasSize);
+  var gravityItems = getGravityAxisItems(state, canvasSize);
+  var lockedItems = getLockedAxisItems(state, canvasSize);
+  var foldDoorItems = getFoldDoorItems(state, canvasSize);
   var queue = items.map(function (item) {
     return { type: 'sticker', item: item, order: 0 };
   });
@@ -44,6 +49,7 @@ export function renderRubikScratch(ctx, state, canvasSize, options) {
   drawRubikStage(ctx, layout, state);
   drawExtendedCubeEdges(ctx, layout, state);
   drawWormholeTunnels(ctx, wormholePairs, layout);
+  drawAxisOverlays(ctx, gravityItems, lockedItems, layout);
   if (state.interaction && !state.turn) {
     drawRubikInteractionLayer(ctx, items, state.interaction);
   }
@@ -63,7 +69,15 @@ export function renderRubikScratch(ctx, state, canvasSize, options) {
     }
   });
 
-  drawRubikSlotMarkers(ctx, lockedItems, wormholeItems, state);
+  drawRubikSlotMarkers(
+    ctx,
+    wormholeItems,
+    forcedItems,
+    pawButtonItems,
+    stickyItems,
+    foldDoorItems,
+    state,
+  );
 
   if (goalItem && !options.hideGoal && goalItem.isBackSideGoal) {
     drawBackSideGoalSticker(ctx, goalItem);
@@ -74,7 +88,13 @@ export function renderRubikScratch(ctx, state, canvasSize, options) {
   }
 
   items.forEach(function (item) {
-    if (item.sticker.kind === 'cat' && !options.hideCat && !state.teleport) {
+    if (
+      item.sticker.kind === 'cat' &&
+      !options.hideCat &&
+      !state.teleport &&
+      !state.gravityMove &&
+      !state.foldMove
+    ) {
       drawCatSticker(
         ctx,
         item.center,
@@ -89,6 +109,14 @@ export function renderRubikScratch(ctx, state, canvasSize, options) {
 
   if (state.teleport) {
     drawWormholeTeleport(ctx, state, canvasSize, options || {});
+  }
+
+  if (state.gravityMove) {
+    drawGravityMove(ctx, state, canvasSize, options || {});
+  }
+
+  if (state.foldMove) {
+    drawFoldMove(ctx, state, canvasSize, options || {});
   }
 
   if (options && options.completed) {
@@ -124,6 +152,32 @@ export function getRubikStickerHit(state, point, canvasSize) {
     return b.depth - a.depth;
   });
   return hits[0];
+}
+
+export function getRubikCatStickerHit(state, point, canvasSize) {
+  if (!state || state.turn) return null;
+  var items = getStickerItems(state, canvasSize, null);
+  var catItem = null;
+  items.some(function (item) {
+    if (item.sticker.kind === 'cat') {
+      catItem = item;
+      return true;
+    }
+    return false;
+  });
+  if (!catItem) return null;
+  if (pointInPolygon(point, catItem.polygon)) {
+    return catItem;
+  }
+  var sameCubieHits = items.filter(function (item) {
+    return item.cubie &&
+      catItem.cubie &&
+      item.cubie.id === catItem.cubie.id &&
+      item.hitVisible &&
+      pointInPolygon(point, item.polygon);
+  });
+  if (!sameCubieHits.length) return null;
+  return catItem;
 }
 
 export function getRubikStickerCenterScreen(cubie, normal, turn, canvasSize, size) {
@@ -274,7 +328,12 @@ function drawRubikTurnGuides(ctx, interaction, layout) {
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  interaction.candidates.forEach(function (candidate) {
+  var candidates = interaction.candidates.slice().sort(function (a, b) {
+    var aActive = getIsSameTurn(a, interaction.activeTurn) ? 1 : 0;
+    var bActive = getIsSameTurn(b, interaction.activeTurn) ? 1 : 0;
+    return aActive - bActive;
+  });
+  candidates.forEach(function (candidate) {
     drawTurnGuideArrow(
       ctx,
       candidate,
@@ -287,29 +346,36 @@ function drawRubikTurnGuides(ctx, interaction, layout) {
 }
 
 function drawTurnGuideArrow(ctx, candidate, unit, active, ambiguous) {
-  var length = candidate.length || vectorLength(candidate.vector);
+  var sx = candidate.start ? candidate.start.x : 0;
+  var sy = candidate.start ? candidate.start.y : 0;
+  var ex = candidate.end ? candidate.end.x : sx + candidate.vector.x;
+  var ey = candidate.end ? candidate.end.y : sy + candidate.vector.y;
+  var vx = ex - sx;
+  var vy = ey - sy;
+  var length = Math.sqrt(vx * vx + vy * vy) || candidate.length || vectorLength(candidate.vector);
   if (!length) return;
-  var ux = candidate.vector.x / length;
-  var uy = candidate.vector.y / length;
-  var startOffset = unit * (active ? 0.34 : 0.42);
-  var guideLength = Math.max(unit * 0.36, Math.min(unit * 0.78, length * 0.33));
-  var sx = candidate.start.x + ux * startOffset;
-  var sy = candidate.start.y + uy * startOffset;
-  var ex = sx + ux * guideLength;
-  var ey = sy + uy * guideLength;
-  var alpha = active ? (ambiguous ? 0.72 : 0.92) : 0.19;
+  var ux = vx / length;
+  var uy = vy / length;
+  var alpha = active ? (ambiguous ? 0.82 : 0.98) : 0.38;
   var color = active
     ? ambiguous ? 'rgba(255,205,118,' + alpha + ')' : 'rgba(255,246,188,' + alpha + ')'
     : 'rgba(255,255,255,' + alpha + ')';
-  var head = unit * (active ? 0.14 : 0.1);
+  var head = unit * (active ? 0.42 : 0.32);
   var angle = Math.atan2(uy, ux);
+  var buttonCenter = candidate.buttonCenter || { x: ex, y: ey };
 
   ctx.save();
+  if (active) {
+    ctx.fillStyle = 'rgba(255,229,149,0.13)';
+    ctx.beginPath();
+    ctx.arc(buttonCenter.x, buttonCenter.y, Math.max(unit * 0.68, (candidate.hitRadius || 0) * 0.86), 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.strokeStyle = color;
   ctx.fillStyle = color;
-  ctx.lineWidth = Math.max(1.5, unit * (active ? 0.045 : 0.028));
+  ctx.lineWidth = Math.max(3.2, unit * (active ? 0.105 : 0.072));
   ctx.shadowColor = active ? 'rgba(255,226,150,0.38)' : 'transparent';
-  ctx.shadowBlur = active ? unit * 0.08 : 0;
+  ctx.shadowBlur = active ? unit * 0.15 : 0;
   ctx.beginPath();
   ctx.moveTo(sx, sy);
   ctx.lineTo(ex, ey);
@@ -337,17 +403,639 @@ function getIsSameTurn(candidate, turn) {
     candidate.dir === turn.dir;
 }
 
-function drawRubikSlotMarkers(ctx, lockedItems, wormholeItems, state) {
+function drawRubikSlotMarkers(ctx, wormholeItems, forcedItems, pawButtonItems, stickyItems, foldDoorItems, state) {
   wormholeItems.forEach(function (item) {
     drawWormholeIcon(ctx, item);
   });
-  lockedItems.forEach(function (item) {
-    var pulse = 0;
-    if (state.blockedTouch && state.blockedTouch.key === item.slotKey) {
-      pulse = Math.max(0, 1 - (Date.now() - state.blockedTouch.startedAt) / 520);
-    }
-    drawNoTouchIcon(ctx, item, pulse);
+  foldDoorItems.forEach(function (item) {
+    drawFoldDoorIcon(ctx, item);
   });
+  stickyItems.forEach(function (item) {
+    var pulse = 0;
+    if (state.stickyTouch && state.stickyTouch.key === item.slotKey) {
+      pulse = Math.max(0, 1 - (Date.now() - state.stickyTouch.startedAt) / 620);
+    }
+    drawStickyIcon(ctx, item, pulse);
+  });
+  pawButtonItems.forEach(function (item) {
+    var pulse = 0;
+    if (state.buttonTouch && state.buttonTouch.key === item.slotKey) {
+      pulse = Math.max(0, 1 - (Date.now() - state.buttonTouch.startedAt) / 620);
+    }
+    drawPawButtonIcon(ctx, item, pulse);
+  });
+  forcedItems.forEach(function (item) {
+    var pulse = 0;
+    if (state.forcedTouch && state.forcedTouch.key === item.slotKey) {
+      pulse = Math.max(0, 1 - (Date.now() - state.forcedTouch.startedAt) / 620);
+    }
+    drawForcedTurnIcon(ctx, item, pulse);
+  });
+}
+
+function drawStickyIcon(ctx, item, pulse) {
+  var center = item.center;
+  var unit = item.unit;
+  var basis = getPolygonBasis(item.polygon);
+  var r = unit * (0.3 + pulse * 0.05);
+  ctx.save();
+  ctx.globalAlpha = item.forceVisible
+    ? 0.46 + pulse * 0.16
+    : Math.min(1, item.faceAlpha + 0.34 + pulse * 0.16);
+  ctx.fillStyle = pulse > 0 ? 'rgba(137,229,174,0.42)' : 'rgba(103,197,150,0.26)';
+  traceInsetPolygon(ctx, item.polygon, item.center, 0.7);
+  ctx.fill();
+
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(35,100,72,0.82)';
+  ctx.lineWidth = Math.max(2.4, unit * 0.075);
+  traceInsetPolygon(ctx, item.polygon, item.center, 0.68);
+  ctx.stroke();
+
+  ctx.strokeStyle = pulse > 0 ? 'rgba(244,255,224,0.96)' : 'rgba(218,255,224,0.84)';
+  ctx.lineWidth = Math.max(1.6, unit * 0.04);
+  tracePlaneCircle(ctx, center, basis.u, basis.v, r, 30);
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(48,116,78,0.82)';
+  ctx.lineWidth = Math.max(1.8, unit * 0.045);
+  ctx.beginPath();
+  ctx.moveTo(center.x - basis.u.x * r * 0.6, center.y - basis.u.y * r * 0.6);
+  ctx.bezierCurveTo(
+    center.x - basis.v.x * r * 0.7,
+    center.y - basis.v.y * r * 0.7,
+    center.x + basis.v.x * r * 0.75,
+    center.y + basis.v.y * r * 0.75,
+    center.x + basis.u.x * r * 0.62,
+    center.y + basis.u.y * r * 0.62,
+  );
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawPawButtonIcon(ctx, item, pulse) {
+  var active = !!item.buttonActive;
+  var unit = item.unit;
+  var flash = active ? pulse : 0;
+  var baseBasis = getPolygonBasis(item.polygon);
+  var planePlate = getInsetPolygon(item.polygon, item.center, 0.74);
+  var plateHighlight = getInsetPolygon(item.polygon, item.center, 0.62).map(function (point) {
+    return mixPoint(point, planePlate[0], 0.16);
+  });
+  var baseRadius = unit * 0.43;
+  var socketRadius = unit * 0.34;
+  var buttonRadius = unit * (active ? 0.27 : 0.32);
+  var glowRadius = unit * (0.47 + flash * 0.08);
+  var lightCenter = addPlaneOffset(
+    item.center,
+    baseBasis.u,
+    baseBasis.v,
+    -buttonRadius * 0.22,
+    -buttonRadius * 0.28,
+  );
+
+  ctx.save();
+  ctx.globalAlpha = item.forceVisible
+    ? 0.74 + flash * 0.16
+    : Math.min(1, item.faceAlpha + 0.54 + flash * 0.16);
+
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  ctx.fillStyle = active ? 'rgba(31,128,70,0.34)' : 'rgba(50,158,88,0.28)';
+  traceRoundedPolygon(ctx, planePlate, Math.max(3, unit * 0.08));
+  ctx.fill();
+
+  ctx.strokeStyle = active ? 'rgba(16,91,48,0.74)' : 'rgba(28,117,61,0.68)';
+  ctx.lineWidth = Math.max(1.4, unit * 0.034);
+  traceRoundedPolygon(ctx, planePlate, Math.max(3, unit * 0.08));
+  ctx.stroke();
+
+  ctx.fillStyle = active ? 'rgba(227,255,216,0.1)' : 'rgba(248,255,235,0.18)';
+  traceRoundedPolygon(ctx, plateHighlight, Math.max(2, unit * 0.05));
+  ctx.fill();
+
+  ctx.shadowColor = 'rgba(0,0,0,0.28)';
+  ctx.shadowBlur = unit * 0.06;
+  ctx.shadowOffsetY = unit * 0.022;
+  var baseGradient = ctx.createLinearGradient(
+    item.center.x,
+    item.center.y - baseRadius,
+    item.center.x,
+    item.center.y + baseRadius,
+  );
+  baseGradient.addColorStop(0, 'rgba(255,255,255,0.98)');
+  baseGradient.addColorStop(0.62, 'rgba(244,248,252,0.96)');
+  baseGradient.addColorStop(1, 'rgba(218,226,235,0.92)');
+  ctx.fillStyle = baseGradient;
+  tracePlaneCircle(ctx, item.center, baseBasis.u, baseBasis.v, baseRadius, 44);
+  ctx.fill();
+
+  ctx.shadowColor = 'transparent';
+  ctx.strokeStyle = active ? 'rgba(49,123,78,0.82)' : 'rgba(86,137,103,0.74)';
+  ctx.lineWidth = Math.max(1.8, unit * 0.044);
+  tracePlaneCircle(ctx, item.center, baseBasis.u, baseBasis.v, baseRadius, 44);
+  ctx.stroke();
+
+  ctx.fillStyle = active ? 'rgba(48,132,75,0.3)' : 'rgba(72,179,102,0.2)';
+  tracePlaneCircle(ctx, item.center, baseBasis.u, baseBasis.v, socketRadius, 40);
+  ctx.fill();
+
+  var topGradient = ctx.createRadialGradient(
+    lightCenter.x,
+    lightCenter.y,
+    buttonRadius * 0.12,
+    item.center.x,
+    item.center.y,
+    buttonRadius,
+  );
+  topGradient.addColorStop(0, active ? '#bdf5a8' : '#d9ffc8');
+  topGradient.addColorStop(0.54, active ? '#61ce68' : '#7ef08a');
+  topGradient.addColorStop(1, active ? '#228846' : '#2fb45d');
+  ctx.fillStyle = topGradient;
+  tracePlaneCircle(ctx, item.center, baseBasis.u, baseBasis.v, buttonRadius, 44);
+  ctx.fill();
+
+  ctx.strokeStyle = active ? 'rgba(13,79,39,0.88)' : 'rgba(16,99,50,0.84)';
+  ctx.lineWidth = Math.max(2, unit * 0.052);
+  tracePlaneCircle(ctx, item.center, baseBasis.u, baseBasis.v, buttonRadius, 44);
+  ctx.stroke();
+
+  if (active) {
+    ctx.strokeStyle = 'rgba(224,255,206,0.48)';
+    ctx.lineWidth = Math.max(1.5, unit * 0.036);
+    tracePlaneCircle(ctx, item.center, baseBasis.u, baseBasis.v, buttonRadius * 0.62, 32);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = active ? 'rgba(242,255,225,0.58)' : 'rgba(250,255,239,0.82)';
+  ctx.lineCap = 'round';
+  ctx.lineWidth = Math.max(1.6, unit * 0.042);
+  tracePlaneArc(
+    ctx,
+    addPlaneOffset(item.center, baseBasis.u, baseBasis.v, -buttonRadius * 0.08, -buttonRadius * 0.28),
+    baseBasis.u,
+    baseBasis.v,
+    buttonRadius * 0.52,
+    buttonRadius * 0.2,
+    Math.PI * 0.08,
+    Math.PI * 0.86,
+    16,
+  );
+  ctx.stroke();
+
+  ctx.fillStyle = active ? 'rgba(229,255,215,0.48)' : 'rgba(255,255,245,0.74)';
+  tracePlaneCircle(
+    ctx,
+    addPlaneOffset(item.center, baseBasis.u, baseBasis.v, -buttonRadius * 0.28, -buttonRadius * 0.24),
+    baseBasis.u,
+    baseBasis.v,
+    Math.max(1.5, unit * 0.045),
+    18,
+  );
+  ctx.fill();
+
+  if (active) {
+    ctx.strokeStyle = 'rgba(192,255,164,' + (0.42 + flash * 0.46).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(1.7, unit * 0.044);
+    tracePlaneCircle(
+      ctx,
+      item.center,
+      baseBasis.u,
+      baseBasis.v,
+      glowRadius,
+      40,
+    );
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function addPlaneOffset(center, u, v, x, y) {
+  return {
+    x: center.x + u.x * x + v.x * y,
+    y: center.y + u.y * x + v.y * y,
+  };
+}
+
+function getPlaneEllipsePoint(center, u, v, radiusX, radiusY, angle) {
+  return addPlaneOffset(
+    center,
+    u,
+    v,
+    Math.cos(angle) * radiusX,
+    Math.sin(angle) * radiusY,
+  );
+}
+
+function tracePlaneEllipse(ctx, center, u, v, radiusX, radiusY, steps) {
+  tracePlaneArc(ctx, center, u, v, radiusX, radiusY, 0, Math.PI * 2, steps || 28);
+  ctx.closePath();
+}
+
+function tracePlaneCircle(ctx, center, u, v, radius, steps) {
+  tracePlaneEllipse(ctx, center, u, v, radius, radius, steps || 32);
+}
+
+function tracePlaneArc(ctx, center, u, v, radiusX, radiusY, start, end, steps) {
+  ctx.beginPath();
+  for (var i = 0; i <= steps; i++) {
+    var t = start + (end - start) * (i / steps);
+    var point = getPlaneEllipsePoint(center, u, v, radiusX, radiusY, t);
+    if (i === 0) {
+      ctx.moveTo(point.x, point.y);
+    } else {
+      ctx.lineTo(point.x, point.y);
+    }
+  }
+}
+
+function drawForcedTurnIcon(ctx, item, pulse) {
+  var center = item.center;
+  var unit = item.unit;
+  var vector = item.arrowVector || { x: 1, y: 0 };
+  var length = vectorLength(vector) || 1;
+  var ux = vector.x / length;
+  var uy = vector.y / length;
+  var arrowLength = unit * (0.44 + pulse * 0.08);
+  var head = unit * (0.16 + pulse * 0.03);
+  var start = {
+    x: center.x - ux * arrowLength * 0.42,
+    y: center.y - uy * arrowLength * 0.42,
+  };
+  var end = {
+    x: center.x + ux * arrowLength * 0.58,
+    y: center.y + uy * arrowLength * 0.58,
+  };
+  var angle = Math.atan2(uy, ux);
+  var revealAlpha = item.revealAlpha == null ? 1 : item.revealAlpha;
+
+  ctx.save();
+  ctx.globalAlpha = item.forceVisible
+    ? (0.48 + pulse * 0.16) * revealAlpha
+    : Math.min(1, item.faceAlpha + 0.28 + pulse * 0.18) * revealAlpha;
+  ctx.fillStyle = pulse > 0 ? 'rgba(255,212,111,0.36)' : 'rgba(255,178,84,0.22)';
+  traceInsetPolygon(ctx, item.polygon, item.center, 0.72);
+  ctx.fill();
+
+  ctx.shadowColor = 'transparent';
+  ctx.strokeStyle = pulse > 0 ? 'rgba(92,48,12,0.82)' : 'rgba(66,38,20,0.72)';
+  ctx.lineWidth = Math.max(2.6, unit * 0.082);
+  traceInsetPolygon(ctx, item.polygon, item.center, 0.72);
+  ctx.stroke();
+
+  ctx.strokeStyle = pulse > 0 ? 'rgba(255,246,194,0.74)' : 'rgba(255,231,164,0.58)';
+  ctx.lineWidth = Math.max(1.2, unit * 0.028);
+  traceInsetPolygon(ctx, item.polygon, item.center, 0.62);
+  ctx.stroke();
+
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = pulse > 0 ? 'rgba(255,214,116,0.44)' : 'rgba(255,202,104,0.24)';
+  ctx.shadowBlur = unit * (0.08 + pulse * 0.07);
+
+  ctx.strokeStyle = pulse > 0 ? 'rgba(78,38,8,0.92)' : 'rgba(58,35,18,0.84)';
+  ctx.fillStyle = ctx.strokeStyle;
+  ctx.lineWidth = Math.max(4.2, unit * 0.12);
+  ctx.beginPath();
+  ctx.moveTo(start.x, start.y);
+  ctx.lineTo(end.x, end.y);
+  ctx.stroke();
+  traceArrowHead(ctx, end, angle, head * 1.14, 0.7);
+  ctx.fill();
+
+  ctx.strokeStyle = pulse > 0 ? 'rgba(255,246,194,0.98)' : 'rgba(255,225,150,0.92)';
+  ctx.fillStyle = ctx.strokeStyle;
+  ctx.lineWidth = Math.max(2.3, unit * 0.064);
+  ctx.beginPath();
+  ctx.moveTo(start.x, start.y);
+  ctx.lineTo(end.x, end.y);
+  ctx.stroke();
+  traceArrowHead(ctx, end, angle, head, 0.68);
+  ctx.fill();
+  ctx.restore();
+}
+
+function traceArrowHead(ctx, end, angle, size, spread) {
+  ctx.beginPath();
+  ctx.moveTo(end.x, end.y);
+  ctx.lineTo(
+    end.x - Math.cos(angle - spread) * size,
+    end.y - Math.sin(angle - spread) * size,
+  );
+  ctx.lineTo(
+    end.x - Math.cos(angle + spread) * size,
+    end.y - Math.sin(angle + spread) * size,
+  );
+  ctx.closePath();
+}
+
+function roundedDiamond(ctx, center, ux, uy, nx, ny, radius) {
+  ctx.beginPath();
+  ctx.moveTo(center.x + ux * radius, center.y + uy * radius);
+  ctx.lineTo(center.x + nx * radius * 0.75, center.y + ny * radius * 0.75);
+  ctx.lineTo(center.x - ux * radius, center.y - uy * radius);
+  ctx.lineTo(center.x - nx * radius * 0.75, center.y - ny * radius * 0.75);
+  ctx.closePath();
+}
+
+function drawAxisOverlays(ctx, gravityItems, lockedItems, layout) {
+  if (lockedItems && lockedItems.length) {
+    lockedItems.forEach(function (item) {
+      drawLockedAxisIcon(ctx, item, layout);
+    });
+  }
+  if (gravityItems && gravityItems.length) {
+    gravityItems.forEach(function (item) {
+      drawGravityAxisIcon(ctx, item, layout);
+    });
+  }
+}
+
+function drawGravityAxisIcon(ctx, item, layout) {
+  var unit = layout.unit;
+  if (item.start && item.end) {
+    drawGravityAxisField(ctx, item, layout);
+    return;
+  }
+  var vector = item.vector || { x: 0, y: 1 };
+  var length = vectorLength(vector) || 1;
+  var ux = vector.x / length;
+  var uy = vector.y / length;
+  var center = item.center;
+  var line = unit * 0.68;
+  var start = {
+    x: center.x - ux * line * 0.42,
+    y: center.y - uy * line * 0.42,
+  };
+  var end = {
+    x: center.x + ux * line * 0.58,
+    y: center.y + uy * line * 0.58,
+  };
+  var angle = Math.atan2(uy, ux);
+
+  ctx.save();
+  ctx.globalAlpha = 0.82;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(16,55,90,0.72)';
+  ctx.fillStyle = 'rgba(16,55,90,0.72)';
+  ctx.lineWidth = Math.max(4, unit * 0.1);
+  ctx.beginPath();
+  ctx.moveTo(start.x, start.y);
+  ctx.lineTo(end.x, end.y);
+  ctx.stroke();
+  traceArrowHead(ctx, end, angle, unit * 0.18, 0.66);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(158,228,255,0.88)';
+  ctx.fillStyle = 'rgba(158,228,255,0.88)';
+  ctx.lineWidth = Math.max(1.8, unit * 0.04);
+  ctx.beginPath();
+  ctx.moveTo(start.x, start.y);
+  ctx.lineTo(end.x, end.y);
+  ctx.stroke();
+  traceArrowHead(ctx, end, angle, unit * 0.13, 0.64);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawGravityAxisField(ctx, item, layout) {
+  var unit = layout.unit;
+  var start = item.start;
+  var end = item.end;
+  var vector = {
+    x: end.x - start.x,
+    y: end.y - start.y,
+  };
+  var length = vectorLength(vector) || 1;
+  var ux = vector.x / length;
+  var uy = vector.y / length;
+  var nx = -uy;
+  var ny = ux;
+  var angle = Math.atan2(uy, ux);
+  var t = Date.now() / 520;
+  var flow = (Math.sin(t) + 1) * 0.5;
+  var arrowCenter = {
+    x: start.x + (end.x - start.x) * (0.58 + flow * 0.1),
+    y: start.y + (end.y - start.y) * (0.58 + flow * 0.1),
+  };
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.globalAlpha = 0.42;
+  ctx.strokeStyle = 'rgba(20,92,58,0.58)';
+  ctx.lineWidth = Math.max(12, unit * 0.42);
+  ctx.beginPath();
+  ctx.moveTo(start.x, start.y);
+  ctx.lineTo(end.x, end.y);
+  ctx.stroke();
+
+  ctx.globalAlpha = 0.72;
+  ctx.strokeStyle = 'rgba(111,232,145,0.58)';
+  ctx.lineWidth = Math.max(7, unit * 0.24);
+  ctx.beginPath();
+  ctx.moveTo(start.x, start.y);
+  ctx.lineTo(end.x, end.y);
+  ctx.stroke();
+
+  ctx.globalAlpha = 0.92;
+  ctx.strokeStyle = 'rgba(231,255,210,0.82)';
+  ctx.lineWidth = Math.max(2, unit * 0.045);
+  if (ctx.setLineDash) ctx.setLineDash([unit * 0.18, unit * 0.12]);
+  ctx.beginPath();
+  ctx.moveTo(start.x + nx * unit * 0.12, start.y + ny * unit * 0.12);
+  ctx.lineTo(end.x + nx * unit * 0.12, end.y + ny * unit * 0.12);
+  ctx.moveTo(start.x - nx * unit * 0.12, start.y - ny * unit * 0.12);
+  ctx.lineTo(end.x - nx * unit * 0.12, end.y - ny * unit * 0.12);
+  ctx.stroke();
+  if (ctx.setLineDash) ctx.setLineDash([]);
+
+  (item.nodes || []).forEach(function (node, index) {
+    var nodePulse = index === item.sinkIndex ? 1 : 0;
+    drawGravityFieldNode(ctx, node, unit, nodePulse);
+  });
+
+  ctx.strokeStyle = 'rgba(22,84,45,0.86)';
+  ctx.fillStyle = 'rgba(22,84,45,0.86)';
+  ctx.lineWidth = Math.max(5, unit * 0.15);
+  ctx.beginPath();
+  ctx.moveTo(arrowCenter.x - ux * unit * 0.42, arrowCenter.y - uy * unit * 0.42);
+  ctx.lineTo(arrowCenter.x + ux * unit * 0.38, arrowCenter.y + uy * unit * 0.38);
+  ctx.stroke();
+  traceArrowHead(
+    ctx,
+    { x: arrowCenter.x + ux * unit * 0.38, y: arrowCenter.y + uy * unit * 0.38 },
+    angle,
+    unit * 0.24,
+    0.66,
+  );
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(241,255,199,0.96)';
+  ctx.fillStyle = 'rgba(241,255,199,0.96)';
+  ctx.lineWidth = Math.max(2.2, unit * 0.06);
+  ctx.beginPath();
+  ctx.moveTo(arrowCenter.x - ux * unit * 0.36, arrowCenter.y - uy * unit * 0.36);
+  ctx.lineTo(arrowCenter.x + ux * unit * 0.31, arrowCenter.y + uy * unit * 0.31);
+  ctx.stroke();
+  traceArrowHead(
+    ctx,
+    { x: arrowCenter.x + ux * unit * 0.31, y: arrowCenter.y + uy * unit * 0.31 },
+    angle,
+    unit * 0.17,
+    0.64,
+  );
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawGravityFieldNode(ctx, center, unit, pulse) {
+  var radius = unit * (0.16 + pulse * 0.03);
+  ctx.save();
+  ctx.globalAlpha = 0.84;
+  ctx.fillStyle = pulse ? 'rgba(232,255,210,0.42)' : 'rgba(101,221,132,0.3)';
+  ctx.strokeStyle = pulse ? 'rgba(255,255,238,0.94)' : 'rgba(188,249,174,0.78)';
+  ctx.lineWidth = Math.max(1.6, unit * 0.04);
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawLockedAxisIcon(ctx, item, layout) {
+  var unit = layout.unit;
+  if (item.start && item.end) {
+    return;
+  }
+  var vector = item.vector || { x: 1, y: 0 };
+  var length = vectorLength(vector) || 1;
+  var ux = vector.x / length;
+  var uy = vector.y / length;
+  var nx = -uy;
+  var ny = ux;
+  var center = item.center;
+  var half = unit * 0.56;
+  var radius = unit * 0.18;
+
+  ctx.save();
+  ctx.globalAlpha = 0.78;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(57,45,55,0.82)';
+  ctx.lineWidth = Math.max(4, unit * 0.1);
+  ctx.beginPath();
+  ctx.moveTo(center.x - ux * half, center.y - uy * half);
+  ctx.lineTo(center.x + ux * half, center.y + uy * half);
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(245,229,223,0.84)';
+  ctx.lineWidth = Math.max(1.6, unit * 0.04);
+  if (ctx.setLineDash) ctx.setLineDash([unit * 0.12, unit * 0.08]);
+  ctx.beginPath();
+  ctx.moveTo(center.x - ux * half, center.y - uy * half);
+  ctx.lineTo(center.x + ux * half, center.y + uy * half);
+  ctx.stroke();
+  if (ctx.setLineDash) ctx.setLineDash([]);
+
+  ctx.fillStyle = 'rgba(77,62,72,0.92)';
+  ctx.strokeStyle = 'rgba(255,244,232,0.88)';
+  ctx.lineWidth = Math.max(1.3, unit * 0.032);
+  roundedDiamond(ctx, center, ux, uy, nx, ny, radius * 1.4);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawLockedAxisField(ctx, item, layout) {
+  var unit = layout.unit;
+  var start = item.start;
+  var end = item.end;
+  var vector = {
+    x: end.x - start.x,
+    y: end.y - start.y,
+  };
+  var length = vectorLength(vector) || 1;
+  var ux = vector.x / length;
+  var uy = vector.y / length;
+  var nx = -uy;
+  var ny = ux;
+  var center = item.center || {
+    x: (start.x + end.x) * 0.5,
+    y: (start.y + end.y) * 0.5,
+  };
+  var t = Date.now() / 420;
+  var pulse = (Math.sin(t) + 1) * 0.5;
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = 'rgba(122,22,34,0.62)';
+  ctx.lineWidth = Math.max(12, unit * 0.42);
+  ctx.beginPath();
+  ctx.moveTo(start.x, start.y);
+  ctx.lineTo(end.x, end.y);
+  ctx.stroke();
+
+  ctx.globalAlpha = 0.72;
+  ctx.strokeStyle = 'rgba(237,71,84,0.58)';
+  ctx.lineWidth = Math.max(7, unit * 0.24);
+  ctx.beginPath();
+  ctx.moveTo(start.x, start.y);
+  ctx.lineTo(end.x, end.y);
+  ctx.stroke();
+
+  ctx.globalAlpha = 0.92;
+  ctx.strokeStyle = 'rgba(255,216,216,0.84)';
+  ctx.lineWidth = Math.max(2, unit * 0.045);
+  if (ctx.setLineDash) ctx.setLineDash([unit * 0.16, unit * 0.1]);
+  ctx.beginPath();
+  ctx.moveTo(start.x + nx * unit * 0.12, start.y + ny * unit * 0.12);
+  ctx.lineTo(end.x + nx * unit * 0.12, end.y + ny * unit * 0.12);
+  ctx.moveTo(start.x - nx * unit * 0.12, start.y - ny * unit * 0.12);
+  ctx.lineTo(end.x - nx * unit * 0.12, end.y - ny * unit * 0.12);
+  ctx.stroke();
+  if (ctx.setLineDash) ctx.setLineDash([]);
+
+  (item.nodes || []).forEach(function (node) {
+    drawLockedAxisNode(ctx, node, unit, pulse);
+  });
+
+  ctx.globalAlpha = 0.95;
+  ctx.fillStyle = 'rgba(111,24,36,0.92)';
+  ctx.strokeStyle = 'rgba(255,235,230,0.9)';
+  ctx.lineWidth = Math.max(1.4, unit * 0.034);
+  roundedDiamond(ctx, center, ux, uy, nx, ny, unit * (0.25 + pulse * 0.025));
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(255,235,230,0.92)';
+  ctx.lineWidth = Math.max(2, unit * 0.052);
+  ctx.beginPath();
+  ctx.moveTo(center.x - nx * unit * 0.15, center.y - ny * unit * 0.15);
+  ctx.lineTo(center.x + nx * unit * 0.15, center.y + ny * unit * 0.15);
+  ctx.moveTo(center.x - ux * unit * 0.16, center.y - uy * unit * 0.16);
+  ctx.lineTo(center.x + ux * unit * 0.16, center.y + uy * unit * 0.16);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawLockedAxisNode(ctx, center, unit, pulse) {
+  var radius = unit * (0.14 + pulse * 0.018);
+  ctx.save();
+  ctx.globalAlpha = 0.84;
+  ctx.fillStyle = 'rgba(255,116,126,0.34)';
+  ctx.strokeStyle = 'rgba(255,230,230,0.82)';
+  ctx.lineWidth = Math.max(1.4, unit * 0.035);
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawWormholeTunnels(ctx, pairs, layout) {
@@ -356,10 +1044,11 @@ function drawWormholeTunnels(ctx, pairs, layout) {
     if (!pair.fromItem || !pair.toItem) return;
     var palette = getWormholePalette(pair.id);
     var center = layout.center;
+    var revealAlpha = pair.revealAlpha == null ? 1 : pair.revealAlpha;
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.globalAlpha = 0.7;
+    ctx.globalAlpha = 0.7 * revealAlpha;
     ctx.strokeStyle = palette.tunnelShadow;
     ctx.lineWidth = Math.max(5, layout.unit * 0.16);
     ctx.beginPath();
@@ -367,7 +1056,7 @@ function drawWormholeTunnels(ctx, pairs, layout) {
     ctx.quadraticCurveTo(center.x, center.y, pair.toItem.center.x, pair.toItem.center.y);
     ctx.stroke();
 
-    ctx.globalAlpha = 0.78;
+    ctx.globalAlpha = 0.78 * revealAlpha;
     ctx.strokeStyle = palette.tunnel;
     ctx.lineWidth = Math.max(2, layout.unit * 0.055);
     if (ctx.setLineDash) ctx.setLineDash([layout.unit * 0.18, layout.unit * 0.12]);
@@ -377,7 +1066,7 @@ function drawWormholeTunnels(ctx, pairs, layout) {
     ctx.stroke();
     if (ctx.setLineDash) ctx.setLineDash([]);
 
-    ctx.globalAlpha = 0.24;
+    ctx.globalAlpha = 0.24 * revealAlpha;
     ctx.fillStyle = palette.inner;
     ctx.beginPath();
     ctx.arc(center.x, center.y, layout.unit * 0.16, 0, Math.PI * 2);
@@ -386,28 +1075,33 @@ function drawWormholeTunnels(ctx, pairs, layout) {
   });
 }
 
-function drawNoTouchIcon(ctx, item, pulse) {
-  var radius = item.unit * (0.22 + pulse * 0.04);
-  var center = item.center;
-  ctx.save();
-  ctx.globalAlpha = Math.min(1, item.faceAlpha + 0.3);
-  ctx.fillStyle = pulse > 0 ? 'rgba(255,218,137,0.32)' : 'rgba(61,45,56,0.34)';
-  traceInsetPolygon(ctx, item.polygon, item.center, 0.74);
-  ctx.fill();
+function drawFoldDoorLinks(ctx, pairs, layout) {
+  if (!pairs || !pairs.length) return;
+  pairs.forEach(function (pair) {
+    if (!pair.fromItem || !pair.toItem) return;
+    var revealAlpha = pair.revealAlpha == null ? 1 : pair.revealAlpha;
+    var center = layout.center;
+    ctx.save();
+    ctx.globalAlpha = 0.68 * revealAlpha;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(88,53,18,0.32)';
+    ctx.lineWidth = Math.max(5, layout.unit * 0.14);
+    ctx.beginPath();
+    ctx.moveTo(pair.fromItem.center.x, pair.fromItem.center.y);
+    ctx.quadraticCurveTo(center.x, center.y - layout.unit * 0.28, pair.toItem.center.x, pair.toItem.center.y);
+    ctx.stroke();
 
-  ctx.strokeStyle = pulse > 0 ? 'rgba(255,231,166,0.96)' : 'rgba(255,240,210,0.78)';
-  ctx.lineWidth = Math.max(2, item.unit * 0.055);
-  ctx.beginPath();
-  ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.strokeStyle = pulse > 0 ? 'rgba(218,72,86,0.95)' : 'rgba(224,92,104,0.84)';
-  ctx.lineWidth = Math.max(2.4, item.unit * 0.06);
-  ctx.beginPath();
-  ctx.moveTo(center.x - radius * 0.72, center.y + radius * 0.72);
-  ctx.lineTo(center.x + radius * 0.72, center.y - radius * 0.72);
-  ctx.stroke();
-  ctx.restore();
+    ctx.strokeStyle = 'rgba(255,222,146,0.68)';
+    ctx.lineWidth = Math.max(2, layout.unit * 0.048);
+    if (ctx.setLineDash) ctx.setLineDash([layout.unit * 0.2, layout.unit * 0.1]);
+    ctx.beginPath();
+    ctx.moveTo(pair.fromItem.center.x, pair.fromItem.center.y);
+    ctx.quadraticCurveTo(center.x, center.y - layout.unit * 0.28, pair.toItem.center.x, pair.toItem.center.y);
+    ctx.stroke();
+    if (ctx.setLineDash) ctx.setLineDash([]);
+    ctx.restore();
+  });
 }
 
 function drawWormholeIcon(ctx, item) {
@@ -415,13 +1109,24 @@ function drawWormholeIcon(ctx, item) {
   var center = item.center;
   var radius = item.unit * 0.29;
   var t = Date.now() / 1000;
+  var revealAlpha = item.revealAlpha == null ? 1 : item.revealAlpha;
   ctx.save();
   ctx.globalAlpha = item.forceVisible
-    ? 0.48
-    : Math.min(1, item.faceAlpha + 0.34);
+    ? 0.48 * revealAlpha
+    : Math.min(1, item.faceAlpha + 0.34) * revealAlpha;
   ctx.fillStyle = palette.fill;
   traceInsetPolygon(ctx, item.polygon, item.center, item.forceVisible ? 0.76 : 0.68);
   ctx.fill();
+
+  ctx.strokeStyle = palette.outline;
+  ctx.lineWidth = Math.max(2.8, item.unit * 0.09);
+  traceInsetPolygon(ctx, item.polygon, item.center, item.forceVisible ? 0.76 : 0.68);
+  ctx.stroke();
+
+  ctx.strokeStyle = palette.markerStroke;
+  ctx.lineWidth = Math.max(1.2, item.unit * 0.026);
+  traceInsetPolygon(ctx, item.polygon, item.center, item.forceVisible ? 0.66 : 0.58);
+  ctx.stroke();
 
   ctx.fillStyle = palette.depth;
   ctx.beginPath();
@@ -429,6 +1134,12 @@ function drawWormholeIcon(ctx, item) {
   ctx.fill();
 
   ctx.lineCap = 'round';
+  ctx.strokeStyle = palette.outline;
+  ctx.lineWidth = Math.max(4, item.unit * 0.105);
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, radius * 1.04, 0, Math.PI * 2);
+  ctx.stroke();
+
   ctx.strokeStyle = palette.outer;
   ctx.lineWidth = Math.max(2.2, item.unit * 0.052);
   ctx.beginPath();
@@ -449,6 +1160,114 @@ function drawWormholeIcon(ctx, item) {
   ctx.beginPath();
   ctx.arc(center.x, center.y, radius * 0.28, -t * 2.2, -t * 2.2 + Math.PI * 1.25);
   ctx.stroke();
+  ctx.restore();
+}
+
+function drawFoldDoorIcon(ctx, item) {
+  var center = item.center;
+  var unit = item.unit;
+  var basis = getPolygonBasis(item.polygon);
+  var revealAlpha = item.revealAlpha == null ? 1 : item.revealAlpha;
+  var hingeAxis = item.hingeAxis || '';
+  var axisVector = getAxisVector(hingeAxis);
+  var hingeVector = axisVector ? projectVectorToScreen(axisVector) : basis.v;
+  if (!hingeVector) hingeVector = basis.v;
+  var baseNormal = roundVector(item.normal || item.sticker.normal);
+  var foldDir = item.foldDir == null ? 1 : item.foldDir;
+  var sideNormal = hingeAxis ? rotateRubikQuarter(baseNormal, hingeAxis, foldDir) : baseNormal;
+  var sideVector = projectVectorToScreen(sideNormal) || basis.u;
+  var hingeCenter = {
+    x: center.x + sideVector.x * unit * 0.36,
+    y: center.y + sideVector.y * unit * 0.36,
+  };
+  var hingeA = {
+    x: hingeCenter.x - hingeVector.x * unit * 0.48,
+    y: hingeCenter.y - hingeVector.y * unit * 0.48,
+  };
+  var hingeB = {
+    x: hingeCenter.x + hingeVector.x * unit * 0.48,
+    y: hingeCenter.y + hingeVector.y * unit * 0.48,
+  };
+  var t = Date.now() / 620;
+  var pulse = 0.5 + Math.sin(t) * 0.5;
+  var floatOffset = Math.sin(t * 1.7) * unit * 0.055;
+  var arcRadius = unit * 0.34;
+  var arrowStart = {
+    x: center.x - sideVector.x * arcRadius * 0.58 + sideVector.x * floatOffset,
+    y: center.y - sideVector.y * arcRadius * 0.58 + sideVector.y * floatOffset,
+  };
+  var arrowEnd = {
+    x: center.x + sideVector.x * arcRadius * (0.82 + pulse * 0.12) + sideVector.x * floatOffset,
+    y: center.y + sideVector.y * arcRadius * (0.82 + pulse * 0.12) + sideVector.y * floatOffset,
+  };
+  var arrowControl = {
+    x: center.x - hingeVector.x * unit * 0.16 + sideVector.x * floatOffset,
+    y: center.y - hingeVector.y * unit * 0.16 + sideVector.y * floatOffset,
+  };
+  var arrowAngle = Math.atan2(sideVector.y, sideVector.x);
+
+  ctx.save();
+  ctx.globalAlpha = (item.forceVisible ? 0.52 : Math.min(1, item.faceAlpha + 0.32)) * revealAlpha;
+  ctx.fillStyle = 'rgba(255,199,104,0.18)';
+  traceInsetPolygon(ctx, item.polygon, item.center, 0.72);
+  ctx.fill();
+
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = 'rgba(255,198,95,0.28)';
+  ctx.shadowBlur = unit * 0.11;
+  ctx.strokeStyle = 'rgba(58,35,14,0.92)';
+  ctx.lineWidth = Math.max(4.2, unit * 0.12);
+  ctx.beginPath();
+  ctx.moveTo(hingeA.x, hingeA.y);
+  ctx.lineTo(hingeB.x, hingeB.y);
+  ctx.stroke();
+
+  ctx.shadowColor = 'transparent';
+  ctx.strokeStyle = 'rgba(255,245,188,0.96)';
+  ctx.lineWidth = Math.max(2, unit * 0.052);
+  ctx.beginPath();
+  ctx.moveTo(hingeA.x, hingeA.y);
+  ctx.lineTo(hingeB.x, hingeB.y);
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(62,36,13,0.88)';
+  ctx.beginPath();
+  ctx.arc(hingeA.x, hingeA.y, Math.max(2.4, unit * 0.08), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(hingeB.x, hingeB.y, Math.max(2.4, unit * 0.08), 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(76,43,12,0.86)';
+  ctx.fillStyle = 'rgba(255,239,151,0.98)';
+  ctx.lineWidth = Math.max(2.5, unit * 0.07);
+  ctx.beginPath();
+  ctx.moveTo(arrowStart.x, arrowStart.y);
+  ctx.quadraticCurveTo(
+    arrowControl.x,
+    arrowControl.y,
+    arrowEnd.x,
+    arrowEnd.y,
+  );
+  ctx.stroke();
+  traceArrowHead(ctx, arrowEnd, arrowAngle, unit * 0.16, 0.68);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255,251,207,0.82)';
+  ctx.fillStyle = 'rgba(255,251,207,0.86)';
+  ctx.lineWidth = Math.max(1.4, unit * 0.038);
+  ctx.beginPath();
+  ctx.moveTo(arrowStart.x, arrowStart.y);
+  ctx.quadraticCurveTo(
+    arrowControl.x,
+    arrowControl.y,
+    arrowEnd.x,
+    arrowEnd.y,
+  );
+  ctx.stroke();
+  traceArrowHead(ctx, arrowEnd, arrowAngle, unit * 0.11, 0.66);
+  ctx.fill();
   ctx.restore();
 }
 
@@ -490,11 +1309,192 @@ function drawWormholeTeleport(ctx, state, canvasSize, options) {
   drawCatSticker(ctx, center, unit, false, 1, 1, options);
 }
 
+function drawGravityMove(ctx, state, canvasSize, options) {
+  var move = state.gravityMove;
+  if (!move) return;
+  var fromItem = getSlotItem(move.from, canvasSize, 'gravity-from', state.size, 0.32, true);
+  var toItem = getSlotItem(move.to, canvasSize, 'gravity-to', state.size, 0.32, true);
+  if (!fromItem || !toItem) return;
+  var t = easeInOutCubic(move.progress || 0);
+  var center = mixPoint(fromItem.center, toItem.center, t);
+  var unit = Math.min(fromItem.unit, toItem.unit);
+  var dx = toItem.center.x - fromItem.center.x;
+  var dy = toItem.center.y - fromItem.center.y;
+  var angle = Math.atan2(dy, dx);
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(18,58,88,0.26)';
+  ctx.lineWidth = Math.max(5, unit * 0.13);
+  ctx.beginPath();
+  ctx.moveTo(fromItem.center.x, fromItem.center.y);
+  ctx.lineTo(toItem.center.x, toItem.center.y);
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(152,229,255,0.66)';
+  ctx.lineWidth = Math.max(2, unit * 0.052);
+  ctx.beginPath();
+  ctx.moveTo(fromItem.center.x, fromItem.center.y);
+  ctx.lineTo(center.x, center.y);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(152,229,255,0.74)';
+  traceArrowHead(ctx, center, angle, unit * 0.12, 0.66);
+  ctx.fill();
+  ctx.restore();
+
+  drawCatSticker(ctx, center, unit, false, 1, 1, options);
+}
+
+function drawFoldMove(ctx, state, canvasSize, options) {
+  var move = state.foldMove;
+  if (!move) return;
+  if (move.mode === 'hinge') {
+    drawHingeFoldMove(ctx, state, canvasSize, options);
+    return;
+  }
+  var layout = getRubikLayout(canvasSize, state.size);
+  var fromItem = getSlotItem(move.from, canvasSize, 'fold-from', state.size, 0.34, true);
+  var toItem = getSlotItem(move.to, canvasSize, 'fold-to', state.size, 0.34, true);
+  if (!fromItem || !toItem) return;
+  var t = easeInOutCubic(move.progress || 0);
+  var mid = {
+    x: layout.center.x,
+    y: layout.center.y - layout.unit * 0.36,
+  };
+  var center = getQuadraticPoint(fromItem.center, mid, toItem.center, t);
+  var unit = Math.min(fromItem.unit, toItem.unit);
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(84,50,19,0.28)';
+  ctx.lineWidth = Math.max(5, unit * 0.14);
+  ctx.beginPath();
+  ctx.moveTo(fromItem.center.x, fromItem.center.y);
+  ctx.quadraticCurveTo(mid.x, mid.y, toItem.center.x, toItem.center.y);
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(255,226,150,0.76)';
+  ctx.lineWidth = Math.max(2, unit * 0.052);
+  ctx.beginPath();
+  ctx.moveTo(fromItem.center.x, fromItem.center.y);
+  ctx.quadraticCurveTo(mid.x, mid.y, center.x, center.y);
+  ctx.stroke();
+  drawFoldDoorIcon(ctx, fromItem);
+  drawFoldDoorIcon(ctx, toItem);
+  ctx.restore();
+
+  drawCatSticker(ctx, center, unit, false, 1, 1, options);
+}
+
+function drawHingeFoldMove(ctx, state, canvasSize, options) {
+  var move = state.foldMove;
+  var fromItem = getSlotItem(move.from, canvasSize, 'fold-hinge-from', state.size, 0, true);
+  var toItem = getSlotItem(move.to, canvasSize, 'fold-hinge-to', state.size, 0, true);
+  if (!fromItem || !toItem) return;
+  var t = easeInOutCubic(move.progress || 0);
+  var panel = getHingedPanelFrame(fromItem, toItem, t);
+  var unit = Math.min(fromItem.unit, toItem.unit);
+  var center = panel ? getPolygonCenter2d(panel.polygon) : mixPoint(fromItem.center, toItem.center, t);
+
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.34;
+  ctx.fillStyle = 'rgba(255,225,152,0.28)';
+  traceInsetPolygon(ctx, toItem.polygon, toItem.center, 0.72);
+  ctx.fill();
+
+  if (panel) {
+    ctx.globalAlpha = 0.92;
+    ctx.fillStyle = 'rgba(255,198,98,0.52)';
+    tracePolygon(ctx, panel.polygon);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(72,43,18,0.76)';
+    ctx.lineWidth = Math.max(2.5, unit * 0.065);
+    tracePolygon(ctx, panel.polygon);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,242,181,0.86)';
+    ctx.lineWidth = Math.max(1.5, unit * 0.034);
+    ctx.beginPath();
+    ctx.moveTo(panel.hinge[0].x, panel.hinge[0].y);
+    ctx.lineTo(panel.hinge[1].x, panel.hinge[1].y);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  drawCatSticker(ctx, center, unit, false, 1, 1, options);
+}
+
+function getHingedPanelFrame(fromItem, toItem, t) {
+  var fromPolygon = fromItem.polygon;
+  var toPolygon = toItem.polygon;
+  var threshold = fromItem.unit * 0.06;
+  var shared = [];
+  var fromFar = [];
+  var toSharedIndexes = {};
+  fromPolygon.forEach(function (point, index) {
+    var matchedIndex = -1;
+    var matchedDistance = Infinity;
+    toPolygon.forEach(function (targetPoint, targetIndex) {
+      var distance = getDistance(point, targetPoint);
+      if (distance < matchedDistance) {
+        matchedDistance = distance;
+        matchedIndex = targetIndex;
+      }
+    });
+    if (matchedDistance <= threshold && shared.length < 2) {
+      shared.push({
+        point: point,
+        fromIndex: index,
+        toIndex: matchedIndex,
+      });
+      toSharedIndexes[matchedIndex] = true;
+    } else {
+      fromFar.push(point);
+    }
+  });
+  if (shared.length !== 2 || fromFar.length !== 2) return null;
+  var toFar = toPolygon.filter(function (_point, index) {
+    return !toSharedIndexes[index];
+  });
+  if (toFar.length !== 2) return null;
+
+  var pairedToFar = pairFarEdgePoints(fromFar, toFar);
+  var animatedFarA = mixPoint(fromFar[0], pairedToFar[0], t);
+  var animatedFarB = mixPoint(fromFar[1], pairedToFar[1], t);
+  var hinge = [shared[0].point, shared[1].point];
+  return {
+    hinge: hinge,
+    polygon: [
+      hinge[0],
+      hinge[1],
+      animatedFarB,
+      animatedFarA,
+    ],
+  };
+}
+
+function pairFarEdgePoints(source, target) {
+  var direct =
+    getDistance(source[0], target[0]) + getDistance(source[1], target[1]);
+  var flipped =
+    getDistance(source[0], target[1]) + getDistance(source[1], target[0]);
+  return direct <= flipped
+    ? [target[0], target[1]]
+    : [target[1], target[0]];
+}
+
 function getWormholePalette(id) {
   if (id === 'violet') {
     return {
       fill: 'rgba(129,102,222,0.24)',
       depth: 'rgba(35,24,80,0.58)',
+      outline: 'rgba(31,18,74,0.86)',
+      markerStroke: 'rgba(247,238,255,0.78)',
       outer: 'rgba(224,214,255,0.9)',
       rimLight: 'rgba(255,245,255,0.72)',
       inner: 'rgba(161,126,255,0.9)',
@@ -506,6 +1506,8 @@ function getWormholePalette(id) {
   return {
     fill: 'rgba(75,183,235,0.22)',
     depth: 'rgba(16,54,78,0.58)',
+    outline: 'rgba(8,37,56,0.86)',
+    markerStroke: 'rgba(232,253,255,0.78)',
     outer: 'rgba(210,244,255,0.92)',
     rimLight: 'rgba(248,255,255,0.74)',
     inner: 'rgba(88,205,255,0.88)',
@@ -534,12 +1536,24 @@ function drawSticker(ctx, item) {
     ? Math.min(0.78, item.faceAlpha + 0.16)
     : item.faceAlpha;
   ctx.fillStyle = getStickerFill(item);
+  var isLockedSticker = item.lockedAxis && item.sticker.kind !== 'cat';
+  if (isLockedSticker) {
+    ctx.fillStyle = getLockedStickerFill(item);
+  } else if (item.gravityField && item.sticker.kind !== 'cat') {
+    ctx.fillStyle = getGravityStickerFill(item);
+  }
   ctx.strokeStyle = item.sticker.kind === 'cat'
     ? 'rgba(255,255,255,0.92)'
-    : 'rgba(71,45,32,0.68)';
+    : isLockedSticker
+      ? 'rgba(129,28,38,0.82)'
+      : item.gravityField
+        ? 'rgba(28,86,126,0.72)'
+      : 'rgba(71,45,32,0.68)';
   ctx.lineWidth = item.sticker.kind === 'cat'
     ? Math.max(2, item.unit * 0.035)
-    : Math.max(1, item.unit * 0.022);
+    : (isLockedSticker || item.gravityField)
+      ? Math.max(1.5, item.unit * 0.034)
+      : Math.max(1, item.unit * 0.022);
   tracePolygon(ctx, item.polygon);
   ctx.fill();
   ctx.stroke();
@@ -547,10 +1561,23 @@ function drawSticker(ctx, item) {
   ctx.shadowColor = 'transparent';
   ctx.strokeStyle = item.sticker.kind === 'cat'
     ? 'rgba(255,240,184,0.56)'
-    : 'rgba(255,244,208,0.18)';
+    : isLockedSticker
+      ? 'rgba(255,232,232,0.48)'
+      : item.gravityField
+        ? 'rgba(222,250,255,0.42)'
+      : 'rgba(255,244,208,0.18)';
   ctx.lineWidth = Math.max(1, item.unit * 0.012);
   traceInsetPolygon(ctx, item.polygon, item.center, 0.88);
   ctx.stroke();
+  if (isLockedSticker) {
+    ctx.fillStyle = 'rgba(255,94,104,0.18)';
+    traceInsetPolygon(ctx, item.polygon, item.center, 0.72);
+    ctx.fill();
+  } else if (item.gravityField && item.sticker.kind !== 'cat') {
+    ctx.fillStyle = 'rgba(120,224,255,0.18)';
+    traceInsetPolygon(ctx, item.polygon, item.center, 0.72);
+    ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -565,14 +1592,14 @@ function drawGoalSticker(ctx, item, alphaScale) {
   var alpha = alphaScale == null ? 1 : alphaScale;
 
   ctx.save();
-  ctx.globalAlpha = Math.min(1, item.faceAlpha + 0.26) * alpha;
+  ctx.globalAlpha = Math.min(1, item.faceAlpha + 0.26) * alpha * (item.goalLocked ? 0.46 : 1);
   ctx.fillStyle = palette.underlay;
   traceRoundedPolygon(ctx, getInsetPolygon(item.polygon, item.center, 0.84), Math.max(3, item.unit * 0.09));
   ctx.fill();
 
-  ctx.shadowColor = 'rgba(0,0,0,0.24)';
-  ctx.shadowBlur = item.unit * 0.09;
-  ctx.shadowOffsetY = item.unit * 0.03;
+  ctx.shadowColor = item.goalLocked ? 'rgba(30,34,42,0.18)' : 'rgba(0,0,0,0.24)';
+  ctx.shadowBlur = item.unit * (item.goalLocked ? 0.035 : 0.09);
+  ctx.shadowOffsetY = item.unit * (item.goalLocked ? 0.012 : 0.03);
   ctx.fillStyle = palette.fill;
   ctx.strokeStyle = palette.stroke;
   ctx.lineWidth = Math.max(1.5, item.unit * 0.03);
@@ -591,31 +1618,111 @@ function drawGoalSticker(ctx, item, alphaScale) {
   ctx.stroke();
 
   drawPawPrintOnPlane(ctx, item.center, basis.u, basis.v, item.unit * 0.3);
+  if (item.goalLocked) {
+    drawLockedGoalOverlay(ctx, item, board, inner, basis, alpha);
+  }
   ctx.restore();
 }
 
 function drawBackSideGoalSticker(ctx, item) {
   var pulse = (Math.sin(Date.now() / 260) + 1) * 0.5;
-  var alpha = 0.6 + pulse * 0.16;
+  var alpha = item.goalLocked ? 0.34 + pulse * 0.08 : 0.6 + pulse * 0.16;
   var radius = item.unit * (0.54 + pulse * 0.04);
 
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = 'rgba(255,244,204,0.2)';
-  ctx.strokeStyle = 'rgba(255,238,166,0.72)';
+  ctx.fillStyle = item.goalLocked ? 'rgba(75,82,94,0.16)' : 'rgba(255,244,204,0.2)';
+  ctx.strokeStyle = item.goalLocked ? 'rgba(174,184,196,0.56)' : 'rgba(255,238,166,0.72)';
   ctx.lineWidth = Math.max(2, item.unit * 0.04);
   traceRoundedPolygon(ctx, getInsetPolygon(item.polygon, item.center, 0.92), Math.max(3, item.unit * 0.11));
   ctx.fill();
   ctx.stroke();
 
-  ctx.strokeStyle = 'rgba(255,238,166,0.55)';
+  ctx.strokeStyle = item.goalLocked ? 'rgba(206,216,224,0.4)' : 'rgba(255,238,166,0.55)';
   ctx.lineWidth = Math.max(1.5, item.unit * 0.025);
   ctx.beginPath();
   ctx.arc(item.center.x, item.center.y, radius, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 
-  drawGoalSticker(ctx, item, 0.78);
+  drawGoalSticker(ctx, item, item.goalLocked ? 0.52 : 0.78);
+}
+
+function drawLockedGoalOverlay(ctx, item, board, inner, basis, alpha) {
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, alpha * 1.18);
+  ctx.shadowColor = 'transparent';
+
+  ctx.fillStyle = 'rgba(45,50,60,0.48)';
+  traceRoundedPolygon(ctx, board, Math.max(3, item.unit * 0.1));
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(216,222,229,0.28)';
+  traceRoundedPolygon(ctx, inner, Math.max(2, item.unit * 0.06));
+  ctx.fill();
+
+  drawLockedGoalStripes(ctx, item, board, basis);
+  drawLockedGoalSeal(ctx, item, basis);
+  ctx.restore();
+}
+
+function drawLockedGoalStripes(ctx, item, board, basis) {
+  var half = item.unit * 0.34;
+  var stripeGap = item.unit * 0.18;
+  var stripeLength = item.unit * 0.86;
+
+  ctx.save();
+  traceRoundedPolygon(ctx, board, Math.max(3, item.unit * 0.1));
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(246,248,250,0.54)';
+  ctx.lineWidth = Math.max(1.2, item.unit * 0.026);
+  ctx.lineCap = 'round';
+  for (var i = -2; i <= 2; i++) {
+    var start = addPlaneOffset(item.center, basis.u, basis.v, -half + i * stripeGap, half);
+    var end = addPlaneOffset(item.center, basis.u, basis.v, -half + i * stripeGap + stripeLength, -half);
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawLockedGoalSeal(ctx, item, basis) {
+  var center = item.center;
+  var radius = item.unit * 0.22;
+  var shackleTop = addPlaneOffset(center, basis.u, basis.v, 0, -item.unit * 0.16);
+  var shackleLeft = addPlaneOffset(center, basis.u, basis.v, -item.unit * 0.12, -item.unit * 0.01);
+  var shackleRight = addPlaneOffset(center, basis.u, basis.v, item.unit * 0.12, -item.unit * 0.01);
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(41,47,58,0.56)';
+  tracePlaneCircle(ctx, center, basis.u, basis.v, radius, 28);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,247,216,0.82)';
+  ctx.lineWidth = Math.max(1.5, item.unit * 0.034);
+  tracePlaneCircle(ctx, center, basis.u, basis.v, radius, 28);
+  ctx.stroke();
+
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(255,247,216,0.9)';
+  ctx.lineWidth = Math.max(1.5, item.unit * 0.036);
+  ctx.beginPath();
+  ctx.moveTo(shackleLeft.x, shackleLeft.y);
+  ctx.quadraticCurveTo(shackleTop.x, shackleTop.y, shackleRight.x, shackleRight.y);
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(255,247,216,0.92)';
+  var body = [
+    addPlaneOffset(center, basis.u, basis.v, -item.unit * 0.15, -item.unit * 0.02),
+    addPlaneOffset(center, basis.u, basis.v, item.unit * 0.15, -item.unit * 0.02),
+    addPlaneOffset(center, basis.u, basis.v, item.unit * 0.15, item.unit * 0.17),
+    addPlaneOffset(center, basis.u, basis.v, -item.unit * 0.15, item.unit * 0.17),
+  ];
+  traceRoundedPolygon(ctx, body, Math.max(1.5, item.unit * 0.035));
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawCatSticker(ctx, center, unit, completed, faceAlpha, normalDepth, options) {
@@ -871,6 +1978,28 @@ function mixPoint(a, b, amount) {
   };
 }
 
+function getAxisVector(axis) {
+  if (axis === 'x') return { x: 1, y: 0, z: 0 };
+  if (axis === 'y') return { x: 0, y: 1, z: 0 };
+  if (axis === 'z') return { x: 0, y: 0, z: 1 };
+  return null;
+}
+
+function projectVectorToScreen(vector) {
+  if (!vector) return null;
+  var projected = {
+    x:
+      vector.x * AXIS_BASIS.x.x +
+      vector.y * AXIS_BASIS.y.x +
+      vector.z * AXIS_BASIS.z.x,
+    y:
+      vector.x * AXIS_BASIS.x.y +
+      vector.y * AXIS_BASIS.y.y +
+      vector.z * AXIS_BASIS.z.y,
+  };
+  return vectorLength(projected) > 0.001 ? normalize2d(projected) : null;
+}
+
 function normalize2d(vector) {
   var length = vectorLength(vector) || 1;
   return {
@@ -934,9 +2063,29 @@ function getStickerFill(item) {
   return shadeHex(base, light);
 }
 
+function getGravityStickerFill(item) {
+  var depth = Math.max(0.6, Math.min(1, item.normalDepth * 0.22 + 0.86));
+  return rgbaFromHex(shadeHex('#7fe37b', depth), Math.min(0.78, item.faceAlpha + 0.22));
+}
+
+function getLockedStickerFill(item) {
+  var depth = Math.max(0.62, Math.min(1, item.normalDepth * 0.2 + 0.84));
+  return rgbaFromHex(shadeHex('#ef6a72', depth), Math.min(0.8, item.faceAlpha + 0.24));
+}
+
 function getGoalBoardPalette(item) {
   var base = FACE_COLORS[vectorKey(roundVector(item.normal))] || '#f1b55f';
   var light = Math.max(0.82, Math.min(1.08, item.normalDepth * 0.22 + 0.92));
+  if (item.goalLocked) {
+    var lockedLight = Math.max(0.78, Math.min(1.02, item.normalDepth * 0.12 + 0.86));
+    return {
+      underlay: 'rgba(70,78,92,0.2)',
+      fill: shadeHex('#9aa3ad', lockedLight),
+      stroke: 'rgba(55,62,74,0.78)',
+      highlight: 'rgba(246,248,250,0.22)',
+      innerStroke: 'rgba(244,248,252,0.34)',
+    };
+  }
   return {
     underlay: rgbaFromHex(base, 0.22),
     fill: shadeHex(base, light),
@@ -957,8 +2106,11 @@ function getStickerItems(state, canvasSize, turn) {
   var items = [];
   state.cubies.forEach(function (cubie) {
     cubie.stickers.forEach(function (sticker) {
+      if (sticker.hidden && sticker.kind !== 'cat') return;
       var item = getStickerItem(cubie, sticker, turn, layout);
       if (item && item.visible) {
+        item.gravityField = getActiveGravityFieldForPosition(state, cubie.position);
+        item.lockedAxis = getActiveLockedAxisForPosition(state, cubie.position);
         items.push(item);
       }
     });
@@ -966,34 +2118,282 @@ function getStickerItems(state, canvasSize, turn) {
   return items;
 }
 
+function getActiveGravityFieldForPosition(state, position) {
+  if (!state || !state.gravityAxes || !position) return null;
+  for (var i = 0; i < state.gravityAxes.length; i++) {
+    var gravity = state.gravityAxes[i];
+    if (!isRequiresButtonSatisfied(state, gravity)) continue;
+    if (isPositionInsideGravityField(gravity, position)) {
+      return gravity;
+    }
+  }
+  return null;
+}
+
+function getActiveLockedAxisForPosition(state, position) {
+  if (!state || !state.lockedAxes || !position) return null;
+  for (var i = 0; i < state.lockedAxes.length; i++) {
+    var lock = state.lockedAxes[i];
+    if (isRequiresButtonSatisfied(state, lock)) continue;
+    if (isPositionInsideLockedAxis(lock, position)) {
+      return lock;
+    }
+  }
+  return null;
+}
+
+function isPositionInsideLockedAxis(lock, position) {
+  if (!lock || !position) return false;
+  if (lock.layer == null) return true;
+  return position[lock.axis] === lock.layer;
+}
+
+function isPositionInsideGravityField(gravity, position) {
+  var fixed = gravity && gravity.fixed;
+  if (!fixed) return false;
+  var axes = ['x', 'y', 'z'];
+  for (var i = 0; i < axes.length; i++) {
+    var axis = axes[i];
+    if (axis === gravity.axis) continue;
+    if (fixed[axis] != null && position[axis] !== fixed[axis]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function getGoalItem(state, canvasSize) {
   if (!state.goal) return null;
   var item = getSlotItem(state.goal, canvasSize, 'goal', state.size, 0.34, true);
   if (item) {
     item.isBackSideGoal = item.normalDepth <= -0.42 || !item.visible;
+    item.goalLocked = !isRequiresButtonSatisfied(state, state.goal);
   }
   return item;
-}
-
-function getLockedSlotItems(state, canvasSize) {
-  return (state.lockedSlots || [])
-    .map(function (slot) {
-      var item = getSlotItem(slot, canvasSize, 'locked', state.size, 0.36);
-      if (item) {
-        item.slotKey = getSlotKey(slot);
-      }
-      return item;
-    })
-    .filter(Boolean);
 }
 
 function getWormholeItems(state, canvasSize) {
   var items = [];
   (state.wormholes || []).forEach(function (wormhole) {
+    var revealAlpha = getMechanicRevealAlpha(state, wormhole);
+    if (revealAlpha <= 0) return;
     [wormhole.from, wormhole.to].forEach(function (slot) {
       var item = getSlotItem(slot, canvasSize, 'wormhole', state.size, 0.32, true);
       if (item) {
         item.wormholeId = wormhole.id || '';
+        item.revealAlpha = revealAlpha;
+        items.push(item);
+      }
+    });
+  });
+  return items;
+}
+
+function getForcedTurnItems(state, canvasSize) {
+  return (state.forcedTurns || [])
+    .map(function (forcedTurn) {
+      var revealAlpha = getMechanicRevealAlpha(state, forcedTurn);
+      if (revealAlpha <= 0) return null;
+      var item = getSlotItem(forcedTurn, canvasSize, 'forced', state.size, 0.34, true);
+      if (!item || !forcedTurn.turn) return null;
+      var turn = normalizeForcedTurn(forcedTurn);
+      var turnedItem = getSlotItem(
+        forcedTurn,
+        canvasSize,
+        'forced',
+        state.size,
+        0.34,
+        true,
+        {
+          axis: turn.axis,
+          layer: turn.layer,
+          dir: turn.dir,
+          progress: 1,
+        },
+      );
+      item.slotKey = getSlotKey(forcedTurn);
+      item.forcedTurnId = forcedTurn.id || '';
+      item.revealAlpha = revealAlpha;
+      item.arrowVector = turnedItem ? {
+        x: turnedItem.center.x - item.center.x,
+        y: turnedItem.center.y - item.center.y,
+      } : null;
+      return item;
+    })
+    .filter(Boolean);
+}
+
+function getPawButtonItems(state, canvasSize) {
+  return (state.pawButtons || [])
+    .map(function (button) {
+      var active = !!(state.buttonStates && state.buttonStates[button.id || '']);
+      var item = getSlotItem(button, canvasSize, 'paw-button', state.size, 0.24, true);
+      if (!item) return null;
+      item.slotKey = getSlotKey(button);
+      item.buttonId = button.id || '';
+      item.buttonActive = active;
+      return item;
+    })
+    .filter(Boolean);
+}
+
+function getStickyItems(state, canvasSize) {
+  return (state.stickyStickers || [])
+    .map(function (sticky) {
+      var item = getSlotItem(sticky, canvasSize, 'sticky', state.size, 0.33, true);
+      if (!item) return null;
+      item.slotKey = getSlotKey(sticky);
+      return item;
+    })
+    .filter(Boolean);
+}
+
+function getGravityAxisItems(state, canvasSize) {
+  var layout = getRubikLayout(canvasSize, state.size);
+  return (state.gravityAxes || [])
+    .filter(function (gravity) {
+      return isRequiresButtonSatisfied(state, gravity);
+    })
+    .map(function (gravity) {
+      var basis = AXIS_BASIS[gravity.axis] || AXIS_BASIS.y;
+      var dir = gravity.dir == null || gravity.dir >= 0 ? 1 : -1;
+      var coords = getCubeCoordValues(state.size);
+      var line = getGravityAxisLine(gravity, coords);
+      if (line) {
+        var forceStart3d = dir < 0 ? line.maxPoint : line.minPoint;
+        var forceEnd3d = dir < 0 ? line.minPoint : line.maxPoint;
+        var nodes = coords.map(function (coord) {
+          var point = clonePoint3d(line.minPoint);
+          point[gravity.axis] = coord;
+          return projectPoint(point, layout);
+        });
+        return {
+          id: gravity.id || '',
+          axis: gravity.axis,
+          dir: dir,
+          start: projectPoint(forceStart3d, layout),
+          end: projectPoint(forceEnd3d, layout),
+          nodes: nodes,
+          sinkIndex: dir < 0 ? 0 : nodes.length - 1,
+          vector: {
+            x: basis.x * dir,
+            y: basis.y * dir,
+          },
+        };
+      }
+      var offset = layout.unit * state.size * 1.05;
+      return {
+        id: gravity.id || '',
+        axis: gravity.axis,
+        dir: dir,
+        center: {
+          x: layout.center.x + basis.x * offset * dir,
+          y: layout.center.y + basis.y * offset * dir,
+        },
+        vector: {
+          x: basis.x * dir,
+          y: basis.y * dir,
+        },
+      };
+    });
+}
+
+function getGravityAxisLine(gravity, coords) {
+  var fixed = gravity && gravity.fixed;
+  if (!fixed) return null;
+  var minPoint = { x: 0, y: 0, z: 0 };
+  var maxPoint = { x: 0, y: 0, z: 0 };
+  ['x', 'y', 'z'].forEach(function (axis) {
+    if (axis === gravity.axis) {
+      minPoint[axis] = coords[0];
+      maxPoint[axis] = coords[coords.length - 1];
+    } else {
+      var value = fixed[axis] != null ? fixed[axis] : 0;
+      minPoint[axis] = value;
+      maxPoint[axis] = value;
+    }
+  });
+  return {
+    minPoint: minPoint,
+    maxPoint: maxPoint,
+  };
+}
+
+function getCubeCoordValues(size) {
+  var cubeSize = Math.max(2, size || 2);
+  var coords = [];
+  var start = -(cubeSize - 1);
+  for (var i = 0; i < cubeSize; i++) {
+    coords.push(start + i * 2);
+  }
+  return coords;
+}
+
+function clonePoint3d(point) {
+  return {
+    x: point.x,
+    y: point.y,
+    z: point.z,
+  };
+}
+
+function getLockedAxisItems(state, canvasSize) {
+  var layout = getRubikLayout(canvasSize, state.size);
+  return (state.lockedAxes || [])
+    .filter(function (lock) {
+      return !isRequiresButtonSatisfied(state, lock);
+    })
+    .map(function (lock) {
+      var basis = AXIS_BASIS[lock.axis] || AXIS_BASIS.y;
+      var layer = lock.layer == null ? 0 : lock.layer;
+      var lineHalf = layout.unit * Math.max(1.2, state.size * 0.92);
+      var center = {
+        x: layout.center.x + basis.x * layout.unit * layer,
+        y: layout.center.y + basis.y * layout.unit * layer,
+      };
+      var start = {
+        x: center.x - basis.x * lineHalf,
+        y: center.y - basis.y * lineHalf,
+      };
+      var end = {
+        x: center.x + basis.x * lineHalf,
+        y: center.y + basis.y * lineHalf,
+      };
+      var coords = getCubeCoordValues(state.size);
+      var nodeCount = Math.max(1, coords.length - 1);
+      var nodes = coords.map(function (_coord, index) {
+        var t = coords.length === 1 ? 0.5 : index / nodeCount;
+        return {
+          x: start.x + (end.x - start.x) * t,
+          y: start.y + (end.y - start.y) * t,
+        };
+      });
+      return {
+        id: lock.id || '',
+        axis: lock.axis,
+        layer: layer,
+        center: center,
+        start: start,
+        end: end,
+        nodes: nodes,
+        vector: basis,
+      };
+    });
+}
+
+function getFoldDoorItems(state, canvasSize) {
+  var items = [];
+  (state.foldDoors || []).forEach(function (foldDoor) {
+    var revealAlpha = getMechanicRevealAlpha(state, foldDoor);
+    if (revealAlpha <= 0) return;
+    var slots = [foldDoor.from || foldDoor];
+    slots.forEach(function (slot) {
+      var item = getSlotItem(slot, canvasSize, 'fold-door', state.size, 0.34, true);
+      if (item) {
+        item.foldDoorId = foldDoor.id || '';
+        item.revealAlpha = revealAlpha;
+        item.hingeAxis = foldDoor.hingeAxis || '';
+        item.foldDir = foldDoor.dir == null ? 1 : foldDoor.dir;
         items.push(item);
       }
     });
@@ -1004,23 +2404,44 @@ function getWormholeItems(state, canvasSize) {
 function getWormholePairItems(state, canvasSize) {
   return (state.wormholes || [])
     .map(function (wormhole) {
+      var revealAlpha = getMechanicRevealAlpha(state, wormhole);
+      if (revealAlpha <= 0) return null;
       return {
         id: wormhole.id || '',
+        revealAlpha: revealAlpha,
         fromItem: getSlotItem(wormhole.from, canvasSize, 'wormhole', state.size, 0.32, true),
         toItem: getSlotItem(wormhole.to, canvasSize, 'wormhole', state.size, 0.32, true),
       };
     })
     .filter(function (pair) {
-      return pair.fromItem && pair.toItem;
+      return pair && pair.fromItem && pair.toItem;
     });
 }
 
-function getSlotItem(slot, canvasSize, kind, size, lift, forceVisible) {
+function getFoldDoorPairItems(state, canvasSize) {
+  return (state.foldDoors || [])
+    .map(function (foldDoor) {
+      if (!foldDoor.from || !foldDoor.to) return null;
+      var revealAlpha = getMechanicRevealAlpha(state, foldDoor);
+      if (revealAlpha <= 0) return null;
+      return {
+        id: foldDoor.id || '',
+        revealAlpha: revealAlpha,
+        fromItem: getSlotItem(foldDoor.from, canvasSize, 'fold-door', state.size, 0.34, true),
+        toItem: getSlotItem(foldDoor.to, canvasSize, 'fold-door', state.size, 0.34, true),
+      };
+    })
+    .filter(function (pair) {
+      return pair && pair.fromItem && pair.toItem;
+    });
+}
+
+function getSlotItem(slot, canvasSize, kind, size, lift, forceVisible, turn) {
   if (!slot) return null;
   var layout = getRubikLayout(canvasSize, size || 2);
   var fakeCubie = { id: kind || 'slot', position: slot.position };
   var fakeSticker = { kind: kind || 'slot', normal: slot.normal, lift: lift || 0 };
-  var item = getStickerItem(fakeCubie, fakeSticker, null, layout);
+  var item = getStickerItem(fakeCubie, fakeSticker, turn || null, layout);
   if (!item || (!item.visible && !forceVisible)) return null;
   item.forceVisible = !!forceVisible && !item.visible;
   return item;
@@ -1028,6 +2449,41 @@ function getSlotItem(slot, canvasSize, kind, size, lift, forceVisible) {
 
 function getSlotKey(slot) {
   return vectorKey(slot.position) + '|' + vectorKey(slot.normal);
+}
+
+function normalizeForcedTurn(forcedTurn) {
+  var axis = forcedTurn.turn.axis;
+  return {
+    axis: axis,
+    layer: forcedTurn.turn.layer != null ? forcedTurn.turn.layer : forcedTurn.position[axis],
+    dir: forcedTurn.turn.dir,
+  };
+}
+
+function isRequiresButtonSatisfied(state, mechanic) {
+  var requiresButton = mechanic && mechanic.requiresButton;
+  if (!requiresButton) return true;
+  var ids = Array.isArray(requiresButton) ? requiresButton : [requiresButton];
+  for (var i = 0; i < ids.length; i++) {
+    if (!state.buttonStates || !state.buttonStates[ids[i]]) return false;
+  }
+  return true;
+}
+
+function getMechanicRevealAlpha(state, mechanic) {
+  var requiresButton = mechanic && mechanic.requiresButton;
+  if (!requiresButton) return 1;
+  var ids = Array.isArray(requiresButton) ? requiresButton : [requiresButton];
+  var firstActivatedAt = null;
+  for (var i = 0; i < ids.length; i++) {
+    if (!state.buttonStates || !state.buttonStates[ids[i]]) return 0;
+    var activatedAt = state.buttonActivatedAt && state.buttonActivatedAt[ids[i]];
+    if (!firstActivatedAt || activatedAt < firstActivatedAt) {
+      firstActivatedAt = activatedAt;
+    }
+  }
+  if (!firstActivatedAt) return 1;
+  return Math.max(0, Math.min(1, (Date.now() - firstActivatedAt) / 720));
 }
 
 function getStickerItem(cubie, sticker, turn, layout) {
@@ -1116,9 +2572,12 @@ function getRubikLayout(canvasSize, size) {
   var width = canvasSize && canvasSize.width ? canvasSize.width : 375;
   var height = canvasSize && canvasSize.height ? canvasSize.height : 600;
   var cubeSize = Math.max(2, size || 2);
+  var horizontalFactor = cubeSize === 4 ? 4.34 : 4.75;
+  var verticalFactor = cubeSize === 4 ? 3.86 : 4.1;
+  var verticalPadding = cubeSize === 4 ? 2.25 : 2.6;
   var unit = Math.min(
-    width / (cubeSize * 4.75),
-    height / (cubeSize * 4.1 + 2.6),
+    width / (cubeSize * horizontalFactor),
+    height / (cubeSize * verticalFactor + verticalPadding),
     46,
   );
   return {
@@ -1193,8 +2652,7 @@ function dot(a, b) {
 }
 
 function easeTurn(t) {
-  t = Math.max(0, Math.min(1, t || 0));
-  return 1 - Math.pow(1 - t, 3);
+  return easeInOutCubic(t);
 }
 
 function getPolygonCenter2d(points) {

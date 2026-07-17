@@ -4,7 +4,7 @@
       class="top-bar"
       :style="{ paddingTop: topBarPadding, minHeight: '44px' }"
     >
-      <text class="instruction">{{ instruction }}</text>
+      <text class="instruction" :style="instructionStyle">{{ instruction }}</text>
       <view class="tool-actions">
         <view class="tool-btn" @tap="onResetTap">
           <view class="tool-icon retry-icon">
@@ -64,7 +64,10 @@
               :class="{ active: activeLevelWorldId === world.id }"
               @tap="onLevelWorldTap(world.id)"
             >
-              {{ world.label }}
+              <text class="level-tab-label">{{ world.label }}</text>
+              <text v-if="levelWorldCurrentText(world)" class="level-tab-current">
+                {{ levelWorldCurrentText(world) }}
+              </text>
             </view>
           </view>
           <scroll-view scroll-y class="level-scroll">
@@ -242,6 +245,15 @@
     { id: 'cat-scratcher', label: '\u732b\u6293\u677f', levels: RUBIK_SCRATCH_LEVELS },
   ];
   const levels = computed(() => getActiveLevelWorld().levels);
+  const instructionStyle = computed(() => {
+    const length = Array.from(instruction.value || '').length;
+    const fontSize = length > 34 ? 9 : length > 26 ? 10 : length > 18 ? 11 : 13;
+    const scale = length > 0 ? Math.min(1, Math.max(0.42, 18 / length)) : 1;
+    return {
+      fontSize: `${fontSize}px`,
+      transform: `scaleX(${scale})`,
+    };
+  });
   const completedLevels = ref<string[]>([]);
   const rewardState = ref(RewardStorage.getState());
   const activeRewardTab = ref('accessory');
@@ -399,6 +411,17 @@
   function syncActiveWorldForLevel(id: string) {
     if (!id) return;
     activeLevelWorldId.value = getLevelWorldForId(id).id;
+  }
+
+  function getLevelIndexInWorld(world: any, id: string) {
+    if (!world || !id) return -1;
+    return world.levels.findIndex((level: any) => level.id === id);
+  }
+
+  function levelWorldCurrentText(world: any) {
+    const id = currentLevelId || (engine.value && engine.value.maze.id) || '';
+    const index = getLevelIndexInWorld(world, id);
+    return index >= 0 ? `\u7b2c ${index + 1} \u5173` : '';
   }
 
   function getNextLevelForId(id: string) {
@@ -586,8 +609,8 @@
     applyEquippedRewards();
   }
 
-  function levelTitle(level: any, index: number) {
-    return level && level.label ? level.label : `\u7b2c ${index + 1} \u5173`;
+  function levelTitle(_level: any, index: number) {
+    return `\u7b2c ${index + 1} \u5173`;
   }
 
   function playerName(row: any) {
@@ -627,12 +650,14 @@
   .instruction {
     color: #d9d9e6;
     font-size: 13px;
+    display: block;
     flex: 1;
     min-width: 0;
     line-height: 1.35;
     overflow: hidden;
-    text-overflow: ellipsis;
+    text-overflow: clip;
     white-space: nowrap;
+    transform-origin: left center;
   }
   .tool-actions {
     display: flex;
@@ -839,8 +864,9 @@
   }
   .level-tab {
     flex: 1;
-    height: 38px;
+    height: 42px;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     color: #d9daec;
@@ -853,6 +879,20 @@
   .level-tab.active {
     color: #ffe8af;
     border-bottom: 3px solid #ffe8af;
+  }
+  .level-tab-label {
+    font-size: 14px;
+    line-height: 16px;
+  }
+  .level-tab-current {
+    margin-top: 2px;
+    font-size: 10px;
+    line-height: 12px;
+    color: #aeb1ca;
+    font-weight: 700;
+  }
+  .level-tab.active .level-tab-current {
+    color: #fff2c4;
   }
   .level-scroll {
     max-height: 62vh;
@@ -886,9 +926,10 @@
   }
   .level-number {
     max-width: 78px;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 800;
     line-height: 1.15;
+    white-space: nowrap;
   }
   .level-status {
     margin-top: 4px;
