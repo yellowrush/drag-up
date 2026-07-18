@@ -3,5 +3,4 @@ dist
 .workbuddy
 private.*.key
 .env
-leaderboard-config.js
 hatch-runs
