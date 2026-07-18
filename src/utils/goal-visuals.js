@@ -1,3 +1,6 @@
+import { renderCubAvatar } from './cub.js'
+import { renderRewardSuccessBurst } from './reward-effects.js'
+
 var successAnimationIndex = 0
 
 export function renderGoalIcon(ctx, x, y, mazeAngle, gridSize, icon) {
@@ -12,10 +15,10 @@ export function renderGoalIcon(ctx, x, y, mazeAngle, gridSize, icon) {
   ctx.restore()
 }
 
-export function createGoalSuccessAnimation(x, y, icon, gridSize) {
+export function createGoalSuccessAnimation(x, y, icon, gridSize, options) {
   var variant = successAnimationIndex % 3
   successAnimationIndex += 1
-  return new GoalSuccessAnimation(x, y, icon || 'box', variant, gridSize)
+  return new GoalSuccessAnimation(x, y, icon || 'box', variant, gridSize, options || {})
 }
 
 function renderBoxGoal(ctx) {
@@ -194,12 +197,14 @@ function renderPawPrint(ctx) {
   ctx.restore()
 }
 
-function GoalSuccessAnimation(x, y, icon, variant, gridSize) {
+function GoalSuccessAnimation(x, y, icon, variant, gridSize, options) {
   this.x = x
   this.y = y
   this.icon = icon
   this.variant = variant
   this.gridSize = gridSize || 40
+  this.accessoryId = options.accessoryId || ''
+  this.expressionId = options.expressionId || ''
   this.startTime = new Date()
   this.duration = 900
   this.isPlaying = true
@@ -216,7 +221,10 @@ GoalSuccessAnimation.prototype.render = function(ctx) {
   ctx.save()
   ctx.translate(this.x, this.y)
 
-  renderCatInBox(ctx, this.gridSize, this.t)
+  renderCatInBox(ctx, this.gridSize, this.t, {
+    accessoryId: this.accessoryId,
+    expressionId: this.expressionId || 'joy',
+  })
 
   if (this.t < 1 && this.variant === 0) {
     renderPawBurst(ctx, this.t)
@@ -226,21 +234,28 @@ GoalSuccessAnimation.prototype.render = function(ctx) {
     renderRibbonBurst(ctx, this.t)
   }
 
+  if (this.t < 1) {
+    renderRewardSuccessBurst(ctx, { x: 0, y: -this.gridSize * 0.2 }, this.gridSize * 2.2, this.t, {
+      accessoryId: this.accessoryId,
+      expressionId: this.expressionId,
+    })
+  }
+
   ctx.restore()
 }
 
-function renderCatInBox(ctx, gridSize, t) {
+function renderCatInBox(ctx, gridSize, t, options) {
   var pop = 0.86 + 0.14 * easeOutBack(Math.min(1, t * 1.2))
 
   ctx.save()
   ctx.scale((gridSize / 175) * pop, (gridSize / 175) * pop)
   ctx.translate(-203, -162)
-  renderCatBoxComposite(ctx)
+  renderCatBoxComposite(ctx, options || {})
 
   ctx.restore()
 }
 
-function renderCatBoxComposite(ctx) {
+function renderCatBoxComposite(ctx, options) {
   ctx.save()
   ctx.lineJoin = 'round'
   ctx.lineCap = 'round'
@@ -255,7 +270,7 @@ function renderCatBoxComposite(ctx) {
   renderCompositeRightBody(ctx)
   ctx.restore()
 
-  renderPeekingCat(ctx)
+  renderPeekingCat(ctx, options)
 
   ctx.save()
   ctx.translate(-30, 0)
@@ -376,46 +391,16 @@ function renderCompositeLeftFrontFlap(ctx) {
   ctx.stroke()
 }
 
-function renderPeekingCat(ctx) {
+function renderPeekingCat(ctx, options) {
   ctx.save()
-  ctx.translate(252, 160)
-  ctx.scale(2.42, 2.42)
-
-  ctx.fillStyle = '#1b1b1b'
-  ctx.strokeStyle = '#ffffff'
-  ctx.lineJoin = 'round'
-  ctx.lineCap = 'round'
-  ctx.lineWidth = 7
-
-  renderPeekingEars(ctx)
-
-  tracePeekingCatHead(ctx)
-  ctx.stroke()
-  tracePeekingCatHead(ctx)
-  ctx.fill()
-
-  drawSmilingEye(ctx, -21, 2)
-  drawSmilingEye(ctx, 21, 2)
-
-  ctx.fillStyle = '#f4b0b7'
-  ctx.beginPath()
-  ctx.moveTo(-6, 12)
-  ctx.lineTo(6, 12)
-  ctx.lineTo(0, 18)
-  ctx.closePath()
-  ctx.fill()
-
-  ctx.strokeStyle = '#ffffff'
-  ctx.lineWidth = 3
-  ctx.beginPath()
-  ctx.moveTo(0, 18)
-  ctx.lineTo(0, 24)
-  ctx.moveTo(0, 24)
-  ctx.quadraticCurveTo(-8, 32, -17, 25)
-  ctx.moveTo(0, 24)
-  ctx.quadraticCurveTo(8, 32, 17, 25)
-  ctx.stroke()
-
+  ctx.translate(252, 157)
+  renderCubAvatar(ctx, 96, {
+    accessoryId: options.accessoryId,
+    expressionId: options.expressionId || 'joy',
+    isHovered: true,
+    lookOffset: { x: 0, y: 0 },
+    time: Date.now() / 1000,
+  })
   ctx.restore()
 }
 

@@ -7,6 +7,7 @@ import {
 import {
   getYarnClockAction,
   getYarnTimeLayout,
+  createYarnTimeSuccessAnimation,
   renderYarnTime,
   yarnScreenToWorld,
   yarnWorldToScreen,
@@ -40,6 +41,7 @@ export class YarnTimeEngine {
     this.pointer = null;
     this.levelStats = this.createLevelStats('');
     this.completed = false;
+    this.winAnim = null;
     this.now = Date.now();
     this.lastUpdateAt = Date.now();
     this.equippedAccessoryId = '';
@@ -115,6 +117,7 @@ export class YarnTimeEngine {
     };
     this.pointer = null;
     this.completed = false;
+    this.winAnim = null;
     this.now = Date.now();
     this.lastUpdateAt = this.now;
     this.resetLevelStats(this.level.id);
@@ -172,6 +175,9 @@ export class YarnTimeEngine {
     this.ensureActorsOnSafeTiles();
     if (!this.completed) {
       this.updateCat(dt);
+    }
+    if (this.winAnim) {
+      this.winAnim.update();
     }
     this.checkLevelComplete();
   }
@@ -372,6 +378,7 @@ export class YarnTimeEngine {
     renderYarnTime(this.ctx, this, this.canvasSize, {
       accessoryId: this.equippedAccessoryId,
       expressionId: this.equippedExpressionId,
+      successAnimation: this.winAnim,
     });
   }
 
@@ -750,6 +757,10 @@ export class YarnTimeEngine {
 
   completeLevel() {
     this.completed = true;
+    this.winAnim = createYarnTimeSuccessAnimation(this, this.canvasSize, {
+      accessoryId: this.equippedAccessoryId,
+      expressionId: this.equippedExpressionId || 'joy',
+    });
     GameStorage.markLevelCompleted(this.maze.id);
     if (this.onLevelComplete) {
       this.onLevelComplete(this.getAttemptStats());

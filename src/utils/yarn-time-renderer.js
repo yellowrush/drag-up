@@ -1,4 +1,5 @@
 import { renderCubAvatar } from './cub.js';
+import { renderRewardSuccessBurst } from './reward-effects.js';
 
 var TAU = Math.PI * 2;
 
@@ -128,6 +129,77 @@ export function renderYarnTime(ctx, state, canvasSize, options) {
   if (state.completed) {
     drawCompletionGlow(ctx, state, layout, t);
   }
+  if (options.successAnimation) {
+    options.successAnimation.render(ctx);
+  }
+}
+
+export function createYarnTimeSuccessAnimation(state, canvasSize, options) {
+  var layout = getYarnTimeLayout(canvasSize, state.level);
+  var center = state.cat && state.cat.pos
+    ? yarnWorldToScreen(state.cat.pos, layout)
+    : { x: canvasSize.width / 2, y: canvasSize.height / 2 };
+  var isGrid = layout.grid && layout.grid.enabled;
+  var tile = layout.tile || { w: 56, h: 32 };
+  var size = isGrid
+    ? Math.max(34, Math.min(54, tile.w * 0.74))
+    : Math.max(46, Math.min(layout.w, layout.h) * 0.17);
+  return new YarnTimeSuccessAnimation(center, size, options || {});
+}
+
+function YarnTimeSuccessAnimation(center, size, options) {
+  this.center = center;
+  this.size = size;
+  this.accessoryId = options.accessoryId || '';
+  this.expressionId = options.expressionId || '';
+  this.startTime = Date.now();
+  this.duration = 980;
+  this.t = 0;
+}
+
+YarnTimeSuccessAnimation.prototype.update = function () {
+  this.t = Math.min(1, (Date.now() - this.startTime) / this.duration);
+};
+
+YarnTimeSuccessAnimation.prototype.render = function (ctx) {
+  var t = this.t || 0;
+  var pop = 0.76 + 0.24 * easeOutBack(Math.min(1, t * 1.18));
+  var lift = -this.size * 0.52 * easeOutCubic(t);
+  var center = {
+    x: this.center.x,
+    y: this.center.y + lift,
+  };
+
+  ctx.save();
+  ctx.translate(center.x, center.y);
+  ctx.scale(pop, pop);
+  renderCubAvatar(ctx, this.size, {
+    accessoryId: this.accessoryId,
+    expressionId: this.expressionId || 'joy',
+    isHovered: true,
+    lookOffset: { x: 0, y: 0 },
+    time: Date.now() / 1000,
+  });
+  drawYarnBall(ctx, { x: this.size * 0.38, y: this.size * 0.3 }, this.size * 0.17, Date.now() / 1000, 'playing');
+  ctx.restore();
+
+  if (t < 1) {
+    renderRewardSuccessBurst(ctx, center, this.size * 1.45, t, {
+      accessoryId: this.accessoryId,
+      expressionId: this.expressionId,
+    });
+  }
+};
+
+function easeOutCubic(t) {
+  var d = 1 - t;
+  return 1 - d * d * d;
+}
+
+function easeOutBack(t) {
+  var c1 = 1.70158;
+  var c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
 }
 
 export function drawYarnBall(ctx, center, radius, t, mode) {

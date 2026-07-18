@@ -648,6 +648,10 @@ export class GameEngine {
       cubPosition.y,
       this.maze.goalIcon,
       this.gridSize,
+      {
+        accessoryId: this.equippedAccessoryId,
+        expressionId: this.equippedExpressionId || 'joy',
+      },
     );
 
     // Save completion

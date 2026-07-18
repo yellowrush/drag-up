@@ -119,6 +119,13 @@
           </view>
           <view
             class="reward-tab"
+            :class="{ active: activeRewardTab === 'task' }"
+            @tap="onRewardTabTap('task')"
+          >
+            &#20219;&#21153;
+          </view>
+          <view
+            class="reward-tab"
             :class="{ active: activeRewardTab === 'leaderboard' }"
             @tap="onRewardTabTap('leaderboard')"
           >
@@ -127,7 +134,7 @@
         </view>
 
         <scroll-view
-          v-if="activeRewardTab !== 'leaderboard'"
+          v-if="activeRewardTab === 'accessory' || activeRewardTab === 'expression'"
           scroll-y
           class="reward-scroll"
         >
@@ -138,7 +145,14 @@
             :class="{ owned: isOwned(item), equipped: isEquipped(item) }"
           >
             <view class="reward-preview">
-              <view :class="['preview-mark', item.type, item.id]"></view>
+              <view :class="['preview-mark', item.type, item.id]">
+                <view
+                  v-if="item.type === 'expression' && item.id === 'angry'"
+                  class="preview-anger-icon"
+                >
+                  <view class="preview-anger-arch"></view>
+                </view>
+              </view>
             </view>
             <view class="reward-info">
               <text class="reward-name">{{ item.name }}</text>
@@ -153,6 +167,33 @@
             </view>
           </view>
         </scroll-view>
+
+        <view v-else-if="activeRewardTab === 'task'" class="task-panel">
+          <view v-if="taskHint" class="task-hint">{{ taskHint }}</view>
+          <scroll-view scroll-y class="reward-scroll">
+            <view
+              v-for="task in rewardTasks"
+              :key="task.id"
+              class="reward-row task-row"
+              :class="{ owned: task.ready, equipped: task.claimed }"
+            >
+              <view class="reward-preview task-preview">
+                <text class="task-preview-text">{{ task.rewardText.slice(0, 1) }}</text>
+              </view>
+              <view class="reward-info">
+                <text class="reward-name">{{ task.name }}</text>
+                <text class="reward-desc">{{ task.statusText }} / {{ task.description }}</text>
+              </view>
+              <view
+                class="reward-action task-action"
+                :class="{ disabled: !task.canTap }"
+                @tap.stop="onTaskAction(task)"
+              >
+                {{ task.actionText }}
+              </view>
+            </view>
+          </scroll-view>
+        </view>
 
         <view v-else class="leaderboard-panel">
           <view v-if="leaderboardStatus === 'unavailable'" class="leaderboard-empty">
@@ -231,8 +272,23 @@
     RUBIK_SCRATCH_LEVELS,
     getNextRubikScratchLevel,
   } from '@/utils/rubik-scratch-levels.js';
+  import {
+    YARN_TIME_LEVELS,
+    getNextYarnTimeLevel,
+  } from '@/utils/yarn-time-levels.js';
   import { LeaderboardClient } from '@/utils/leaderboard.js';
-  import { ACCESSORIES, EXPRESSIONS, RewardStorage } from '@/utils/rewards.js';
+  import {
+    ACCESSORIES,
+    EXPRESSIONS,
+    RewardStorage,
+    getRewardSourceText,
+    isScoreReward,
+  } from '@/utils/rewards.js';
+  import {
+    isShareMinigameSupported,
+    registerShareMinigame,
+    shareMinigame,
+  } from '@/utils/share-minigame.js';
 
   const engine = shallowRef<any>(null);
   const instruction = ref('');
@@ -243,6 +299,7 @@
   const levelWorlds = [
     { id: 'cat-box', label: '\u732b\u7bb1\u5b50', levels: CAT_BOX_LEVELS },
     { id: 'cat-scratcher', label: '\u732b\u6293\u677f', levels: RUBIK_SCRATCH_LEVELS },
+    { id: 'yarn-ball', label: '\u6bdb\u7ebf\u7403', levels: YARN_TIME_LEVELS },
   ];
   const levels = computed(() => getActiveLevelWorld().levels);
   const instructionStyle = computed(() => {
@@ -257,6 +314,7 @@
   const completedLevels = ref<string[]>([]);
   const rewardState = ref(RewardStorage.getState());
   const activeRewardTab = ref('accessory');
+  const taskHint = ref('');
   const leaderboardStatus = ref('idle');
   const leaderboardRows = ref<any[]>([]);
   const leaderboardSelf = ref<any>(null);
@@ -269,6 +327,8 @@
   const anonymousPlayerText = '\u533f\u540d\u73a9\u5bb6';
   const leaderboardLoadFailedText = '\u6392\u884c\u699c\u52a0\u8f7d\u5931\u8d25';
   const leaderboardNoUserText = '\u672c\u5730\u73a9\u5bb6';
+  const shareMinigameOnlyText = '\u8bf7\u5728\u5fae\u4fe1\u5c0f\u6e38\u620f\u4e2d\u5206\u4eab';
+  const shareRewardClaimedText = '\u5206\u4eab\u5b8c\u6210\uff0c\u5df2\u9886\u53d6\u597d\u53cb\u7231\u5fc3';
   const leaderboardSyncDelay = 1200;
   const leaderboardSyncMinInterval = 30000;
   let currentLevelId = '';
@@ -296,8 +356,17 @@
       type: activeRewardTab.value,
     }));
   });
+  const rewardTasks = computed(() => {
+    rewardState.value.totalScore;
+    return RewardStorage.getTaskStates({
+      completedLevels: completedLevels.value,
+      levelWorlds,
+      canShareMinigame: isShareMinigameSupported(),
+    });
+  });
 
   onMounted(() => {
+    registerShareMinigame();
     completedLevels.value = GameStorage.getCompletedLevels();
     refreshRewards();
     try {
@@ -428,6 +497,9 @@
     if (getLevelWorldForId(id).id === 'cat-scratcher') {
       return getNextRubikScratchLevel(id);
     }
+    if (getLevelWorldForId(id).id === 'yarn-ball') {
+      return getNextYarnTimeLevel(id);
+    }
     return getNextLevel(id);
   }
 
@@ -447,6 +519,7 @@
 
   function onRewardTabTap(tab: string) {
     activeRewardTab.value = tab;
+    taskHint.value = '';
     if (tab === 'leaderboard') {
       loadLeaderboard();
     }
@@ -563,19 +636,20 @@
   }
 
   function canUseReward(item: any) {
-    return isOwned(item) || totalScore.value >= item.requiredScore;
+    return isOwned(item) || (isScoreReward(item) && totalScore.value >= item.requiredScore);
   }
 
   function rewardStatus(item: any) {
     if (isEquipped(item)) return '\u5df2\u88c5\u5907';
     if (isOwned(item)) return '\u5df2\u62e5\u6709';
-    return `${item.requiredScore} \u79ef\u5206`;
+    return getRewardSourceText(item);
   }
 
   function rewardActionText(item: any) {
     if (isEquipped(item)) return '\u5378\u4e0b';
     if (isOwned(item)) return '\u88c5\u5907';
-    if (totalScore.value >= item.requiredScore) return '\u5151\u6362';
+    if (isScoreReward(item) && totalScore.value >= item.requiredScore) return '\u5151\u6362';
+    if (!isScoreReward(item)) return '\u672a\u9886\u53d6';
     return '\u672a\u8fbe\u6210';
   }
 
@@ -607,6 +681,42 @@
         : RewardStorage.equipAccessory(item.id);
     rewardState.value = equipped.state;
     applyEquippedRewards();
+  }
+
+  function getTaskContext() {
+    return {
+      completedLevels: completedLevels.value,
+      levelWorlds,
+      canShareMinigame: isShareMinigameSupported(),
+    };
+  }
+
+  function onTaskAction(task: any) {
+    if (!task || !task.canTap) return;
+    taskHint.value = '';
+    if (task.action === 'claim') {
+      const claimed = RewardStorage.claimTaskReward(task.id, getTaskContext());
+      rewardState.value = claimed.state;
+      refreshRewards();
+      return;
+    }
+    if (task.action === 'share') {
+      if (!isShareMinigameSupported()) {
+        taskHint.value = shareMinigameOnlyText;
+        return;
+      }
+      shareMinigame({
+        success: () => {
+          const result = RewardStorage.completeShareMinigame();
+          rewardState.value = result.state;
+          taskHint.value = shareRewardClaimedText;
+          refreshRewards();
+        },
+        fail: () => {
+          taskHint.value = shareMinigameOnlyText;
+        },
+      });
+    }
   }
 
   function levelTitle(_level: any, index: number) {
@@ -974,7 +1084,7 @@
     background: #2f2f50;
     border: 0;
     border-radius: 13px;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 800;
     box-sizing: border-box;
   }
@@ -984,6 +1094,22 @@
   }
   .reward-scroll {
     max-height: 54vh;
+  }
+  .task-panel {
+    min-height: 250px;
+  }
+  .task-hint {
+    min-height: 28px;
+    margin-bottom: 8px;
+    padding: 7px 9px;
+    color: #ffe8af;
+    background: #34344f;
+    border: 1px solid #565873;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.2;
+    box-sizing: border-box;
   }
   .leaderboard-panel {
     min-height: 260px;
@@ -1143,6 +1269,9 @@
     background: #3d3f51;
     border-color: #7dc88a;
   }
+  .task-row {
+    min-height: 62px;
+  }
   .reward-preview {
     width: 38px;
     height: 38px;
@@ -1237,6 +1366,32 @@
     border: 2px solid #ffffff;
     border-radius: 14px 14px 9px 9px;
   }
+  .preview-mark.accessory.lucky-scarf {
+    width: 31px;
+    height: 20px;
+    background:
+      linear-gradient(90deg, transparent 68%, #5cb68f 69% 86%, transparent 87%),
+      radial-gradient(ellipse at 45% 50%, #78c7a2 0 45%, transparent 46%);
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+  }
+  .preview-mark.accessory.box-medal {
+    width: 24px;
+    height: 30px;
+    background:
+      linear-gradient(62deg, transparent 0 34%, #e84b5f 35% 51%, transparent 52%),
+      linear-gradient(-62deg, transparent 0 34%, #e84b5f 35% 51%, transparent 52%),
+      radial-gradient(circle at 50% 70%, #ffd95c 0 30%, #8d6418 31% 38%, transparent 39%);
+  }
+  .preview-mark.accessory.yarn-pompom {
+    width: 26px;
+    height: 26px;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    background:
+      repeating-radial-gradient(ellipse at 50% 50%, transparent 0 4px, rgba(255, 255, 255, 0.85) 5px 6px),
+      #ff9fc2;
+  }
   .preview-mark.expression {
     width: 28px;
     height: 28px;
@@ -1293,39 +1448,181 @@
     border-radius: 50%;
   }
   .preview-mark.expression.angry::before {
-    left: 5px;
-    top: 8px;
-    width: 18px;
+    left: 4px;
+    top: 6px;
+    width: 20px;
     height: 10px;
     background:
-      linear-gradient(25deg, transparent 42%, #ffffff 42%, #ffffff 58%, transparent 58%),
-      linear-gradient(-25deg, transparent 42%, #ffffff 42%, #ffffff 58%, transparent 58%);
+      radial-gradient(circle at 41% 60%, #111111 0 19%, transparent 20%),
+      radial-gradient(circle at 59% 60%, #111111 0 19%, transparent 20%),
+      radial-gradient(ellipse at 25% 62%, #ffffff 0 39%, transparent 40%),
+      radial-gradient(ellipse at 75% 62%, #ffffff 0 39%, transparent 40%),
+      linear-gradient(25deg, transparent 0 36%, #ee8b73 37% 62%, transparent 63%),
+      linear-gradient(-25deg, transparent 0 36%, #ee8b73 37% 62%, transparent 63%),
+      linear-gradient(80deg, transparent 0 32%, #ee8b73 33% 67%, transparent 68%),
+      linear-gradient(-80deg, transparent 0 32%, #ee8b73 33% 67%, transparent 68%);
+    background-repeat: no-repeat;
+    background-size:
+      100% 100%,
+      100% 100%,
+      100% 100%,
+      100% 100%,
+      8px 5px,
+      8px 5px,
+      4px 5px,
+      4px 5px;
+    background-position:
+      0 0,
+      0 0,
+      0 0,
+      0 0,
+      4px 0,
+      8px 0,
+      9px 0,
+      11px 0;
   }
   .preview-mark.expression.angry::after {
-    left: 9px;
-    top: 19px;
-    width: 10px;
-    height: 5px;
+    left: 8px;
+    top: 18px;
+    width: 12px;
+    height: 7px;
+    background: #5a1c16;
     border-top: 2px solid #ffffff;
-    border-radius: 50%;
-    background: transparent;
+    border-radius: 50% 50% 3px 3px;
+    box-shadow:
+      2px -6px 0 -1px #ee9a8f;
+  }
+  .preview-mark.expression.angry {
+    box-shadow: none;
+  }
+  .preview-anger-icon {
+    position: absolute;
+    right: -12px;
+    top: -11px;
+    width: 19px;
+    height: 19px;
+    pointer-events: none;
+  }
+  .preview-anger-icon::before,
+  .preview-anger-icon::after {
+    content: '';
+    position: absolute;
+    top: 1px;
+    width: 7px;
+    height: 12px;
+    box-sizing: border-box;
+    filter: drop-shadow(1px 1px 0 #7b2c2f);
+  }
+  .preview-anger-icon::before {
+    left: 1px;
+    border-left: 4px solid #e4474e;
+    border-bottom: 4px solid #e4474e;
+    border-radius: 0 0 0 9px;
+    transform: rotate(-5deg);
+  }
+  .preview-anger-icon::after {
+    right: 1px;
+    border-right: 4px solid #e4474e;
+    border-bottom: 4px solid #e4474e;
+    border-radius: 0 0 9px 0;
+    transform: rotate(6deg);
+  }
+  .preview-anger-arch {
+    position: absolute;
+    left: 3px;
+    bottom: 1px;
+    width: 13px;
+    height: 8px;
+    border-top: 4px solid #e4474e;
+    border-radius: 50% 50% 0 0;
+    box-sizing: border-box;
+    filter: drop-shadow(1px 1px 0 #7b2c2f);
   }
   .preview-mark.expression.proud::before {
     left: 5px;
-    top: 10px;
+    top: 8px;
     width: 5px;
-    height: 3px;
+    height: 5px;
     border-radius: 50%;
-    box-shadow: 13px 0 0 #ffffff;
+    box-shadow: 12px 0 0 #ffffff;
   }
   .preview-mark.expression.proud::after {
+    left: 8px;
+    top: 15px;
+    width: 12px;
+    height: 10px;
+    background:
+      radial-gradient(ellipse at 50% 82%, #ff7f8e 0 36%, transparent 37%);
+    border-bottom: 2px solid #ffffff;
+    border-radius: 50%;
+  }
+  .preview-mark.expression.proud {
+    box-shadow:
+      -12px -6px 0 -8px #ffd95c,
+      12px -9px 0 -7px #ffd95c,
+      14px 7px 0 -8px #ffd95c,
+      -14px 8px 0 -9px #ffd95c;
+  }
+  .preview-mark.expression.wink::before {
+    left: 5px;
+    top: 8px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    box-shadow: 12px 1px 0 -1px #ffffff;
+  }
+  .preview-mark.expression.wink::after {
     left: 9px;
     top: 17px;
-    width: 11px;
+    width: 10px;
     height: 5px;
     border-bottom: 2px solid #ffffff;
     border-radius: 50%;
     background: transparent;
+  }
+  .preview-mark.expression.sparkle-eyes::before {
+    left: 4px;
+    top: 7px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    box-shadow: 13px 0 0 #ffffff;
+  }
+  .preview-mark.expression.sparkle-eyes::after {
+    left: 4px;
+    top: 18px;
+    width: 20px;
+    height: 6px;
+    background:
+      linear-gradient(90deg, transparent 0 8px, #ffffff 8px 12px, transparent 12px),
+      linear-gradient(0deg, transparent 0 2px, #ffffff 2px 4px, transparent 4px);
+  }
+  .preview-mark.expression.friend-heart::before {
+    left: 5px;
+    top: 8px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    box-shadow: 12px 0 0 #ffffff;
+  }
+  .preview-mark.expression.friend-heart::after {
+    left: 10px;
+    top: 15px;
+    width: 9px;
+    height: 8px;
+    background: #ff8ca6;
+    transform: rotate(45deg);
+    border-radius: 2px;
+  }
+  .task-preview {
+    color: #ffe8af;
+    font-size: 16px;
+    font-weight: 900;
+  }
+  .task-preview-text {
+    color: #ffe8af;
+    font-size: 16px;
+    font-weight: 900;
   }
   .reward-info {
     flex: 1;
@@ -1338,13 +1635,19 @@
     color: #f2f2f7;
     font-size: 14px;
     font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .reward-desc {
     color: #aeb0c8;
     font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .reward-action {
-    min-width: 66px;
+    min-width: 76px;
     height: 30px;
     padding: 0 8px;
     display: flex;
@@ -1357,6 +1660,12 @@
     font-size: 12px;
     font-weight: 900;
     box-sizing: border-box;
+    white-space: nowrap;
+  }
+  .task-action {
+    min-width: 82px;
+    padding: 0 6px;
+    font-size: 11px;
   }
   .reward-action.disabled {
     color: #82869d;

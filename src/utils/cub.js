@@ -95,20 +95,52 @@ const CAT_EXPRESSIONS = {
   },
   angry: {
     id: 'angry',
-    eyeScaleY: 0.82,
+    eyeScaleY: 0.92,
     mouthOffsetY: 0,
     blink: false,
     eyeStyle: 'angry',
-    mouthStyle: 'frown',
+    mouthStyle: 'tiny-frown',
     angryMark: true,
+    cheek: true,
   },
   proud: {
     id: 'proud',
-    eyeScaleY: 0.62,
-    mouthOffsetY: -1,
+    eyeScaleY: 1.05,
+    mouthOffsetY: -1.2,
     blink: false,
-    eyeStyle: 'side',
-    mouthStyle: 'smirk',
+    eyeStyle: 'round',
+    mouthStyle: 'proud-smile',
+    proudSparkle: true,
+    cheek: true,
+  },
+  wink: {
+    id: 'wink',
+    eyeScaleY: 1,
+    mouthOffsetY: -1.4,
+    blink: false,
+    rightEyeClosed: true,
+    mouthStyle: 'smile',
+    cheek: true,
+  },
+  'sparkle-eyes': {
+    id: 'sparkle-eyes',
+    eyeScaleY: 1.1,
+    mouthOffsetY: -1.4,
+    blink: false,
+    eyeStyle: 'round',
+    mouthStyle: 'smile',
+    cheek: true,
+    proudSparkle: true,
+  },
+  'friend-heart': {
+    id: 'friend-heart',
+    eyeScaleY: 1.02,
+    mouthOffsetY: -1.4,
+    blink: false,
+    eyeStyle: 'round',
+    mouthStyle: 'smile',
+    cheek: true,
+    heart: true,
   },
 };
 
@@ -205,6 +237,7 @@ function renderCatIcon(ctx, gridSize, expression, t, lookOffset, accessoryId) {
   renderEars(ctx);
   renderHead(ctx);
   renderBodyOutline(ctx);
+  renderExpressionFur(ctx, expression, frame);
   renderEyes(ctx, expression, lookOffset, frame);
   renderNoseAndMouth(ctx, expression, frame);
   renderExpressionEffects(ctx, expression, frame);
@@ -262,16 +295,40 @@ function getExpressionFrame(expression, t) {
     frame.effectScale = 0.92 + pulse * 0.12;
     frame.effectOffsetY = -pulse * 1.4;
   } else if (expression.id === 'angry') {
-    const jitter = Math.sin(t * 18);
-    frame.browOffsetY = Math.sin(t * 10) * 0.7;
-    frame.effectOffsetX = jitter * 0.75;
-    frame.effectOffsetY = Math.cos(t * 15) * 0.55;
-    frame.effectAlpha = 0.84 + Math.abs(jitter) * 0.16;
+    const simmer = Math.sin(t * 5.8);
+    frame.browOffsetY = simmer * 0.45;
+    frame.pupilOffsetX = simmer * 0.3;
+    frame.effectOffsetX = Math.sin(t * 8) * 0.35;
+    frame.effectOffsetY = Math.cos(t * 7) * 0.35;
+    frame.effectAlpha = 0.82 + Math.abs(simmer) * 0.12;
+    frame.cheekAlpha = 0.48 + Math.abs(simmer) * 0.12;
   } else if (expression.id === 'proud') {
-    const glance = Math.sin(t * 1.8);
-    frame.sideSquint = 0.55 + Math.sin(t * 2.3) * 0.045;
-    frame.sideLook = glance * 1.6;
-    frame.mouthOffsetY += Math.sin(t * 2.1) * 0.35;
+    const bounce = Math.sin(t * 5.4);
+    frame.mouthScaleX = 1.02 + Math.abs(bounce) * 0.04;
+    frame.mouthScaleY = 1.06 + Math.abs(bounce) * 0.08;
+    frame.mouthOffsetY += bounce * 0.24;
+    frame.cheekAlpha = 0.58 + (bounce + 1) * 0.12;
+    frame.effectScale = 0.92 + (Math.sin(t * 4.2) + 1) * 0.1;
+    frame.effectOffsetX = Math.sin(t * 2.8) * 1.2;
+    frame.effectOffsetY = Math.sin(t * 3.3) * 0.9;
+  } else if (expression.id === 'wink') {
+    const pop = Math.sin(t * 4.2);
+    frame.pupilOffsetY = pop * 0.2;
+    frame.mouthOffsetY += pop * 0.28;
+    frame.cheekAlpha = 0.6 + (pop + 1) * 0.08;
+    frame.effectScale = 0.92 + (Math.sin(t * 4.6) + 1) * 0.12;
+  } else if (expression.id === 'sparkle-eyes') {
+    const shine = Math.sin(t * 5);
+    frame.eyeScaleY = 1.06 + shine * 0.035;
+    frame.pupilOffsetY = -0.3 + shine * 0.25;
+    frame.effectScale = 0.9 + (Math.sin(t * 4.8) + 1) * 0.12;
+    frame.effectOffsetY = Math.sin(t * 4.8) * 1;
+  } else if (expression.id === 'friend-heart') {
+    const float = Math.sin(t * 3.5);
+    frame.mouthOffsetY += float * 0.22;
+    frame.cheekAlpha = 0.62 + (float + 1) * 0.12;
+    frame.effectScale = 0.9 + (Math.sin(t * 4) + 1) * 0.12;
+    frame.effectOffsetY = Math.sin(t * 3.2) * 1.1;
   }
 
   return frame;
@@ -402,6 +459,12 @@ function renderAccessory(ctx, accessoryId) {
     renderStarCrown(ctx);
   } else if (accessoryId === 'magic-hat') {
     renderNurseHat(ctx);
+  } else if (accessoryId === 'lucky-scarf') {
+    renderLuckyScarf(ctx);
+  } else if (accessoryId === 'box-medal') {
+    renderBoxMedal(ctx);
+  } else if (accessoryId === 'yarn-pompom') {
+    renderYarnPompom(ctx);
   }
 }
 
@@ -610,6 +673,144 @@ function renderNurseHat(ctx) {
   ctx.restore();
 }
 
+function renderExpressionFur(ctx, expression, frame) {
+  if (!expression.fuzzyFur) return;
+
+  ctx.save();
+  ctx.translate(frame.effectOffsetX * 0.35, frame.effectOffsetY * 0.25);
+  ctx.strokeStyle = CAT_FACE.outline;
+  ctx.fillStyle = CAT_FACE.fur;
+  ctx.lineWidth = 3.4;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  [
+    { points: [[43, 38], [47, 24], [52, 39]] },
+    { points: [[53, 36], [57, 21], [62, 38]] },
+    { points: [[63, 36], [67, 20], [72, 38]] },
+    { points: [[73, 38], [79, 24], [82, 41]] },
+    { points: [[24, 62], [10, 56], [24, 72]] },
+    { points: [[23, 76], [9, 78], [25, 85]] },
+    { points: [[104, 62], [118, 56], [104, 72]] },
+    { points: [[105, 76], [119, 78], [103, 85]] },
+    { points: [[37, 113], [27, 123], [47, 118]] },
+    { points: [[91, 113], [101, 123], [81, 118]] },
+  ].forEach(function (spike) {
+    ctx.beginPath();
+    ctx.moveTo(spike.points[0][0], spike.points[0][1]);
+    ctx.lineTo(spike.points[1][0], spike.points[1][1]);
+    ctx.lineTo(spike.points[2][0], spike.points[2][1]);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  });
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.78)';
+  ctx.lineWidth = 1.6;
+  [
+    { x1: 20, y1: 63, x2: 12, y2: 59 },
+    { x1: 21, y1: 78, x2: 12, y2: 79 },
+    { x1: 108, y1: 63, x2: 116, y2: 59 },
+    { x1: 107, y1: 78, x2: 116, y2: 79 },
+  ].forEach(function (line) {
+    ctx.beginPath();
+    ctx.moveTo(line.x1, line.y1);
+    ctx.lineTo(line.x2, line.y2);
+    ctx.stroke();
+  });
+
+  ctx.restore();
+}
+
+function renderLuckyScarf(ctx) {
+  ctx.save();
+  ctx.strokeStyle = CAT_FACE.outline;
+  ctx.lineWidth = 3;
+  ctx.fillStyle = '#78c7a2';
+  ctx.beginPath();
+  ctx.ellipse(64, 110, 31, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#5cb68f';
+  ctx.beginPath();
+  ctx.moveTo(78, 111);
+  ctx.quadraticCurveTo(92, 121, 86, 137);
+  ctx.quadraticCurveTo(78, 134, 74, 118);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.strokeStyle = '#e8fff4';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(49, 107);
+  ctx.lineTo(80, 113);
+  ctx.moveTo(82, 120);
+  ctx.lineTo(79, 132);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function renderBoxMedal(ctx) {
+  ctx.save();
+  ctx.strokeStyle = CAT_FACE.outline;
+  ctx.lineWidth = 2.6;
+  ctx.fillStyle = '#e84b5f';
+  ctx.beginPath();
+  ctx.moveTo(55, 104);
+  ctx.lineTo(64, 119);
+  ctx.lineTo(73, 104);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffd95c';
+  ctx.strokeStyle = '#8d6418';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.arc(64, 121, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#fff1a5';
+  ctx.beginPath();
+  ctx.arc(60, 117, 2.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#8d6418';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(58, 123);
+  ctx.lineTo(70, 123);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function renderYarnPompom(ctx) {
+  ctx.save();
+  ctx.translate(93, 50);
+  ctx.strokeStyle = CAT_FACE.outline;
+  ctx.lineWidth = 2.4;
+  ctx.fillStyle = '#ff9fc2';
+  ctx.beginPath();
+  ctx.arc(0, 0, 9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.4;
+  for (var i = 0; i < 4; i++) {
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 8, 3.2, (Math.PI * i) / 4, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#ffd0e0';
+  ctx.beginPath();
+  ctx.arc(-3, -3, 2.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function getCubScreenCenter(mazeCenter, x, y, angle) {
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
@@ -655,6 +856,18 @@ function renderEyes(ctx, expression, lookOffset, frame) {
   if (expression.eyeStyle === 'side') {
     renderSideEye(ctx, 43, 74, -1, frame);
     renderSideEye(ctx, 85, 74, 1, frame);
+    return;
+  }
+
+  if (expression.eyeStyle === 'proud') {
+    renderProudWinkEye(ctx, 43, 74, frame);
+    renderProudOpenEye(ctx, 85, 74, frame);
+    return;
+  }
+
+  if (expression.eyeStyle === 'proud-happy') {
+    renderProudHappyEye(ctx, 43, 74, frame);
+    renderProudHappyEye(ctx, 85, 74, frame);
     return;
   }
 
@@ -717,26 +930,52 @@ function renderAngryEye(ctx, x, y, direction, frame) {
   ctx.translate(x, y);
   ctx.fillStyle = CAT_FACE.eye;
   ctx.beginPath();
-  ctx.ellipse(0, 1, 16, 12, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 1, 17, 15, direction * -0.05, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.fillStyle = CAT_FACE.pupil;
   ctx.beginPath();
-  ctx.arc(4 * direction, 2, 7, 0, Math.PI * 2);
+  ctx.arc(-6.4 * direction - frame.pupilOffsetX * direction * 0.5, 0.2, 7.2, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = CAT_FACE.outline;
-  ctx.lineWidth = 4;
+  ctx.fillStyle = CAT_FACE.fur;
+  ctx.beginPath();
+  if (direction < 0) {
+    ctx.moveTo(-19, -15 + frame.browOffsetY);
+    ctx.quadraticCurveTo(-2, -13 + frame.browOffsetY, 17, -5 + frame.browOffsetY);
+    ctx.lineTo(17, -21);
+    ctx.lineTo(-19, -21);
+  } else {
+    ctx.moveTo(-17, -5 + frame.browOffsetY);
+    ctx.quadraticCurveTo(2, -13 + frame.browOffsetY, 19, -15 + frame.browOffsetY);
+    ctx.lineTo(19, -21);
+    ctx.lineTo(-17, -21);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = '#ee8b73';
+  ctx.lineWidth = 3.2;
   ctx.lineCap = 'round';
   ctx.beginPath();
   if (direction < 0) {
-    ctx.moveTo(-12, -16 + frame.browOffsetY);
+    ctx.moveTo(-2, -15 + frame.browOffsetY);
     ctx.lineTo(12, -8 + frame.browOffsetY);
+    ctx.moveTo(16, -15 + frame.browOffsetY);
+    ctx.lineTo(19, -8 + frame.browOffsetY);
   } else {
-    ctx.moveTo(-12, -8 + frame.browOffsetY);
-    ctx.lineTo(12, -16 + frame.browOffsetY);
+    ctx.moveTo(2, -15 + frame.browOffsetY);
+    ctx.lineTo(-12, -8 + frame.browOffsetY);
+    ctx.moveTo(-16, -15 + frame.browOffsetY);
+    ctx.lineTo(-19, -8 + frame.browOffsetY);
   }
   ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.globalAlpha = 0.8;
+  ctx.beginPath();
+  ctx.arc(direction < 0 ? 0 : -5, -6, 2.4, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 }
 
@@ -770,6 +1009,13 @@ function renderClosedEye(ctx, x, y, curveY) {
 function renderNoseAndMouth(ctx, expression, frame) {
   const mouthOffsetY = frame.mouthOffsetY;
   ctx.save();
+
+  if (expression.mouthStyle === 'tiny-frown') {
+    renderAngryKittenMouth(ctx, mouthOffsetY);
+    ctx.restore();
+    return;
+  }
+
   ctx.fillStyle = CAT_FACE.nose;
   ctx.beginPath();
   ctx.moveTo(58, 84);
@@ -779,6 +1025,18 @@ function renderNoseAndMouth(ctx, expression, frame) {
 
   if (expression.mouthStyle === 'o') {
     renderOMouth(ctx, frame);
+    ctx.restore();
+    return;
+  }
+
+  if (expression.mouthStyle === 'tongue') {
+    renderTongueMouth(ctx, frame);
+    ctx.restore();
+    return;
+  }
+
+  if (expression.mouthStyle === 'proud-smile') {
+    renderProudSmileMouth(ctx, frame);
     ctx.restore();
     return;
   }
@@ -834,10 +1092,184 @@ function renderFrownMouth(ctx, mouthOffsetY) {
   ctx.save();
   ctx.strokeStyle = CAT_FACE.outline;
   ctx.lineWidth = 3;
+  ctx.fillStyle = '#241214';
   ctx.beginPath();
-  ctx.moveTo(52, 99 + mouthOffsetY);
-  ctx.quadraticCurveTo(64, 91 + mouthOffsetY, 76, 99 + mouthOffsetY);
+  ctx.ellipse(64, 101 + mouthOffsetY, 7, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
   ctx.stroke();
+  ctx.fillStyle = '#f4b0b7';
+  ctx.globalAlpha = 0.7;
+  ctx.beginPath();
+  ctx.ellipse(48, 96 + mouthOffsetY, 5, 3, -0.1, 0, Math.PI * 2);
+  ctx.ellipse(80, 96 + mouthOffsetY, 5, 3, 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.beginPath();
+  ctx.moveTo(57, 108 + mouthOffsetY);
+  ctx.quadraticCurveTo(64, 104 + mouthOffsetY, 71, 108 + mouthOffsetY);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function renderProudHappyEye(ctx, x, y, frame) {
+  ctx.save();
+  ctx.strokeStyle = CAT_FACE.eye;
+  ctx.lineWidth = 4.2;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x - 13, y + 2);
+  ctx.quadraticCurveTo(x, y - 9 - frame.effectScale * 0.7, x + 13, y + 2);
+  ctx.stroke();
+
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.moveTo(x - 8, y - 7);
+  ctx.quadraticCurveTo(x, y - 12, x + 8, y - 7);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function renderTongueMouth(ctx, frame) {
+  ctx.save();
+  ctx.translate(64, 100 + frame.mouthOffsetY);
+  ctx.scale(frame.mouthScaleX, frame.mouthScaleY);
+
+  ctx.fillStyle = '#111111';
+  ctx.strokeStyle = CAT_FACE.outline;
+  ctx.lineWidth = 2.7;
+  ctx.beginPath();
+  ctx.ellipse(0, 1, 8.5, 9.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#ff7f8e';
+  ctx.beginPath();
+  ctx.moveTo(-5, 2);
+  ctx.quadraticCurveTo(0, 13, 5, 2);
+  ctx.quadraticCurveTo(0, 6, -5, 2);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.52)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(0, 5);
+  ctx.lineTo(0, 10);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function renderProudSmileMouth(ctx, frame) {
+  ctx.save();
+  ctx.translate(64, 97 + frame.mouthOffsetY);
+  ctx.scale(frame.mouthScaleX, frame.mouthScaleY);
+
+  ctx.strokeStyle = CAT_FACE.outline;
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, -3);
+  ctx.lineTo(0, 2);
+  ctx.moveTo(0, 2);
+  ctx.quadraticCurveTo(-6, 9, -13, 2);
+  ctx.moveTo(0, 2);
+  ctx.quadraticCurveTo(6, 9, 13, 2);
+  ctx.stroke();
+
+  ctx.fillStyle = '#ff7f8e';
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-6, 7);
+  ctx.quadraticCurveTo(0, 17, 6, 7);
+  ctx.quadraticCurveTo(0, 11, -6, 7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function renderTinyFrownMouth(ctx, mouthOffsetY) {
+  ctx.save();
+  ctx.strokeStyle = CAT_FACE.outline;
+  ctx.lineWidth = 2.7;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(64, 91 + mouthOffsetY);
+  ctx.lineTo(64, 96 + mouthOffsetY);
+  ctx.moveTo(64, 96 + mouthOffsetY);
+  ctx.quadraticCurveTo(59, 91 + mouthOffsetY, 54, 96 + mouthOffsetY);
+  ctx.moveTo(64, 96 + mouthOffsetY);
+  ctx.quadraticCurveTo(69, 91 + mouthOffsetY, 74, 96 + mouthOffsetY);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function renderAngryKittenMouth(ctx, mouthOffsetY) {
+  ctx.save();
+  ctx.fillStyle = '#ee9a8f';
+  ctx.beginPath();
+  ctx.moveTo(61, 88.5 + mouthOffsetY);
+  ctx.lineTo(67, 88.5 + mouthOffsetY);
+  ctx.quadraticCurveTo(69.5, 88.5 + mouthOffsetY, 69.5, 91 + mouthOffsetY);
+  ctx.quadraticCurveTo(69.5, 93.5 + mouthOffsetY, 67, 93.5 + mouthOffsetY);
+  ctx.lineTo(61, 93.5 + mouthOffsetY);
+  ctx.quadraticCurveTo(58.5, 93.5 + mouthOffsetY, 58.5, 91 + mouthOffsetY);
+  ctx.quadraticCurveTo(58.5, 88.5 + mouthOffsetY, 61, 88.5 + mouthOffsetY);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#5a1c16';
+  ctx.strokeStyle = CAT_FACE.outline;
+  ctx.lineWidth = 2.8;
+  ctx.beginPath();
+  ctx.moveTo(51, 105 + mouthOffsetY);
+  ctx.quadraticCurveTo(64, 91 + mouthOffsetY, 77, 105 + mouthOffsetY);
+  ctx.quadraticCurveTo(64, 98 + mouthOffsetY, 51, 105 + mouthOffsetY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.strokeStyle = '#2b0907';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(54, 103 + mouthOffsetY);
+  ctx.quadraticCurveTo(64, 95 + mouthOffsetY, 74, 103 + mouthOffsetY);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function renderProudWinkEye(ctx, x, y, frame) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.strokeStyle = CAT_FACE.eye;
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-12, 1);
+  ctx.quadraticCurveTo(0, -8 - frame.effectScale, 12, 1);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function renderProudOpenEye(ctx, x, y, frame) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = CAT_FACE.eye;
+  ctx.beginPath();
+  ctx.ellipse(0, -1, 16, 17, 0.12, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = CAT_FACE.pupil;
+  ctx.beginPath();
+  ctx.arc(2 + frame.pupilOffsetY * 0.8, 0 + frame.pupilOffsetY, 7.4, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.globalAlpha = 0.85;
+  ctx.beginPath();
+  ctx.arc(-4, -7, 2.2, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 }
 
@@ -847,7 +1279,8 @@ function renderSmirkMouth(ctx, mouthOffsetY) {
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(55, 94 + mouthOffsetY);
-  ctx.quadraticCurveTo(66, 102 + mouthOffsetY, 80, 92 + mouthOffsetY);
+  ctx.quadraticCurveTo(66, 101 + mouthOffsetY, 79, 94 + mouthOffsetY);
+  ctx.quadraticCurveTo(73, 99 + mouthOffsetY, 67, 99 + mouthOffsetY);
   ctx.stroke();
   ctx.restore();
 }
@@ -865,7 +1298,7 @@ function renderExpressionEffects(ctx, expression, frame) {
     ctx.restore();
   }
 
-  if (expression.id === 'joy') {
+  if (expression.id === 'joy' || expression.id === 'sparkle-eyes') {
     ctx.save();
     ctx.globalAlpha = frame.effectAlpha;
     ctx.strokeStyle = '#f7c84b';
@@ -874,6 +1307,10 @@ function renderExpressionEffects(ctx, expression, frame) {
     ctx.translate(0, frame.effectOffsetY);
     traceSparkle(ctx, 20, 48, 6 * frame.effectScale);
     traceSparkle(ctx, 106, 47, 5 * frame.effectScale);
+    if (expression.id === 'sparkle-eyes') {
+      traceSparkle(ctx, 43, 61, 4.5 * frame.effectScale);
+      traceSparkle(ctx, 85, 61, 4.5 * frame.effectScale);
+    }
     ctx.stroke();
     ctx.restore();
   }
@@ -881,18 +1318,61 @@ function renderExpressionEffects(ctx, expression, frame) {
   if (expression.angryMark) {
     ctx.save();
     ctx.globalAlpha = frame.effectAlpha;
-    ctx.strokeStyle = '#e4474e';
-    ctx.lineWidth = 4;
-    ctx.lineCap = 'round';
     ctx.translate(frame.effectOffsetX, frame.effectOffsetY);
+    drawAngerIcon(ctx, 112, 42, 20 * frame.effectScale);
+    ctx.restore();
+  }
+
+  if (expression.speedLines) {
+    ctx.save();
+    ctx.globalAlpha = 0.72 + Math.sin(Date.now() / 180) * 0.12;
+    ctx.strokeStyle = 'rgba(255,255,255,0.78)';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.translate(frame.effectOffsetX * 0.3, 0);
     ctx.beginPath();
-    ctx.moveTo(102, 35);
-    ctx.lineTo(112, 27);
-    ctx.moveTo(108, 39);
-    ctx.lineTo(116, 30);
-    ctx.moveTo(106, 28);
-    ctx.lineTo(115, 38);
+    ctx.moveTo(7, 54);
+    ctx.lineTo(-8, 54);
+    ctx.moveTo(11, 66);
+    ctx.lineTo(-10, 66);
+    ctx.moveTo(14, 78);
+    ctx.lineTo(-4, 78);
     ctx.stroke();
+    ctx.restore();
+  }
+
+  if (expression.proudSparkle || expression.id === 'wink') {
+    ctx.save();
+    ctx.globalAlpha = frame.effectAlpha;
+    ctx.strokeStyle = expression.id === 'wink' ? '#ffffff' : '#ffd95c';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.translate(0, frame.effectOffsetY);
+    if (expression.id === 'proud') {
+      traceSparkle(ctx, 18, 42, 4.5 * frame.effectScale);
+      traceSparkle(ctx, 29, 55, 3.8 * frame.effectScale);
+      traceSparkle(ctx, 23, 76, 3.2 * frame.effectScale);
+      traceSparkle(ctx, 97, 40, 5.4 * frame.effectScale);
+      traceSparkle(ctx, 113, 54, 4.6 * frame.effectScale);
+      traceSparkle(ctx, 103, 72, 3.5 * frame.effectScale);
+      traceSparkle(ctx, 119, 78, 2.8 * frame.effectScale);
+    } else {
+      traceSparkle(ctx, 105, 50, 5.5 * frame.effectScale);
+    }
+    if (expression.id === 'wink') {
+      traceSparkle(ctx, 23, 52, 4.5 * frame.effectScale);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  if (expression.heart) {
+    ctx.save();
+    ctx.globalAlpha = frame.cheekAlpha;
+    ctx.fillStyle = '#ff8ca6';
+    ctx.translate(0, frame.effectOffsetY);
+    drawTinyHeart(ctx, 23, 52, 5.5 * frame.effectScale);
+    drawTinyHeart(ctx, 105, 51, 5 * frame.effectScale);
     ctx.restore();
   }
 
@@ -919,6 +1399,37 @@ function traceSparkle(ctx, x, y, size) {
   ctx.lineTo(x, y + size);
   ctx.moveTo(x - size, y);
   ctx.lineTo(x + size, y);
+}
+
+function drawTinyHeart(ctx, x, y, size) {
+  ctx.beginPath();
+  ctx.moveTo(x, y + size * 0.7);
+  ctx.bezierCurveTo(x - size * 1.4, y - size * 0.1, x - size * 0.7, y - size, x, y - size * 0.35);
+  ctx.bezierCurveTo(x + size * 0.7, y - size, x + size * 1.4, y - size * 0.1, x, y + size * 0.7);
+  ctx.fill();
+}
+
+function drawAngerIcon(ctx, x, y, size) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  drawAngerIconStroke(ctx, size, '#7b2c2f', size * 0.16);
+  drawAngerIconStroke(ctx, size, '#e4474e', size * 0.11);
+  ctx.restore();
+}
+
+function drawAngerIconStroke(ctx, size, color, lineWidth) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.28, -size * 0.62);
+  ctx.quadraticCurveTo(-size * 0.12, -size * 0.05, -size * 0.6, size * 0.12);
+  ctx.moveTo(size * 0.32, -size * 0.58);
+  ctx.quadraticCurveTo(size * 0.12, -size * 0.02, size * 0.58, size * 0.16);
+  ctx.moveTo(-size * 0.46, size * 0.68);
+  ctx.quadraticCurveTo(0, size * 0.32, size * 0.46, size * 0.68);
+  ctx.stroke();
 }
 
 function renderOpenMouth(ctx) {

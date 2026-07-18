@@ -1,4 +1,5 @@
 import { renderCubAvatar } from './cub.js';
+import { renderRewardSuccessBurst } from './reward-effects.js';
 
 var HALF_CUBIE = 1;
 var FACE_NORMALS = [
@@ -1885,6 +1886,10 @@ RubikScratchSuccessAnimation.prototype.render = function (ctx) {
 
   if (t < 1) {
     renderRubikSuccessBurst(ctx, item.center, item.unit, t);
+    renderRewardSuccessBurst(ctx, item.center, item.unit * 1.1, t, {
+      accessoryId: this.accessoryId,
+      expressionId: this.expressionId,
+    });
   }
 
   ctx.restore();

@@ -4,7 +4,18 @@ import { LEVELS, getNextLevel } from './utils/levels-data.js'
 import { RUBIK_SCRATCH_LEVELS, getNextRubikScratchLevel } from './utils/rubik-scratch-levels.js'
 import { YARN_TIME_LEVELS, getNextYarnTimeLevel } from './utils/yarn-time-levels.js'
 import { LeaderboardClient } from './utils/leaderboard.js'
-import { ACCESSORIES, EXPRESSIONS, RewardStorage } from './utils/rewards.js'
+import {
+  ACCESSORIES,
+  EXPRESSIONS,
+  RewardStorage,
+  getRewardSourceText,
+  isScoreReward,
+} from './utils/rewards.js'
+import {
+  isShareMinigameSupported,
+  registerShareMinigame,
+  shareMinigame,
+} from './utils/share-minigame.js'
 
 var sysInfo = wx.getSystemInfoSync()
 var canvas = wx.createCanvas()
@@ -44,6 +55,7 @@ var modalTabScrollX = 0
 var modalTabScrollStartX = 0
 var scoreScrollY = 0
 var scoreScrollStartY = 0
+var scoreTaskHint = ''
 var activeWorldIndex = 0
 var activeRewardTab = 'accessory'
 var leaderboardState = {
@@ -76,6 +88,7 @@ var LEVEL_WORLDS = [
   { id: 'cat-scratcher', label: '\u732b\u6293\u677f', levels: RUBIK_SCRATCH_LEVELS, enabled: true },
   { id: 'yarn-ball', label: '\u6bdb\u7ebf\u7403', levels: YARN_TIME_LEVELS, enabled: true },
 ]
+registerShareMinigame()
 var MODAL_W = 300
 var MODAL_COLS = 3
 var MODAL_GAP = 8
@@ -243,6 +256,8 @@ function getActiveRewards() {
   var source = activeRewardTab === 'expression' ? EXPRESSIONS : ACCESSORIES
   return source.map(function (item) {
     return {
+      unlockType: item.unlockType,
+      unlockTaskId: item.unlockTaskId,
       id: item.id,
       name: item.name,
       requiredScore: item.requiredScore,
@@ -265,20 +280,21 @@ function isRewardEquipped(item) {
 }
 
 function canUseReward(item) {
-  return isRewardOwned(item) || rewardState.totalScore >= item.requiredScore
+  return isRewardOwned(item) || (isScoreReward(item) && rewardState.totalScore >= item.requiredScore)
 }
 
 function rewardActionText(item) {
   if (isRewardEquipped(item)) return '\u5378\u4e0b'
   if (isRewardOwned(item)) return '\u88c5\u5907'
-  if (rewardState.totalScore >= item.requiredScore) return '\u5151\u6362'
+  if (isScoreReward(item) && rewardState.totalScore >= item.requiredScore) return '\u5151\u6362'
+  if (!isScoreReward(item)) return '\u672a\u9886\u53d6'
   return '\u672a\u8fbe\u6210'
 }
 
 function rewardStatusText(item) {
   if (isRewardEquipped(item)) return '\u5df2\u88c5\u5907'
   if (isRewardOwned(item)) return '\u5df2\u62e5\u6709'
-  return item.requiredScore + ' \u79ef\u5206'
+  return getRewardSourceText(item)
 }
 
 function useReward(item) {
@@ -303,6 +319,46 @@ function useReward(item) {
     : RewardStorage.equipAccessory(item.id)
   rewardState = equipped.state
   refreshRewards()
+}
+
+function getRewardTaskContext() {
+  return {
+    completedLevels: completedLevels,
+    levelWorlds: LEVEL_WORLDS,
+    canShareMinigame: isShareMinigameSupported(),
+  }
+}
+
+function getRewardTasks() {
+  return RewardStorage.getTaskStates(getRewardTaskContext())
+}
+
+function useRewardTask(task) {
+  if (!task || !task.canTap) return
+  scoreTaskHint = ''
+  if (task.action === 'claim') {
+    var claimed = RewardStorage.claimTaskReward(task.id, getRewardTaskContext())
+    rewardState = claimed.state
+    refreshRewards()
+    return
+  }
+  if (task.action === 'share') {
+    if (!isShareMinigameSupported()) {
+      scoreTaskHint = '\u8bf7\u5728\u5fae\u4fe1\u5c0f\u6e38\u620f\u4e2d\u5206\u4eab'
+      return
+    }
+    shareMinigame({
+      success: function () {
+        var result = RewardStorage.completeShareMinigame()
+        rewardState = result.state
+        scoreTaskHint = '\u5206\u4eab\u5b8c\u6210\uff0c\u5df2\u9886\u53d6\u597d\u53cb\u7231\u5fc3'
+        refreshRewards()
+      },
+      fail: function () {
+        scoreTaskHint = '\u8bf7\u5728\u5fae\u4fe1\u5c0f\u6e38\u620f\u4e2d\u5206\u4eab'
+      },
+    })
+  }
 }
 
 function syncLeaderboardInBackground() {
@@ -432,6 +488,7 @@ function authorizeLeaderboard() {
 function setActiveRewardTab(tab) {
   activeRewardTab = tab
   scoreScrollY = 0
+  scoreTaskHint = ''
   if (tab !== 'leaderboard') {
     destroyLeaderboardAuthButton()
   }
@@ -693,6 +750,21 @@ wx.onTouchEnd(function (e) {
             isInsideRect(st.clientX, st.clientY, getLeaderboardAuthRect(smx, smy))
           ) {
             authorizeLeaderboard()
+          }
+          modalTouchId = null
+          modalTouchMode = ''
+          return
+        }
+        if (activeRewardTab === 'task') {
+          var content = getScoreContentRect(smx, smy)
+          var taskTop = content.y + (scoreTaskHint ? 40 : 0)
+          var tasks = getRewardTasks()
+          for (var ti = 0; ti < tasks.length; ti++) {
+            var taskAction = getTaskActionRect(ti, smx, smy, taskTop)
+            if (isInside(st.clientX, st.clientY, taskAction.x, taskAction.y, taskAction.w, taskAction.h)) {
+              useRewardTask(tasks[ti])
+              break
+            }
           }
           modalTouchId = null
           modalTouchMode = ''
@@ -1060,21 +1132,21 @@ function drawNextButton(r) {
 }
 
 function getScoreActionRect(index, mx, my) {
-  var rowY = my + SCORE_MODAL_PAD + SCORE_MODAL_HEADER_H + index * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP)
+  var rowY = my + SCORE_MODAL_PAD + SCORE_MODAL_HEADER_H + index * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP) - scoreScrollY
   return {
-    x: mx + SCORE_MODAL_W - SCORE_MODAL_PAD - 68,
+    x: mx + SCORE_MODAL_W - SCORE_MODAL_PAD - 84,
     y: rowY + 14,
-    w: 62,
+    w: 78,
     h: 30,
   }
 }
 
 function getScoreTabRect(type, mx, my) {
-  var gap = 8
-  var types = ['accessory', 'expression', 'leaderboard']
+  var gap = 6
+  var types = ['accessory', 'expression', 'task', 'leaderboard']
   var index = types.indexOf(type)
   if (index < 0) index = 0
-  var tabW = (SCORE_MODAL_W - SCORE_MODAL_PAD * 2 - gap * 2) / 3
+  var tabW = (SCORE_MODAL_W - SCORE_MODAL_PAD * 2 - gap * (types.length - 1)) / types.length
   var tabX = mx + SCORE_MODAL_PAD + index * (tabW + gap)
   return {
     x: tabX,
@@ -1092,6 +1164,10 @@ function getScoreTabAt(x, y, mx, my) {
   var expression = getScoreTabRect('expression', mx, my)
   if (isInside(x, y, expression.x, expression.y, expression.w, expression.h)) {
     return 'expression'
+  }
+  var task = getScoreTabRect('task', mx, my)
+  if (isInside(x, y, task.x, task.y, task.w, task.h)) {
+    return 'task'
   }
   var leaderboard = getScoreTabRect('leaderboard', mx, my)
   if (isInside(x, y, leaderboard.x, leaderboard.y, leaderboard.w, leaderboard.h)) {
@@ -1143,10 +1219,20 @@ function getLeaderboardListRect(mx, my) {
 }
 
 function getScoreMaxScroll(mx, my) {
-  if (activeRewardTab !== 'leaderboard') return 0
-  var list = getLeaderboardListRect(mx, my)
-  var contentH = leaderboardState.rows.length * (LEADERBOARD_ROW_H + SCORE_MODAL_GAP)
-  return Math.max(0, contentH - list.h)
+  if (activeRewardTab === 'leaderboard') {
+    var list = getLeaderboardListRect(mx, my)
+    var contentH = leaderboardState.rows.length * (LEADERBOARD_ROW_H + SCORE_MODAL_GAP)
+    return Math.max(0, contentH - list.h)
+  }
+  if (activeRewardTab === 'task') {
+    var content = getScoreContentRect(mx, my)
+    var taskTop = content.y + (scoreTaskHint ? 40 : 0)
+    var taskH = content.y + content.h - taskTop
+    var tasks = getRewardTasks()
+    return Math.max(0, tasks.length * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP) - taskH)
+  }
+  var rewardContent = getScoreContentRect(mx, my)
+  return Math.max(0, getActiveRewards().length * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP) - rewardContent.h)
 }
 
 function drawScoreModal() {
@@ -1177,16 +1263,25 @@ function drawScoreModal() {
 
   if (activeRewardTab === 'leaderboard') {
     drawLeaderboardPanel(ctx, mx, my)
+  } else if (activeRewardTab === 'task') {
+    drawRewardTaskPanel(ctx, mx, my)
   } else {
+    var content = getScoreContentRect(mx, my)
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(content.x, content.y, content.w, content.h)
+    ctx.clip()
     getActiveRewards().forEach(function (item, index) {
       drawScoreAccessoryRow(ctx, item, index, mx, my)
     })
+    ctx.restore()
   }
 }
 
 function drawScoreTabs(r, mx, my) {
   drawScoreTab(r, getScoreTabRect('accessory', mx, my), '\u9970\u54c1', activeRewardTab === 'accessory')
   drawScoreTab(r, getScoreTabRect('expression', mx, my), '\u8868\u60c5', activeRewardTab === 'expression')
+  drawScoreTab(r, getScoreTabRect('task', mx, my), '\u4efb\u52a1', activeRewardTab === 'task')
   drawScoreTab(r, getScoreTabRect('leaderboard', mx, my), '\u6392\u884c\u699c', activeRewardTab === 'leaderboard')
   r.strokeStyle = 'rgba(255,255,255,0.16)'
   r.lineWidth = 1
@@ -1218,7 +1313,7 @@ function drawScoreTab(r, rect, label, active) {
 
 function drawScoreAccessoryRow(r, item, index, mx, my) {
   var rowX = mx + SCORE_MODAL_PAD
-  var rowY = my + SCORE_MODAL_PAD + SCORE_MODAL_HEADER_H + index * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP)
+  var rowY = my + SCORE_MODAL_PAD + SCORE_MODAL_HEADER_H + index * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP) - scoreScrollY
   var rowW = SCORE_MODAL_W - SCORE_MODAL_PAD * 2
   var owned = isRewardOwned(item)
   var equipped = isRewardEquipped(item)
@@ -1236,10 +1331,10 @@ function drawScoreAccessoryRow(r, item, index, mx, my) {
   r.textBaseline = 'middle'
   r.fillStyle = '#f2f2f7'
   r.font = 'bold 13px sans-serif'
-  r.fillText(item.name, rowX + 54, rowY + 20)
+  r.fillText(truncateText(item.name, 9), rowX + 54, rowY + 20)
   r.fillStyle = '#aeb0c8'
   r.font = '11px sans-serif'
-  r.fillText(rewardStatusText(item), rowX + 54, rowY + 40)
+  r.fillText(truncateText(rewardStatusText(item), 12), rowX + 54, rowY + 40)
 
   var action = getScoreActionRect(index, mx, my)
   var enabled = canUseReward(item)
@@ -1261,6 +1356,98 @@ function drawScoreAccessoryRow(r, item, index, mx, my) {
   r.font = 'bold 11px sans-serif'
   r.textAlign = 'center'
   r.fillText(rewardActionText(item), action.x + action.w / 2, action.y + action.h / 2 + 1)
+}
+
+function drawRewardTaskPanel(r, mx, my) {
+  var content = getScoreContentRect(mx, my)
+  var top = content.y
+  if (scoreTaskHint) {
+    r.fillStyle = '#34344f'
+    r.strokeStyle = '#565873'
+    r.lineWidth = 1.2
+    drawRoundRect(r, content.x, top, content.w, 32, 8)
+    r.fill()
+    r.stroke()
+    r.fillStyle = '#ffe8af'
+    r.font = 'bold 11px sans-serif'
+    r.textAlign = 'center'
+    r.textBaseline = 'middle'
+    r.fillText(truncateText(scoreTaskHint, 18), content.x + content.w / 2, top + 16)
+    top += 40
+  }
+
+  var tasks = getRewardTasks()
+  r.save()
+  r.beginPath()
+  r.rect(content.x, top, content.w, content.y + content.h - top)
+  r.clip()
+  tasks.forEach(function (task, index) {
+    var rowY = top + index * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP) - scoreScrollY
+    if (rowY > content.y + content.h || rowY + SCORE_MODAL_ROW_H < top) return
+    drawRewardTaskRow(r, task, index, content.x, rowY, content.w, mx, my, top)
+  })
+  r.restore()
+}
+
+function drawRewardTaskRow(r, task, index, rowX, rowY, rowW, mx, my, top) {
+  r.fillStyle = task.claimed ? '#3d3f51' : '#34344f'
+  r.strokeStyle = task.claimed ? '#7dc88a' : task.ready ? '#d5a544' : '#565873'
+  r.lineWidth = 1.4
+  drawRoundRect(r, rowX, rowY, rowW, SCORE_MODAL_ROW_H, 8)
+  r.fill()
+  r.stroke()
+
+  r.fillStyle = '#222238'
+  drawRoundRect(r, rowX + 10, rowY + 11, 36, 36, 8)
+  r.fill()
+  r.fillStyle = '#ffe8af'
+  r.font = 'bold 16px sans-serif'
+  r.textAlign = 'center'
+  r.textBaseline = 'middle'
+  r.fillText(String(task.rewardText || '?').slice(0, 1), rowX + 28, rowY + SCORE_MODAL_ROW_H / 2 + 1)
+
+  r.textAlign = 'left'
+  r.fillStyle = '#f2f2f7'
+  r.font = 'bold 13px sans-serif'
+  r.fillText(truncateText(task.name, 9), rowX + 54, rowY + 20)
+  r.fillStyle = '#aeb0c8'
+  r.font = '11px sans-serif'
+  r.fillText(truncateText(task.statusText + ' / ' + task.description, 13), rowX + 54, rowY + 40)
+
+  var action = getTaskActionRect(index, mx, my, top)
+  drawTaskActionButton(r, action, task.actionText, task.canTap)
+}
+
+function getTaskActionRect(index, mx, my, top) {
+  var rowY = top + index * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP) - scoreScrollY
+  return {
+    x: mx + SCORE_MODAL_W - SCORE_MODAL_PAD - 84,
+    y: rowY + 14,
+    w: 78,
+    h: 30,
+  }
+}
+
+function drawTaskActionButton(r, rect, label, enabled) {
+  if (enabled) {
+    var grd = r.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.h)
+    grd.addColorStop(0, '#ffe1a2')
+    grd.addColorStop(1, '#f2b653')
+    r.fillStyle = grd
+    r.strokeStyle = '#98621f'
+  } else {
+    r.fillStyle = '#3a3b50'
+    r.strokeStyle = '#565873'
+  }
+  r.lineWidth = 2
+  drawRoundRect(r, rect.x, rect.y, rect.w, rect.h, 8)
+  r.fill()
+  r.stroke()
+  r.fillStyle = enabled ? '#5f3713' : '#82869d'
+  r.font = 'bold 10px sans-serif'
+  r.textAlign = 'center'
+  r.textBaseline = 'middle'
+  r.fillText(truncateText(label, 6), rect.x + rect.w / 2, rect.y + rect.h / 2 + 1)
 }
 
 function drawLeaderboardPanel(r, mx, my) {
@@ -1585,6 +1772,54 @@ function drawRewardPreview(r, item, cx, cy) {
     r.fill()
     drawRoundRect(r, cx - 6, cy - 3, 12, 4, 1.5)
     r.fill()
+  } else if (id === 'lucky-scarf') {
+    r.fillStyle = '#78c7a2'
+    r.strokeStyle = '#ffffff'
+    r.lineWidth = 2
+    r.beginPath()
+    r.ellipse(cx - 1, cy, 15, 6, 0, 0, Math.PI * 2)
+    r.fill()
+    r.stroke()
+    r.fillStyle = '#5cb68f'
+    r.beginPath()
+    r.moveTo(cx + 8, cy + 2)
+    r.quadraticCurveTo(cx + 18, cy + 10, cx + 12, cy + 17)
+    r.quadraticCurveTo(cx + 7, cy + 12, cx + 5, cy + 4)
+    r.closePath()
+    r.fill()
+    r.stroke()
+  } else if (id === 'box-medal') {
+    r.fillStyle = '#e84b5f'
+    r.strokeStyle = '#ffffff'
+    r.lineWidth = 1.8
+    r.beginPath()
+    r.moveTo(cx - 7, cy - 14)
+    r.lineTo(cx, cy + 1)
+    r.lineTo(cx + 7, cy - 14)
+    r.closePath()
+    r.fill()
+    r.stroke()
+    r.fillStyle = '#ffd95c'
+    r.strokeStyle = '#8d6418'
+    r.lineWidth = 1.8
+    r.beginPath()
+    r.arc(cx, cy + 5, 9, 0, Math.PI * 2)
+    r.fill()
+    r.stroke()
+  } else if (id === 'yarn-pompom') {
+    r.fillStyle = '#ff9fc2'
+    r.strokeStyle = '#ffffff'
+    r.lineWidth = 2
+    r.beginPath()
+    r.arc(cx, cy, 12, 0, Math.PI * 2)
+    r.fill()
+    r.stroke()
+    r.lineWidth = 1.3
+    for (var yi = 0; yi < 4; yi++) {
+      r.beginPath()
+      r.ellipse(cx, cy, 11, 4, (Math.PI * yi) / 4, 0, Math.PI * 2)
+      r.stroke()
+    }
   }
   r.restore()
 }
@@ -1625,20 +1860,113 @@ function drawExpressionPreview(r, id, cx, cy) {
     r.arc(cx, cy + 6, 4, 0, Math.PI * 2)
     r.fill()
   } else if (id === 'angry') {
-    r.lineWidth = 2.4
+    r.fillStyle = '#ffffff'
     r.beginPath()
-    r.moveTo(cx - 10, cy - 8)
-    r.lineTo(cx - 2, cy - 4)
-    r.moveTo(cx + 10, cy - 8)
-    r.lineTo(cx + 2, cy - 4)
-    r.stroke()
-    r.beginPath()
-    r.arc(cx - 6, cy - 2, 2.6, 0, Math.PI * 2)
-    r.arc(cx + 6, cy - 2, 2.6, 0, Math.PI * 2)
+    r.ellipse(cx - 6, cy - 4, 5.4, 6.1, -0.08, 0, Math.PI * 2)
+    r.ellipse(cx + 6, cy - 4, 5.4, 6.1, 0.08, 0, Math.PI * 2)
     r.fill()
+    r.fillStyle = '#111111'
     r.beginPath()
-    r.arc(cx, cy + 8, 5, Math.PI, 0)
+    r.arc(cx - 2.4, cy - 3.2, 2.5, 0, Math.PI * 2)
+    r.arc(cx + 2.4, cy - 3.2, 2.5, 0, Math.PI * 2)
+    r.fill()
+    r.strokeStyle = '#ee8b73'
+    r.lineWidth = 2.2
+    r.lineCap = 'round'
+    r.beginPath()
+    r.moveTo(cx - 9, cy - 12)
+    r.lineTo(cx - 2.5, cy - 8.5)
+    r.moveTo(cx - 0.5, cy - 12)
+    r.lineTo(cx - 0.1, cy - 8.5)
+    r.moveTo(cx + 9, cy - 12)
+    r.lineTo(cx + 2.5, cy - 8.5)
+    r.moveTo(cx + 0.5, cy - 12)
+    r.lineTo(cx + 0.1, cy - 8.5)
     r.stroke()
+    r.fillStyle = '#ee9a8f'
+    r.beginPath()
+    r.ellipse(cx, cy + 1, 3.5, 2, 0, 0, Math.PI * 2)
+    r.fill()
+    r.fillStyle = '#5a1c16'
+    r.strokeStyle = '#ffffff'
+    r.lineWidth = 1.6
+    r.beginPath()
+    r.moveTo(cx - 8, cy + 10)
+    r.quadraticCurveTo(cx, cy + 2.5, cx + 8, cy + 10)
+    r.quadraticCurveTo(cx, cy + 6.5, cx - 8, cy + 10)
+    r.closePath()
+    r.fill()
+    r.stroke()
+    r.strokeStyle = '#2b0907'
+    r.lineWidth = 1
+    r.beginPath()
+    r.moveTo(cx - 5.8, cy + 8.6)
+    r.quadraticCurveTo(cx, cy + 4.2, cx + 5.8, cy + 8.6)
+    r.stroke()
+    drawPreviewAngerIcon(r, cx + 20, cy - 8, 10)
+  } else if (id === 'proud') {
+    r.fillStyle = '#ffffff'
+    r.beginPath()
+    r.arc(cx - 6, cy - 4, 3.6, 0, Math.PI * 2)
+    r.arc(cx + 6, cy - 4, 3.6, 0, Math.PI * 2)
+    r.fill()
+    r.fillStyle = '#111111'
+    r.beginPath()
+    r.arc(cx - 5, cy - 3, 1.6, 0, Math.PI * 2)
+    r.arc(cx + 7, cy - 3, 1.6, 0, Math.PI * 2)
+    r.fill()
+    r.strokeStyle = '#ffffff'
+    r.lineWidth = 1.8
+    r.beginPath()
+    r.moveTo(cx, cy + 1)
+    r.lineTo(cx, cy + 5)
+    r.moveTo(cx, cy + 5)
+    r.quadraticCurveTo(cx - 5, cy + 10, cx - 10, cy + 5)
+    r.moveTo(cx, cy + 5)
+    r.quadraticCurveTo(cx + 5, cy + 10, cx + 10, cy + 5)
+    r.stroke()
+    r.fillStyle = '#ff7f8e'
+    r.beginPath()
+    r.ellipse(cx, cy + 11, 4, 4.6, 0, 0, Math.PI * 2)
+    r.fill()
+    r.strokeStyle = '#ffd95c'
+    r.lineWidth = 1.7
+    drawPreviewSpark(r, cx - 14, cy - 10, 3)
+    drawPreviewSpark(r, cx + 14, cy - 11, 3.5)
+    drawPreviewSpark(r, cx + 14, cy + 7, 2.5)
+    drawPreviewSpark(r, cx - 15, cy + 8, 2.3)
+  } else if (id === 'wink') {
+    r.beginPath()
+    r.arc(cx - 6, cy - 3, 3, 0, Math.PI * 2)
+    r.fill()
+    r.lineWidth = 2
+    r.beginPath()
+    r.moveTo(cx + 2, cy - 4)
+    r.quadraticCurveTo(cx + 6, cy - 1, cx + 10, cy - 4)
+    r.stroke()
+    drawPreviewSmile(r, cx, cy + 5)
+  } else if (id === 'sparkle-eyes') {
+    r.beginPath()
+    r.arc(cx - 6, cy - 3, 3.2, 0, Math.PI * 2)
+    r.arc(cx + 6, cy - 3, 3.2, 0, Math.PI * 2)
+    r.fill()
+    drawPreviewSmile(r, cx, cy + 5)
+    r.strokeStyle = '#ffd95c'
+    r.lineWidth = 1.8
+    drawPreviewSpark(r, cx - 14, cy - 10, 3)
+    drawPreviewSpark(r, cx + 14, cy - 10, 3)
+  } else if (id === 'friend-heart') {
+    r.beginPath()
+    r.arc(cx - 6, cy - 3, 3, 0, Math.PI * 2)
+    r.arc(cx + 6, cy - 3, 3, 0, Math.PI * 2)
+    r.fill()
+    drawPreviewSmile(r, cx, cy + 5)
+    r.fillStyle = '#ff8ca6'
+    r.beginPath()
+    r.moveTo(cx + 13, cy - 3)
+    r.bezierCurveTo(cx + 7, cy - 8, cx + 11, cy - 13, cx + 14, cy - 9)
+    r.bezierCurveTo(cx + 18, cy - 13, cx + 22, cy - 8, cx + 13, cy - 3)
+    r.fill()
   } else {
     r.beginPath()
     r.ellipse(cx - 6, cy - 3, 3, 1.8, 0, 0, Math.PI * 2)
@@ -1646,6 +1974,37 @@ function drawExpressionPreview(r, id, cx, cy) {
     r.fill()
     drawPreviewSmile(r, cx, cy + 5)
   }
+}
+
+function drawPreviewSpark(r, x, y, size) {
+  r.beginPath()
+  r.moveTo(x, y - size)
+  r.lineTo(x, y + size)
+  r.moveTo(x - size, y)
+  r.lineTo(x + size, y)
+  r.stroke()
+}
+
+function drawPreviewAngerIcon(r, x, y, size) {
+  r.save()
+  r.lineCap = 'round'
+  r.lineJoin = 'round'
+  drawPreviewAngerIconStroke(r, x, y, size, '#7b2c2f', size * 0.34)
+  drawPreviewAngerIconStroke(r, x, y, size, '#e4474e', size * 0.24)
+  r.restore()
+}
+
+function drawPreviewAngerIconStroke(r, x, y, size, color, lineWidth) {
+  r.strokeStyle = color
+  r.lineWidth = lineWidth
+  r.beginPath()
+  r.moveTo(x - size * 0.28, y - size * 0.62)
+  r.quadraticCurveTo(x - size * 0.12, y - size * 0.05, x - size * 0.6, y + size * 0.12)
+  r.moveTo(x + size * 0.32, y - size * 0.58)
+  r.quadraticCurveTo(x + size * 0.12, y - size * 0.02, x + size * 0.58, y + size * 0.16)
+  r.moveTo(x - size * 0.46, y + size * 0.68)
+  r.quadraticCurveTo(x, y + size * 0.32, x + size * 0.46, y + size * 0.68)
+  r.stroke()
 }
 
 function drawPreviewSmile(r, cx, cy) {
