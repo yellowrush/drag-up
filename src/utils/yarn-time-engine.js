@@ -30,6 +30,8 @@ export class YarnTimeEngine {
     this.edgeMap = {};
     this.edgeStates = {};
     this.tileStates = {};
+    this.bridgeStates = {};
+    this.liftBridgeStates = {};
     this.maze = {
       id: '',
       instruction: '',
@@ -82,6 +84,8 @@ export class YarnTimeEngine {
     this.level = cloneLevel(level);
     this.nodeMap = createNodeMap(this.level);
     this.edgeMap = createEdgeMap(this.level);
+    this.bridgeStates = this.createInitialBridgeStates();
+    this.liftBridgeStates = this.createInitialLiftBridgeStates();
     this.maze = {
       id: this.level.id,
       instruction: this.level.instruction || '',
@@ -149,7 +153,7 @@ export class YarnTimeEngine {
     var stats = {
       levelId: (this.maze && this.maze.id) || this.levelStats.levelId || '',
       dragCount: this.levelStats.dragCount,
-      rotateCount: 0,
+      rotateCount: this.levelStats.rotateCount,
     };
     stats.score = calculateLevelScore(stats);
     return stats;
@@ -171,6 +175,8 @@ export class YarnTimeEngine {
     this.now = now;
 
     this.updateClock(dt);
+    this.updateBridgeStates(dt);
+    this.updateLiftBridgeStates(dt);
     this.updateTileStates(dt);
     this.ensureActorsOnSafeTiles();
     if (!this.completed) {
@@ -205,6 +211,7 @@ export class YarnTimeEngine {
 
   createInitialTileStates() {
     var states = {};
+    var self = this;
     (this.level.nodes || []).forEach(function (node) {
       var kind = node && node.kind ? node.kind : 'safe';
       if (kind === 'crumble') {
@@ -237,6 +244,22 @@ export class YarnTimeEngine {
           pressed: false,
           safe: true,
           phase: 0,
+        };
+      } else if (kind === 'rotating-bridge') {
+        var active = self.isRotatingBridgeNodeActive(node);
+        states[node.id] = {
+          kind: kind,
+          safe: active,
+          phase: active ? 1 : 0,
+          active: active,
+        };
+      } else if (kind === 'lifting-bridge') {
+        var liftActive = self.isLiftingBridgeNodeActive(node);
+        states[node.id] = {
+          kind: kind,
+          safe: liftActive,
+          phase: liftActive ? 1 : 0,
+          active: liftActive,
         };
       } else {
         states[node.id] = {
@@ -303,6 +326,14 @@ export class YarnTimeEngine {
     if (node.kind === 'switch') {
       return { safe: true, pressed: false, phase: 0, kind: node.kind };
     }
+    if (node.kind === 'rotating-bridge') {
+      var active = this.isRotatingBridgeNodeActive(node);
+      return { safe: active, phase: active ? 1 : 0, active: active, kind: node.kind };
+    }
+    if (node.kind === 'lifting-bridge') {
+      var liftActive = this.isLiftingBridgeNodeActive(node);
+      return { safe: liftActive, phase: liftActive ? 1 : 0, active: liftActive, kind: node.kind };
+    }
     return { safe: true, phase: 1, kind: node.kind };
   }
 
@@ -342,6 +373,20 @@ export class YarnTimeEngine {
     if (node.kind === 'switch') {
       state.safe = true;
       state.phase = state.pressed ? 1 : 0;
+      return;
+    }
+    if (node.kind === 'rotating-bridge') {
+      var active = this.isRotatingBridgeNodeActive(node);
+      state.safe = active;
+      state.active = active;
+      state.phase = active ? 1 : 0;
+      return;
+    }
+    if (node.kind === 'lifting-bridge') {
+      var liftActive = this.isLiftingBridgeNodeActive(node);
+      state.safe = liftActive;
+      state.active = liftActive;
+      state.phase = liftActive ? 1 : 0;
       return;
     }
     state.safe = true;
@@ -402,10 +447,26 @@ export class YarnTimeEngine {
       if (this.cat.mode === 'playing') {
         this.cat.mode = 'watching';
       }
+      return;
+    }
+
+    var liftBridge = this.findLiftBridgeAt(point);
+    if (liftBridge && this.beginLiftBridgeDrag(liftBridge, point)) {
+      this.pointer = { type: 'lifting-bridge', bridgeId: liftBridge.id };
+      return;
+    }
+
+    if (this.rotateBridgeAt(point)) {
+      this.pointer = { type: 'rotating-bridge' };
+      return;
     }
   }
 
   handlePointerMove(pointer) {
+    if (this.pointer && this.pointer.type === 'lifting-bridge') {
+      this.updateLiftBridgeDrag(this.getCanvasPoint(pointer));
+      return;
+    }
     if (!this.pointer || this.pointer.type !== 'yarn' || !this.yarn.isHeld) {
       return;
     }
@@ -416,6 +477,11 @@ export class YarnTimeEngine {
 
   handlePointerUp(pointer) {
     if (!this.pointer) return;
+    if (this.pointer.type === 'lifting-bridge') {
+      this.finishLiftBridgeDrag(pointer ? this.getCanvasPoint(pointer) : null);
+      this.pointer = null;
+      return;
+    }
     if (this.pointer.type === 'yarn' && this.yarn.isHeld) {
       var point = pointer ? this.getCanvasPoint(pointer) : null;
       if (point) {
@@ -449,6 +515,285 @@ export class YarnTimeEngine {
     var actions = this.level && this.level.clock && this.level.clock.actions;
     if (!Array.isArray(actions)) return true;
     return actions.indexOf(action) !== -1;
+  }
+
+  createInitialBridgeStates() {
+    var states = {};
+    (this.level.rotatingBridges || []).forEach(function (bridge) {
+      var orientation = normalizeBridgeOrientation(bridge.initialOrientation || bridge.orientation);
+      states[bridge.id] = {
+        id: bridge.id,
+        orientation: orientation,
+        fromOrientation: orientation,
+        toOrientation: orientation,
+        progress: 1,
+        animating: false,
+        duration: Number(bridge.duration) || 360,
+      };
+    });
+    return states;
+  }
+
+  createInitialLiftBridgeStates() {
+    var states = {};
+    (this.level.liftingBridges || []).forEach(function (bridge) {
+      var lowerZ = getLiftBridgeLowerZ(bridge);
+      var upperZ = getLiftBridgeUpperZ(bridge);
+      var initialZ = clampRange(
+        bridge.initialZ != null ? Number(bridge.initialZ) : lowerZ,
+        lowerZ,
+        upperZ
+      );
+      states[bridge.id] = {
+        id: bridge.id,
+        z: initialZ,
+        displayZ: initialZ,
+        fromZ: initialZ,
+        toZ: initialZ,
+        lowerZ: lowerZ,
+        upperZ: upperZ,
+        progress: 1,
+        animating: false,
+        dragging: false,
+        dragStartY: 0,
+        dragStartZ: initialZ,
+        duration: Number(bridge.duration) || 440,
+      };
+    });
+    return states;
+  }
+
+  updateBridgeStates(dt) {
+    var self = this;
+    (this.level.rotatingBridges || []).forEach(function (bridge) {
+      var state = self.bridgeStates[bridge.id];
+      if (!state || !state.animating) return;
+      var duration = Math.max(80, Number(state.duration) || Number(bridge.duration) || 360);
+      state.progress = Math.min(1, Number(state.progress) + dt / duration);
+      if (state.progress >= 1) {
+        state.orientation = state.toOrientation;
+        state.fromOrientation = state.orientation;
+        state.animating = false;
+      }
+    });
+  }
+
+  updateLiftBridgeStates(dt) {
+    var self = this;
+    (this.level.liftingBridges || []).forEach(function (bridge) {
+      var state = self.liftBridgeStates[bridge.id];
+      if (!state) return;
+      if (state.dragging) return;
+      if (!state.animating) {
+        state.displayZ = state.z;
+        return;
+      }
+      var duration = Math.max(80, Number(state.duration) || Number(bridge.duration) || 440);
+      state.progress = Math.min(1, Number(state.progress) + dt / duration);
+      var eased = easeInOutCubic(state.progress);
+      state.displayZ = Number(state.fromZ) + (Number(state.toZ) - Number(state.fromZ)) * eased;
+      if (state.progress >= 1) {
+        state.z = state.toZ;
+        state.displayZ = state.z;
+        state.fromZ = state.z;
+        state.animating = false;
+      }
+    });
+  }
+
+  rotateBridgeAt(point) {
+    var bridge = this.findRotatingBridgeAt(point);
+    if (!bridge) return false;
+    var state = this.bridgeStates[bridge.id];
+    if (!state || state.animating) return false;
+    var targetOrientation = state.orientation === 'horizontal' ? 'vertical' : 'horizontal';
+    if (!this.canRotatingBridgeOccupy(bridge, targetOrientation)) return false;
+    state.fromOrientation = state.orientation;
+    state.toOrientation = targetOrientation;
+    state.progress = 0;
+    state.animating = true;
+    state.duration = Number(bridge.duration) || 360;
+    this.levelStats.rotateCount += 1;
+    return true;
+  }
+
+  findRotatingBridgeAt(point) {
+    if (!point || !this.level || !(this.level.rotatingBridges || []).length) return null;
+    var layout = getYarnTimeLayout(this.canvasSize, this.level);
+    var tileW = layout.grid && layout.grid.enabled ? layout.grid.tileW : 56;
+    var hitRadius = Math.max(30, tileW * 0.5);
+    for (var i = 0; i < this.level.rotatingBridges.length; i++) {
+      var bridge = this.level.rotatingBridges[i];
+      if (!bridge || !bridge.center) continue;
+      var center = yarnWorldToScreen(bridge.center, layout);
+      var dx = point.x - center.x;
+      var dy = point.y - center.y;
+      if (Math.sqrt(dx * dx + dy * dy) <= hitRadius) {
+        return bridge;
+      }
+    }
+    return null;
+  }
+
+  isRotatingBridgeNodeActive(node) {
+    if (!node || node.kind !== 'rotating-bridge') return false;
+    var bridge = this.findRotatingBridgeForNode(node);
+    if (!bridge) return false;
+    var state = this.bridgeStates[bridge.id];
+    var orientation = state ? state.orientation : normalizeBridgeOrientation(bridge.initialOrientation || bridge.orientation);
+    var keys = createBridgeActiveKeyMap(bridge, orientation);
+    return !!keys[getGridKey(node)];
+  }
+
+  findRotatingBridgeForNode(node) {
+    if (!node) return null;
+    var bridges = this.level.rotatingBridges || [];
+    for (var i = 0; i < bridges.length; i++) {
+      if (node.bridgeId && bridges[i].id === node.bridgeId) return bridges[i];
+    }
+    return null;
+  }
+
+  canRotatingBridgeOccupy(bridge, orientation) {
+    if (!bridge) return false;
+    var keys = createBridgeActiveKeyMap(bridge, orientation);
+    return this.areBridgeTargetCellsEmpty(keys, function (node) {
+      return node.kind === 'rotating-bridge' && node.bridgeId === bridge.id;
+    });
+  }
+
+  findLiftBridgeAt(point) {
+    if (!point || !this.level || !(this.level.liftingBridges || []).length) return null;
+    var layout = getYarnTimeLayout(this.canvasSize, this.level);
+    var tileW = layout.grid && layout.grid.enabled ? layout.grid.tileW : 56;
+    var hitRadius = Math.max(34, tileW * 0.58);
+    for (var i = 0; i < this.level.liftingBridges.length; i++) {
+      var bridge = this.level.liftingBridges[i];
+      if (!bridge || !bridge.center) continue;
+      var state = this.liftBridgeStates[bridge.id];
+      if (!state || state.animating) continue;
+      var center = yarnWorldToScreen({
+        x: bridge.center.x,
+        y: bridge.center.y,
+        z: state.displayZ != null ? state.displayZ : state.z,
+      }, layout);
+      var dx = point.x - center.x;
+      var dy = point.y - center.y;
+      if (Math.sqrt(dx * dx + dy * dy) <= hitRadius) {
+        return bridge;
+      }
+    }
+    return null;
+  }
+
+  beginLiftBridgeDrag(bridge, point) {
+    if (!bridge || !point) return false;
+    var state = this.liftBridgeStates[bridge.id];
+    if (!state || state.animating) return false;
+    state.dragging = true;
+    state.dragStartY = point.y;
+    state.dragStartZ = state.z;
+    state.displayZ = state.z;
+    state.fromZ = state.z;
+    state.toZ = state.z;
+    state.progress = 1;
+    this.updateTileStates(0);
+    return true;
+  }
+
+  updateLiftBridgeDrag(point) {
+    if (!point || !this.pointer || this.pointer.type !== 'lifting-bridge') return;
+    var bridge = this.findLiftBridgeById(this.pointer.bridgeId);
+    var state = bridge ? this.liftBridgeStates[bridge.id] : null;
+    if (!bridge || !state || !state.dragging) return;
+    var layout = getYarnTimeLayout(this.canvasSize, this.level);
+    var tileDepth = layout.grid && layout.grid.enabled ? layout.grid.tileDepth : 24;
+    var deltaZ = -(point.y - state.dragStartY) / Math.max(1, tileDepth);
+    var nextZ = clampRange(state.dragStartZ + deltaZ, state.lowerZ, state.upperZ);
+    if (nextZ > state.z && !this.canLiftingBridgeOccupy(bridge, state.upperZ)) {
+      nextZ = Math.min(nextZ, state.z);
+    } else if (nextZ < state.z && !this.canLiftingBridgeOccupy(bridge, state.lowerZ)) {
+      nextZ = Math.max(nextZ, state.z);
+    }
+    state.displayZ = nextZ;
+    this.updateTileStates(0);
+  }
+
+  finishLiftBridgeDrag(point) {
+    if (point) {
+      this.updateLiftBridgeDrag(point);
+    }
+    if (!this.pointer || this.pointer.type !== 'lifting-bridge') return false;
+    var bridge = this.findLiftBridgeById(this.pointer.bridgeId);
+    var state = bridge ? this.liftBridgeStates[bridge.id] : null;
+    if (!bridge || !state) return false;
+    var midpoint = (state.lowerZ + state.upperZ) / 2;
+    var targetZ = state.displayZ >= midpoint ? state.upperZ : state.lowerZ;
+    if (targetZ !== state.z && !this.canLiftingBridgeOccupy(bridge, targetZ)) {
+      targetZ = state.z;
+    }
+    state.dragging = false;
+    state.fromZ = state.displayZ;
+    state.toZ = targetZ;
+    state.progress = 0;
+    state.animating = Math.abs(state.fromZ - targetZ) > 0.001;
+    state.duration = Number(bridge.duration) || 440;
+    if (!state.animating) {
+      state.z = targetZ;
+      state.displayZ = targetZ;
+      state.progress = 1;
+    } else if (targetZ !== state.z) {
+      this.levelStats.rotateCount += 1;
+    }
+    this.updateTileStates(0);
+    return true;
+  }
+
+  findLiftBridgeById(bridgeId) {
+    var bridges = this.level.liftingBridges || [];
+    for (var i = 0; i < bridges.length; i++) {
+      if (bridges[i].id === bridgeId) return bridges[i];
+    }
+    return null;
+  }
+
+  isLiftingBridgeNodeActive(node) {
+    if (!node || node.kind !== 'lifting-bridge') return false;
+    var bridge = this.findLiftBridgeForNode(node);
+    if (!bridge) return false;
+    var state = this.liftBridgeStates[bridge.id];
+    if (!state || state.animating || state.dragging) return false;
+    var keys = createLiftBridgeActiveKeyMap(bridge, state.z);
+    return !!keys[getGridKey(node)];
+  }
+
+  findLiftBridgeForNode(node) {
+    if (!node) return null;
+    var bridges = this.level.liftingBridges || [];
+    for (var i = 0; i < bridges.length; i++) {
+      if (node.liftBridgeId && bridges[i].id === node.liftBridgeId) return bridges[i];
+    }
+    return null;
+  }
+
+  canLiftingBridgeOccupy(bridge, liftZ) {
+    if (!bridge) return false;
+    var keys = createLiftBridgeActiveKeyMap(bridge, liftZ);
+    return this.areBridgeTargetCellsEmpty(keys, function (node) {
+      return node.kind === 'lifting-bridge' && node.liftBridgeId === bridge.id;
+    });
+  }
+
+  areBridgeTargetCellsEmpty(keys, isOwnBridgeNode) {
+    if (!keys) return false;
+    var nodes = this.level && this.level.nodes ? this.level.nodes : [];
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      if (!node || !keys[getGridKey(node)]) continue;
+      if (isOwnBridgeNode && isOwnBridgeNode(node)) continue;
+      return false;
+    }
+    return true;
   }
 
   stopCatForRewind() {
@@ -798,6 +1143,8 @@ export class YarnTimeEngine {
     this.cat = null;
     this.yarn = null;
     this.pointer = null;
+    this.bridgeStates = {};
+    this.liftBridgeStates = {};
   }
 }
 
@@ -831,10 +1178,95 @@ function clonePoint(point) {
 }
 
 function isGridAdjacent(a, b) {
-  if ((Number(a.z) || 0) !== (Number(b.z) || 0)) return false;
   var dx = Math.abs(Number(a.x) - Number(b.x));
   var dy = Math.abs(Number(a.y) - Number(b.y));
-  return dx + dy === 1;
+  var dz = Math.abs((Number(a.z) || 0) - (Number(b.z) || 0));
+  if (dz === 0) return dx + dy === 1;
+  return (dz === 1 || dz === 2) && dx + dy === 1 && canUseStairBetween(a, b);
+}
+
+function normalizeBridgeOrientation(orientation) {
+  return orientation === 'horizontal' ? 'horizontal' : 'vertical';
+}
+
+function createBridgeActiveKeyMap(bridge, orientation) {
+  var keys = {};
+  if (!bridge || !bridge.center) return keys;
+  var length = Math.max(1, Number(bridge.length) || 3);
+  var arm = Math.floor(length / 2);
+  var center = bridge.center;
+  for (var i = -arm; i <= arm; i++) {
+    var x = Number(center.x) || 0;
+    var y = Number(center.y) || 0;
+    if (orientation === 'horizontal') x += i;
+    else y += i;
+    keys[getGridKey({ x: x, y: y, z: Number(center.z) || 0 })] = true;
+  }
+  return keys;
+}
+
+function createLiftBridgeActiveKeyMap(bridge, liftZ) {
+  var keys = {};
+  if (!bridge || !bridge.center) return keys;
+  var length = Math.max(1, Number(bridge.length) || 3);
+  var arm = Math.floor(length / 2);
+  var orientation = bridge.orientation === 'vertical' ? 'vertical' : 'horizontal';
+  var center = bridge.center;
+  for (var i = -arm; i <= arm; i++) {
+    var x = Number(center.x) || 0;
+    var y = Number(center.y) || 0;
+    if (orientation === 'horizontal') x += i;
+    else y += i;
+    keys[getGridKey({ x: x, y: y, z: liftZ })] = true;
+  }
+  return keys;
+}
+
+function getLiftBridgeLowerZ(bridge) {
+  if (bridge && bridge.lowerZ != null) return Number(bridge.lowerZ) || 0;
+  return bridge && bridge.center ? Number(bridge.center.z) || 0 : 0;
+}
+
+function getLiftBridgeUpperZ(bridge) {
+  if (bridge && bridge.upperZ != null) return Number(bridge.upperZ) || 0;
+  return getLiftBridgeLowerZ(bridge) + 2;
+}
+
+function isStairNode(node) {
+  return node && node.kind === 'stair';
+}
+
+function canUseStairBetween(a, b) {
+  if (!isStairNode(a) && !isStairNode(b)) return false;
+  var lower = (Number(a.z) || 0) <= (Number(b.z) || 0) ? a : b;
+  var upper = lower === a ? b : a;
+  var dx = Number(upper.x) - Number(lower.x);
+  var dy = Number(upper.y) - Number(lower.y);
+  return stairDirectionMatches(lower, dx, dy) || stairDirectionMatches(upper, dx, dy);
+}
+
+function stairDirectionMatches(node, dx, dy) {
+  if (!isStairNode(node)) return false;
+  var dir = getStairDirection(node);
+  if (!dir) return true;
+  return dir.dx === dx && dir.dy === dy;
+}
+
+function getStairDirection(node) {
+  var direction = node && (node.stairDirection || node.direction || node.facing);
+  if (direction === 'north' || direction === 'up' || direction === '-y') return { dx: 0, dy: -1 };
+  if (direction === 'south' || direction === 'down' || direction === '+y') return { dx: 0, dy: 1 };
+  if (direction === 'east' || direction === 'right' || direction === '+x') return { dx: 1, dy: 0 };
+  if (direction === 'west' || direction === 'left' || direction === '-x') return { dx: -1, dy: 0 };
+  return null;
+}
+
+function getGridKey(point) {
+  return [
+    Number(point.x) || 0,
+    Number(point.y) || 0,
+    Number(point.z) || 0,
+  ].join(':');
 }
 
 function pointDistance(a, b) {
@@ -842,6 +1274,20 @@ function pointDistance(a, b) {
   var dy = a.y - b.y;
   var dz = (Number(a.z) || 0) - (Number(b.z) || 0);
   return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+function easeInOutCubic(t) {
+  var v = clamp01(t);
+  return v < 0.5
+    ? 4 * v * v * v
+    : 1 - Math.pow(-2 * v + 2, 3) / 2;
+}
+
+function clampRange(value, min, max) {
+  var lower = Math.min(min, max);
+  var upper = Math.max(min, max);
+  if (!Number.isFinite(value)) return lower;
+  return Math.max(lower, Math.min(upper, value));
 }
 
 function positiveModulo(value, mod) {
