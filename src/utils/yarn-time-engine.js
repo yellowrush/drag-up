@@ -830,7 +830,7 @@ export class YarnTimeEngine {
       }
     });
     if (!best) return '';
-    if (!this.isNodeSafe(best.node.id)) return '';
+    if (!this.isNodeWalkable(best.node.id)) return '';
     if (!this.findSafePath(this.cat.nodeId, best.node.id)) return '';
     return best.node.id;
   }
@@ -919,7 +919,7 @@ export class YarnTimeEngine {
       this.cat.mode = 'waiting';
       return;
     }
-    if (!this.isNodeSafe(move.toNodeId)) {
+    if (!this.isNodeWalkable(move.toNodeId)) {
       this.resetCatToSafeNode();
       return;
     }
@@ -929,7 +929,7 @@ export class YarnTimeEngine {
     while (remaining > 0 && this.cat.move && this.cat.mode === 'chasing') {
       move = this.cat.move;
       targetNode = this.nodeMap[move.toNodeId];
-      if (!this.isNodeSafe(move.toNodeId)) {
+      if (!this.isNodeWalkable(move.toNodeId)) {
         this.resetCatToSafeNode();
         return;
       }
@@ -1004,7 +1004,7 @@ export class YarnTimeEngine {
 
   findSafePath(fromNodeId, toNodeId) {
     if (!fromNodeId || !toNodeId) return null;
-    if (!this.isNodeSafe(fromNodeId) || !this.isNodeSafe(toNodeId)) return null;
+    if (!this.isNodeWalkable(fromNodeId) || !this.isNodeWalkable(toNodeId)) return null;
     if (fromNodeId === toNodeId) return [fromNodeId];
 
     var queue = [fromNodeId];
@@ -1031,25 +1031,78 @@ export class YarnTimeEngine {
     var result = [];
     var self = this;
     var node = this.nodeMap[nodeId];
-    if (!node || !this.isNodeSafe(nodeId)) return result;
+    if (!node || !this.isNodeWalkable(nodeId)) return result;
     (this.level.nodes || []).forEach(function (candidate) {
       if (!candidate || candidate.id === nodeId) return;
-      if (!self.isNodeSafe(candidate.id)) return;
-      if (isGridAdjacent(node, candidate)) {
+      if (!self.isNodeWalkable(candidate.id)) return;
+      if (isGridAdjacent(node, candidate) || self.canPassThroughBridgeHole(node, candidate)) {
         result.push(candidate.id);
       }
     });
     return result;
   }
 
+  canPassThroughBridgeHole(a, b) {
+    if (!a || !b || !this.level) return false;
+    var az = Number(a.z) || 0;
+    var bz = Number(b.z) || 0;
+    if (Math.abs(az - bz) > 0.001) return false;
+    var dx = Math.abs(Number(a.x) - Number(b.x));
+    var dy = Math.abs(Number(a.y) - Number(b.y));
+    if (!((Math.abs(dx - 2) < 0.001 && dy < 0.001) || (dx < 0.001 && Math.abs(dy - 2) < 0.001))) {
+      return false;
+    }
+    var center = {
+      x: (Number(a.x) + Number(b.x)) / 2,
+      y: (Number(a.y) + Number(b.y)) / 2,
+      z: az,
+    };
+    var passageAxis = dx > dy ? 'horizontal' : 'vertical';
+    return (
+      this.hasRotatingBridgeHolePassage(center, passageAxis) ||
+      this.hasLiftingBridgeHolePassage(center, passageAxis)
+    );
+  }
+
+  hasRotatingBridgeHolePassage(center, passageAxis) {
+    var bridges = this.level.rotatingBridges || [];
+    for (var i = 0; i < bridges.length; i++) {
+      var bridge = bridges[i];
+      if (!bridge || !bridge.center) continue;
+      if (!isSameFlatPosition(center, bridge.center)) continue;
+      if (Math.abs((Number(center.z) || 0) - ((Number(bridge.center.z) || 0) - 1)) > 0.001) continue;
+      var state = this.bridgeStates[bridge.id];
+      if (state && state.animating) continue;
+      var orientation = state ? state.orientation : normalizeBridgeOrientation(bridge.initialOrientation || bridge.orientation);
+      if (isBridgeHolePassageAxis(orientation, passageAxis)) return true;
+    }
+    return false;
+  }
+
+  hasLiftingBridgeHolePassage(center, passageAxis) {
+    var bridges = this.level.liftingBridges || [];
+    for (var i = 0; i < bridges.length; i++) {
+      var bridge = bridges[i];
+      if (!bridge || !bridge.center) continue;
+      if (!isSameFlatPosition(center, bridge.center)) continue;
+      var state = this.liftBridgeStates[bridge.id];
+      if (state && (state.animating || state.dragging)) continue;
+      var liftZ = state ? state.z : bridge.initialZ != null ? Number(bridge.initialZ) : getLiftBridgeLowerZ(bridge);
+      if (Math.abs((Number(center.z) || 0) - (liftZ - 1)) > 0.001) continue;
+      var orientation = bridge.orientation === 'vertical' ? 'vertical' : 'horizontal';
+      if (isBridgeHolePassageAxis(orientation, passageAxis)) return true;
+    }
+    return false;
+  }
+
   ensureActorsOnSafeTiles() {
     if (!this.cat || !this.yarn || !this.time) return;
     if (this.time.mode === 'rewind') return;
-    if (this.cat.nodeId && !this.isNodeSafe(this.cat.nodeId)) {
+    if (this.cat.nodeId && !this.isNodeWalkable(this.cat.nodeId)) {
       this.resetCatToSafeNode();
       return;
     }
-    if (!this.yarn.isHeld && this.yarn.nodeId && !this.isNodeSafe(this.yarn.nodeId)) {
+    if (!this.yarn.isHeld && this.yarn.nodeId && !this.isNodeWalkable(this.yarn.nodeId)) {
       this.resetCatToSafeNode();
     }
   }
@@ -1060,9 +1113,19 @@ export class YarnTimeEngine {
     return !state || state.safe;
   }
 
-  isStableNodeSafe(nodeId) {
+  isNodeWalkable(nodeId) {
     var node = this.nodeMap[nodeId];
     if (!node || !this.isNodeSafe(nodeId)) return false;
+    return !this.isBridgeHoleOnlyNode(node);
+  }
+
+  isBridgeHoleOnlyNode(node) {
+    return !!(node && node.bridgeHoleOnly);
+  }
+
+  isStableNodeSafe(nodeId) {
+    var node = this.nodeMap[nodeId];
+    if (!node || !this.isNodeWalkable(nodeId)) return false;
     return !!node.stable || node.kind === 'safe' || node.kind === 'start' || node.kind === 'goal';
   }
 
@@ -1183,6 +1246,21 @@ function isGridAdjacent(a, b) {
   var dz = Math.abs((Number(a.z) || 0) - (Number(b.z) || 0));
   if (dz === 0) return dx + dy === 1;
   return (dz === 1 || dz === 2) && dx + dy === 1 && canUseStairBetween(a, b);
+}
+
+function isSameFlatPosition(a, b) {
+  if (!a || !b) return false;
+  return (
+    Math.abs((Number(a.x) || 0) - (Number(b.x) || 0)) < 0.001 &&
+    Math.abs((Number(a.y) || 0) - (Number(b.y) || 0)) < 0.001
+  );
+}
+
+function isBridgeHolePassageAxis(bridgeOrientation, passageAxis) {
+  return (
+    (bridgeOrientation === 'horizontal' && passageAxis === 'vertical') ||
+    (bridgeOrientation === 'vertical' && passageAxis === 'horizontal')
+  );
 }
 
 function normalizeBridgeOrientation(orientation) {

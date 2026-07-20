@@ -1190,34 +1190,54 @@ function drawRotatingBridgeGridCell(ctx, center, tile, role, orientation) {
 }
 
 function drawIsoBridgeArch(ctx, face, tile) {
-  var leftBase = getFacePoint(face, 0.26, 0.98);
-  var leftShoulder = getFacePoint(face, 0.26, 0.58);
-  var peak = getFacePoint(face, 0.5, 0.28);
-  var rightShoulder = getFacePoint(face, 0.74, 0.58);
-  var rightBase = getFacePoint(face, 0.74, 0.98);
+  var leftBase = getFacePoint(face, 0.14, 1);
+  var leftShoulder = getFacePoint(face, 0.14, 0.52);
+  var peak = getFacePoint(face, 0.5, 0.12);
+  var rightShoulder = getFacePoint(face, 0.86, 0.52);
+  var rightBase = getFacePoint(face, 0.86, 1);
+  var leftInner = getFacePoint(face, 0.24, 0.96);
+  var rightInner = getFacePoint(face, 0.76, 0.96);
 
   ctx.save();
-  ctx.fillStyle = 'rgba(6,38,58,0.88)';
-  ctx.strokeStyle = 'rgba(202,250,240,0.3)';
-  ctx.lineWidth = Math.max(1, tile.w * 0.016);
+  ctx.fillStyle = 'rgba(4,27,43,0.92)';
+  ctx.strokeStyle = 'rgba(220,253,247,0.48)';
+  ctx.lineWidth = Math.max(1.4, tile.w * 0.026);
   ctx.beginPath();
   ctx.moveTo(leftBase.x, leftBase.y);
   ctx.lineTo(leftShoulder.x, leftShoulder.y);
   ctx.quadraticCurveTo(
-    getFacePoint(face, 0.3, 0.3).x,
-    getFacePoint(face, 0.3, 0.3).y,
+    getFacePoint(face, 0.22, 0.16).x,
+    getFacePoint(face, 0.22, 0.16).y,
     peak.x,
     peak.y
   );
   ctx.quadraticCurveTo(
-    getFacePoint(face, 0.7, 0.3).x,
-    getFacePoint(face, 0.7, 0.3).y,
+    getFacePoint(face, 0.78, 0.16).x,
+    getFacePoint(face, 0.78, 0.16).y,
     rightShoulder.x,
     rightShoulder.y
   );
   ctx.lineTo(rightBase.x, rightBase.y);
   ctx.closePath();
   ctx.fill();
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = Math.max(1, tile.w * 0.014);
+  ctx.beginPath();
+  ctx.moveTo(leftInner.x, leftInner.y);
+  ctx.quadraticCurveTo(
+    getFacePoint(face, 0.34, 0.34).x,
+    getFacePoint(face, 0.34, 0.34).y,
+    peak.x,
+    peak.y + tile.h * 0.08
+  );
+  ctx.quadraticCurveTo(
+    getFacePoint(face, 0.66, 0.34).x,
+    getFacePoint(face, 0.66, 0.34).y,
+    rightInner.x,
+    rightInner.y
+  );
   ctx.stroke();
   ctx.restore();
 }

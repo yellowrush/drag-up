@@ -2953,6 +2953,154 @@ function createRedesignedYarnTimeChallenge14() {
   };
 }
 
+function createRedesignedYarnTimeChallenge15() {
+  return {
+    id: 'yarn-time-challenge-15',
+    label: '毛线球 15：桥洞路',
+    blurb: 'yarn-time',
+    instruction: '桥洞也能形成通路，机关状态会决定哪条路相通。',
+    roomStyle: 'isometric-grid',
+    grid: {
+      tileWidth: 32,
+      tileHeight: 17,
+      tileDepth: 18,
+    },
+    rotatingBridges: [
+      {
+        id: 'turn-bridge',
+        center: { x: 6, y: 3, z: 0 },
+        length: 3,
+        initialOrientation: 'vertical',
+        duration: 430,
+      },
+    ],
+    liftingBridges: [
+      {
+        id: 'tunnel-lift',
+        center: { x: 12, y: 2, z: 0 },
+        length: 3,
+        orientation: 'horizontal',
+        lowerZ: 0,
+        upperZ: 1,
+        initialZ: 0,
+        duration: 560,
+      },
+    ],
+    nodes: [
+      yarnTile('start', 0, 4, 0, 'start'),
+      yarnTile('entry', 1, 4, 0, 'safe'),
+      yarnTile('first-switch', 1, 3, 0, 'switch', { opensDoorId: 'first-door' }),
+      yarnTile('first-door', 2, 4, 0, 'door', { initialOpen: false, bridge: true }),
+      yarnTile('crumble-key', 3, 4, 0, 'crumble', {
+        initialIntegrity: 0,
+        safeAt: 0.58,
+        damageDuration: 6600,
+        recoverDuration: 1300,
+        bridge: true,
+      }),
+      yarnTile('low-bend', 4, 4, 0, 'safe'),
+      yarnTile('bridge-approach', 4, 3, 0, 'safe'),
+      yarnTile('rot-west', 5, 3, 0, 'rotating-bridge', { bridgeId: 'turn-bridge' }),
+      yarnTile('rot-center', 6, 3, 0, 'rotating-bridge', { bridgeId: 'turn-bridge', bridgeCenter: true }),
+      yarnTile('rot-east', 7, 3, 0, 'rotating-bridge', { bridgeId: 'turn-bridge' }),
+      yarnTile('rot-north', 6, 2, 0, 'rotating-bridge', { bridgeId: 'turn-bridge' }),
+      yarnTile('rot-south', 6, 4, 0, 'rotating-bridge', { bridgeId: 'turn-bridge' }),
+      yarnTile('pause-spike', 8, 3, 0, 'spike', {
+        initialPhase: 0.62,
+        cycleDuration: 3400,
+        activeFrom: 0.24,
+        activeTo: 0.9,
+        bridge: true,
+      }),
+      yarnTile('tunnel-entry-a', 9, 3, 0, 'safe'),
+      yarnTile('tunnel-entry-b', 10, 3, 0, 'safe'),
+      yarnTile('tunnel-entry-c', 10, 2, 0, 'safe'),
+      yarnTile('tunnel-entry-d', 10, 1, 0, 'safe'),
+      yarnTile('tunnel-entry-e', 11, 1, 0, 'safe'),
+      yarnTile('tunnel-north', 12, 1, 0, 'safe'),
+      yarnTile('lift-high-left', 11, 2, 1, 'lifting-bridge', {
+        liftBridgeId: 'tunnel-lift',
+        bridgeHoleOnly: true,
+      }),
+      yarnTile('lift-high-center', 12, 2, 1, 'lifting-bridge', {
+        liftBridgeId: 'tunnel-lift',
+        liftBridgeCenter: true,
+        bridgeHoleOnly: true,
+      }),
+      yarnTile('lift-high-right', 13, 2, 1, 'lifting-bridge', {
+        liftBridgeId: 'tunnel-lift',
+        bridgeHoleOnly: true,
+      }),
+      yarnTile('lift-low-left', 11, 2, 0, 'lifting-bridge', {
+        liftBridgeId: 'tunnel-lift',
+        bridgeHoleOnly: true,
+      }),
+      yarnTile('lift-low-center', 12, 2, 0, 'lifting-bridge', {
+        liftBridgeId: 'tunnel-lift',
+        liftBridgeCenter: true,
+        bridgeHoleOnly: true,
+      }),
+      yarnTile('lift-low-right', 13, 2, 0, 'lifting-bridge', {
+        liftBridgeId: 'tunnel-lift',
+        bridgeHoleOnly: true,
+      }),
+      yarnTile('tunnel-south', 12, 3, 0, 'safe'),
+      yarnTile('stair-up', 13, 3, 0, 'stair', { stairDirection: 'east' }),
+      yarnTile('upper-after', 14, 3, 1, 'safe'),
+      yarnTile('final-switch', 14, 2, 1, 'switch', { opensDoorId: 'final-door' }),
+      yarnTile('final-door', 15, 3, 1, 'door', { initialOpen: false, bridge: true }),
+      yarnTile('final-spike', 16, 3, 1, 'spike', {
+        initialPhase: 0.62,
+        cycleDuration: 3400,
+        activeFrom: 0.24,
+        activeTo: 0.9,
+        bridge: true,
+      }),
+      yarnTile('goal', 17, 3, 1, 'goal'),
+      yarnTile('start-south-leaf', 0, 5, 0, 'safe'),
+      yarnTile('entry-north-leaf', 1, 2, 0, 'safe'),
+      yarnTile('crumble-south-leaf', 4, 5, 0, 'crumble', {
+        initialIntegrity: 0,
+        safeAt: 0.58,
+        damageDuration: 6600,
+        recoverDuration: 1300,
+        bridge: true,
+      }),
+      yarnTile('spike-north-leaf', 8, 2, 0, 'spike', {
+        initialPhase: 0.62,
+        cycleDuration: 3400,
+        activeFrom: 0.24,
+        activeTo: 0.9,
+        bridge: true,
+      }),
+      yarnTile('upper-dead', 14, 4, 1, 'safe'),
+      yarnTile('tunnel-dead', 11, 0, 0, 'safe'),
+    ],
+    cat: {
+      startNode: 'start',
+      visionRadius: 1.58,
+      moveSpeed: 0.00122,
+    },
+    yarn: {
+      startNode: 'start',
+      placementRadius: 99,
+    },
+    clock: {
+      actions: ['pause', 'rewind'],
+      energy: 3,
+      pauseDuration: 4800,
+      rewindDuration: 3500,
+      rechargeDuration: 8000,
+    },
+    time: {
+      startAt: 0,
+    },
+    goal: {
+      nodeId: 'goal',
+    },
+  };
+}
+
 var strictYarnTimeChallengeStart = YARN_TIME_LEVELS.findIndex(function (level) {
   return level.id === 'yarn-time-challenge-12';
 });
@@ -2962,7 +3110,8 @@ if (strictYarnTimeChallengeStart >= 0) {
     3,
     createRedesignedYarnTimeChallenge12(),
     createRedesignedYarnTimeChallenge13(),
-    createRedesignedYarnTimeChallenge14()
+    createRedesignedYarnTimeChallenge14(),
+    createRedesignedYarnTimeChallenge15()
   );
 }
 
