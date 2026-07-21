@@ -86,14 +86,18 @@ function getGridBounds(nodes, tileW, tileH, tileDepth) {
   if (!nodes.length) {
     return { minX: -1, minY: -1, maxX: 1, maxY: 1 };
   }
-  nodes.forEach(function (node) {
-    var z = Number(node.z) || 0;
-    var cx = (node.x - node.y) * tileW / 2;
-    var cy = (node.x + node.y) * tileH / 2 - z * tileDepth;
+  function includePoint(point) {
+    var z = Number(point.z) || 0;
+    var cx = (point.x - point.y) * tileW / 2;
+    var cy = (point.x + point.y) * tileH / 2 - z * tileDepth;
     minX = Math.min(minX, cx - tileW / 2);
     maxX = Math.max(maxX, cx + tileW / 2);
     minY = Math.min(minY, cy - tileH / 2);
     maxY = Math.max(maxY, cy + tileH / 2 + tileDepth);
+  }
+  nodes.forEach(function (node) {
+    includePoint(node);
+    getFloatingTilePath(node).forEach(includePoint);
   });
   return { minX: minX, minY: minY, maxX: maxX, maxY: maxY };
 }
@@ -353,6 +357,7 @@ function drawIsometricRoom(ctx, state, layout) {
   ctx.fillRect(0, 0, layout.width, layout.height);
 
   drawDistantFloats(ctx, layout, tile);
+  drawFloatingTileTracks(ctx, state, layout, tile);
 
   var sortedNodes = createIsometricRenderNodes(state.level.nodes || []).sort(function (a, b) {
     var ad = a.x + a.y + (a.z || 0) * 2;
@@ -371,6 +376,10 @@ function drawIsometricRoom(ctx, state, layout) {
     }
     if (node.kind === 'stair') {
       drawStairTile(ctx, node, center, tile);
+      return;
+    }
+    if (isFloatingTileNode(node)) {
+      drawFloatingTile(ctx, center, tile, stateInfo, state.floatingTileStates && state.floatingTileStates[node.id], state.now / 1000);
       return;
     }
     if (node.kind === 'rotating-bridge') {
@@ -420,6 +429,7 @@ function createIsometricRenderNodes(nodes) {
   (nodes || []).forEach(function (node) {
     var z = Number(node.z) || 0;
     if (z <= 0) return;
+    if (isFloatingTileNode(node)) return;
     for (var supportZ = z - 1; supportZ >= 0; supportZ -= 1) {
       var support = {
         id: 'support:' + node.id + ':' + supportZ,
@@ -435,6 +445,26 @@ function createIsometricRenderNodes(nodes) {
     }
   });
   return result;
+}
+
+function isFloatingTileNode(node) {
+  return !!(node && (node.kind === 'floating-tile' || node.kind === 'floating'));
+}
+
+function getFloatingTilePath(node) {
+  if (!isFloatingTileNode(node)) return [];
+  var path = Array.isArray(node.motionPath) && node.motionPath.length
+    ? node.motionPath
+    : Array.isArray(node.path) && node.path.length
+      ? node.path
+      : [];
+  return path.map(function (point) {
+    return {
+      x: Number(point && point.x != null ? point.x : node.x) || 0,
+      y: Number(point && point.y != null ? point.y : node.y) || 0,
+      z: Number(point && point.z != null ? point.z : node.z) || 0,
+    };
+  });
 }
 
 function getRenderGridKey(point) {
@@ -461,6 +491,47 @@ function drawDistantFloats(ctx, layout, tile) {
     ctx.fill();
     ctx.stroke();
   });
+  ctx.restore();
+}
+
+function drawFloatingTileTracks(ctx, state, layout, tile) {
+  (state.level.nodes || []).forEach(function (node) {
+    var path = getFloatingTilePath(node);
+    if (path.length < 2) return;
+    var screenPath = path.map(function (point) {
+      return yarnWorldToScreen(point, layout);
+    });
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(89, 172, 190, 0.42)';
+    ctx.lineWidth = Math.max(2, tile.w * 0.035);
+    ctx.setLineDash([tile.w * 0.13, tile.w * 0.09]);
+    ctx.beginPath();
+    screenPath.forEach(function (point, index) {
+      if (!index) ctx.moveTo(point.x, point.y + tile.depth * 0.58);
+      else ctx.lineTo(point.x, point.y + tile.depth * 0.58);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    path.forEach(function (point) {
+      var center = yarnWorldToScreen(point, layout);
+      drawFloatingTileDock(ctx, center, tile);
+    });
+    ctx.restore();
+  });
+}
+
+function drawFloatingTileDock(ctx, center, tile) {
+  var top = getIsoTopPoints({ x: center.x, y: center.y + tile.depth * 0.52 }, tile.w * 0.76, tile.h * 0.76);
+  ctx.save();
+  ctx.fillStyle = 'rgba(135, 213, 209, 0.12)';
+  ctx.strokeStyle = 'rgba(96, 169, 180, 0.38)';
+  ctx.lineWidth = Math.max(1.2, tile.w * 0.022);
+  tracePoly(ctx, top);
+  ctx.fill();
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -531,6 +602,8 @@ function drawIsoTileDetails(ctx, node, center, tile, stateInfo, t) {
     drawSwitchTileMark(ctx, center, tile, stateInfo);
   } else if (node.kind === 'rotating-bridge') {
     drawRotatingBridgeTileMark(ctx, node, center, tile, stateInfo, t);
+  } else if (isFloatingTileNode(node)) {
+    drawFloatingTileMark(ctx, center, tile, stateInfo, t);
   } else if (node.kind === 'clock-door') {
     drawClockDoorTileMark(ctx, center, tile, stateInfo, t);
   } else if (node.kind === 'start') {
@@ -991,6 +1064,64 @@ function drawStartTileMark(ctx, center, tile) {
   ctx.fillStyle = 'rgba(177,105,119,0.24)';
   ctx.beginPath();
   ctx.ellipse(center.x, center.y + tile.h * 0.03, tile.w * 0.18, tile.h * 0.16, 0, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawFloatingTile(ctx, center, tile, stateInfo, floatState, t) {
+  var docked = !!(floatState && floatState.docked);
+  var palette = getFloatingTilePalette(docked);
+  var bob = docked ? 0 : Math.sin(t * 5.2) * tile.h * 0.05;
+  var drawCenter = { x: center.x, y: center.y + bob };
+
+  ctx.save();
+  ctx.fillStyle = docked ? 'rgba(26, 49, 58, 0.18)' : 'rgba(26, 49, 58, 0.12)';
+  ctx.beginPath();
+  ctx.ellipse(
+    center.x,
+    center.y + tile.depth * 0.86,
+    tile.w * (docked ? 0.42 : 0.35),
+    tile.h * (docked ? 0.24 : 0.18),
+    0,
+    0,
+    TAU
+  );
+  ctx.fill();
+  ctx.restore();
+
+  drawIsoTile(ctx, drawCenter, tile.w * 0.94, tile.h * 0.94, tile.depth * 0.72, palette, {
+    skipShadow: true,
+  });
+  drawFloatingTileMark(ctx, drawCenter, tile, stateInfo, t);
+
+  if (docked) {
+    var top = getIsoTopPoints(drawCenter, tile.w * 1.03, tile.h * 1.03);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
+    ctx.lineWidth = Math.max(1.2, tile.w * 0.02);
+    tracePoly(ctx, top);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawFloatingTileMark(ctx, center, tile, stateInfo, t) {
+  var docked = !stateInfo || stateInfo.docked !== false;
+  var pulse = docked ? 0.5 + Math.sin(t * 5.8) * 0.5 : 0.35;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = docked ? 'rgba(43, 121, 139, 0.72)' : 'rgba(43, 121, 139, 0.5)';
+  ctx.lineWidth = Math.max(1.5, tile.w * 0.032);
+  ctx.beginPath();
+  ctx.moveTo(center.x - tile.w * 0.16, center.y - tile.h * 0.05);
+  ctx.lineTo(center.x + tile.w * 0.16, center.y - tile.h * 0.05);
+  ctx.moveTo(center.x - tile.w * 0.10, center.y + tile.h * 0.08);
+  ctx.lineTo(center.x + tile.w * 0.10, center.y + tile.h * 0.08);
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(255, 255, 255, ' + (0.46 + pulse * 0.32) + ')';
+  ctx.beginPath();
+  ctx.ellipse(center.x - tile.w * 0.2, center.y - tile.h * 0.2, tile.w * 0.08, tile.h * 0.045, -0.28, 0, TAU);
   ctx.fill();
   ctx.restore();
 }
@@ -1691,6 +1822,9 @@ function getGrassTilePalette() {
 
 function getTilePalette(node, stateInfo) {
   var safe = !stateInfo || stateInfo.safe;
+  if (isFloatingTileNode(node)) {
+    return getFloatingTilePalette(!!(stateInfo && stateInfo.docked));
+  }
   if (node.kind === 'rotating-bridge') {
     return safe ? getRotatingBridgeCellPalette('pier') : getRotatingBridgeSocketPalette(false);
   }
@@ -1801,6 +1935,25 @@ function getTilePalette(node, stateInfo) {
     };
   }
   return getGrassTilePalette();
+}
+
+function getFloatingTilePalette(docked) {
+  if (docked) {
+    return {
+      top: '#d7fbf5',
+      left: '#78c7c5',
+      right: '#5db2bd',
+      stroke: '#43899b',
+      highlight: 'rgba(255,255,255,0.9)',
+    };
+  }
+  return {
+    top: '#bdebe9',
+    left: '#63b8bf',
+    right: '#489aaa',
+    stroke: '#3b788b',
+    highlight: 'rgba(250,255,255,0.82)',
+  };
 }
 
 function getBridgePalette(edge, safe) {

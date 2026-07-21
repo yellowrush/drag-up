@@ -32,6 +32,7 @@ export class YarnTimeEngine {
     this.tileStates = {};
     this.bridgeStates = {};
     this.liftBridgeStates = {};
+    this.floatingTileStates = {};
     this.maze = {
       id: '',
       instruction: '',
@@ -86,6 +87,8 @@ export class YarnTimeEngine {
     this.edgeMap = createEdgeMap(this.level);
     this.bridgeStates = this.createInitialBridgeStates();
     this.liftBridgeStates = this.createInitialLiftBridgeStates();
+    this.floatingTileStates = this.createInitialFloatingTileStates();
+    this.applyFloatingTilePositions();
     this.maze = {
       id: this.level.id,
       instruction: this.level.instruction || '',
@@ -177,9 +180,14 @@ export class YarnTimeEngine {
     this.updateClock(dt);
     this.updateBridgeStates(dt);
     this.updateLiftBridgeStates(dt);
+    this.updateFloatingTileStates(dt);
     this.updateTileStates(dt);
+    this.syncActorsToFloatingTiles();
     this.ensureActorsOnSafeTiles();
     if (!this.completed) {
+      if (this.cat.mode === 'waiting') {
+        this.startCatTowardYarn();
+      }
       this.updateCat(dt);
     }
     if (this.winAnim) {
@@ -334,6 +342,15 @@ export class YarnTimeEngine {
       var liftActive = this.isLiftingBridgeNodeActive(node);
       return { safe: liftActive, phase: liftActive ? 1 : 0, active: liftActive, kind: node.kind };
     }
+    if (isFloatingTileNode(node)) {
+      var floatState = this.floatingTileStates[node.id];
+      return {
+        safe: true,
+        phase: floatState ? floatState.progress : 1,
+        docked: !floatState || !!floatState.docked,
+        kind: node.kind,
+      };
+    }
     return { safe: true, phase: 1, kind: node.kind };
   }
 
@@ -387,6 +404,13 @@ export class YarnTimeEngine {
       state.safe = liftActive;
       state.active = liftActive;
       state.phase = liftActive ? 1 : 0;
+      return;
+    }
+    if (isFloatingTileNode(node)) {
+      var floatState = this.floatingTileStates[node.id];
+      state.safe = true;
+      state.docked = !floatState || !!floatState.docked;
+      state.phase = floatState ? floatState.progress : 1;
       return;
     }
     state.safe = true;
@@ -599,6 +623,80 @@ export class YarnTimeEngine {
         state.animating = false;
       }
     });
+  }
+
+  createInitialFloatingTileStates() {
+    var states = {};
+    (this.level.nodes || []).forEach(function (node) {
+      if (!isFloatingTileNode(node)) return;
+      var path = normalizeFloatingTilePath(node);
+      var cycleDuration = Math.max(900, Number(node.cycleDuration || node.floatCycleDuration) || 3600);
+      var holdRatio = clampRange(
+        node.holdRatio != null ? Number(node.holdRatio) : 0.28,
+        0.08,
+        0.72
+      );
+      var phaseOffset = clamp01(Number(node.initialPhase) || 0);
+      var state = {
+        id: node.id,
+        path: path,
+        elapsed: phaseOffset * cycleDuration,
+        cycleDuration: cycleDuration,
+        holdRatio: holdRatio,
+        progress: 1,
+        docked: true,
+        position: clonePoint(path[0]),
+        from: clonePoint(path[0]),
+        to: clonePoint(path[0]),
+      };
+      applyFloatingTileSample(state, sampleFloatingTilePosition(state));
+      states[node.id] = state;
+    });
+    return states;
+  }
+
+  updateFloatingTileStates(dt) {
+    var delta = Number(dt) || 0;
+    var timeMode = this.time && this.time.mode;
+    if (timeMode === 'pause') delta = 0;
+    else if (timeMode === 'rewind') delta = -delta;
+
+    var self = this;
+    Object.keys(this.floatingTileStates || {}).forEach(function (nodeId) {
+      var state = self.floatingTileStates[nodeId];
+      if (!state) return;
+      state.elapsed = (Number(state.elapsed) || 0) + delta;
+      applyFloatingTileSample(state, sampleFloatingTilePosition(state));
+    });
+    this.applyFloatingTilePositions();
+  }
+
+  applyFloatingTilePositions() {
+    var self = this;
+    Object.keys(this.floatingTileStates || {}).forEach(function (nodeId) {
+      var node = self.nodeMap[nodeId];
+      var state = self.floatingTileStates[nodeId];
+      if (!node || !state || !state.position) return;
+      node.x = state.position.x;
+      node.y = state.position.y;
+      node.z = Number(state.position.z) || 0;
+    });
+  }
+
+  syncActorsToFloatingTiles() {
+    if (!this.level) return;
+    if (this.cat && this.cat.nodeId && (!this.cat.move || this.cat.mode !== 'chasing')) {
+      this.syncActorToFloatingTile(this.cat, this.cat.nodeId);
+    }
+    if (this.yarn && !this.yarn.isHeld && this.yarn.nodeId) {
+      this.syncActorToFloatingTile(this.yarn, this.yarn.nodeId);
+    }
+  }
+
+  syncActorToFloatingTile(actor, nodeId) {
+    var node = this.nodeMap[nodeId];
+    if (!actor || !isFloatingTileNode(node)) return;
+    actor.pos = clonePoint(node);
   }
 
   rotateBridgeAt(point) {
@@ -933,6 +1031,10 @@ export class YarnTimeEngine {
         this.resetCatToSafeNode();
         return;
       }
+      if (!this.canMoveBetweenNodeIds(move.fromNodeId, move.toNodeId)) {
+        this.waitCatForPath(move.fromNodeId);
+        return;
+      }
       var dist = pointDistance(this.cat.pos, targetNode);
       if (dist <= remaining || dist < 0.0001) {
         this.cat.pos = clonePoint(targetNode);
@@ -981,6 +1083,17 @@ export class YarnTimeEngine {
     this.yarn.pos = clonePoint(node);
     this.yarn.isHeld = false;
     this.yarn.validDropNodeId = '';
+  }
+
+  waitCatForPath(anchorNodeId) {
+    var anchor = this.nodeMap[anchorNodeId] || this.nodeMap[this.cat.nodeId];
+    if (anchor) {
+      this.cat.nodeId = anchor.id;
+      this.cat.pos = clonePoint(anchor);
+    }
+    this.cat.mode = 'waiting';
+    this.cat.move = null;
+    this.cat.targetNodeId = this.yarn && this.yarn.nodeId ? this.yarn.nodeId : '';
   }
 
   handleNodeArrival(node) {
@@ -1035,11 +1148,22 @@ export class YarnTimeEngine {
     (this.level.nodes || []).forEach(function (candidate) {
       if (!candidate || candidate.id === nodeId) return;
       if (!self.isNodeWalkable(candidate.id)) return;
-      if (isGridAdjacent(node, candidate) || self.canPassThroughBridgeHole(node, candidate)) {
+      if (self.canMoveBetweenNodes(node, candidate)) {
         result.push(candidate.id);
       }
     });
     return result;
+  }
+
+  canMoveBetweenNodeIds(fromNodeId, toNodeId) {
+    var from = this.nodeMap[fromNodeId];
+    var to = this.nodeMap[toNodeId];
+    return this.canMoveBetweenNodes(from, to);
+  }
+
+  canMoveBetweenNodes(from, to) {
+    if (!from || !to) return false;
+    return isGridAdjacent(from, to) || this.canPassThroughBridgeHole(from, to);
   }
 
   canPassThroughBridgeHole(a, b) {
@@ -1208,6 +1332,7 @@ export class YarnTimeEngine {
     this.pointer = null;
     this.bridgeStates = {};
     this.liftBridgeStates = {};
+    this.floatingTileStates = {};
   }
 }
 
@@ -1238,6 +1363,87 @@ function clonePoint(point) {
     y: point.y,
     z: Number(point.z) || 0,
   };
+}
+
+function isFloatingTileNode(node) {
+  return !!(node && (node.kind === 'floating-tile' || node.kind === 'floating'));
+}
+
+function normalizeFloatingTilePath(node) {
+  var rawPath = Array.isArray(node && node.motionPath) && node.motionPath.length
+    ? node.motionPath
+    : Array.isArray(node && node.path) && node.path.length
+      ? node.path
+      : [node];
+  return rawPath.map(function (point) {
+    return {
+      id: node.id,
+      x: Number(point && point.x != null ? point.x : node.x) || 0,
+      y: Number(point && point.y != null ? point.y : node.y) || 0,
+      z: Number(point && point.z != null ? point.z : node.z) || 0,
+    };
+  });
+}
+
+function sampleFloatingTilePosition(state) {
+  var path = state && Array.isArray(state.path) ? state.path : [];
+  if (path.length <= 1) {
+    var single = clonePoint(path[0] || { x: 0, y: 0, z: 0 });
+    return {
+      position: single,
+      from: single,
+      to: single,
+      progress: 1,
+      docked: true,
+    };
+  }
+
+  var legCount = Math.max(1, (path.length - 1) * 2);
+  var cycleDuration = Math.max(900, Number(state.cycleDuration) || 3600);
+  var legDuration = cycleDuration / legCount;
+  var cycleTime = positiveModulo(Number(state.elapsed) || 0, cycleDuration);
+  var legIndex = Math.min(legCount - 1, Math.floor(cycleTime / legDuration));
+  var legTime = cycleTime - legIndex * legDuration;
+  var legPhase = clamp01(legTime / legDuration);
+  var forward = legIndex < path.length - 1;
+  var reverseIndex = legIndex - (path.length - 1);
+  var pathIndex = forward ? legIndex : path.length - 1 - reverseIndex;
+  var from = path[pathIndex];
+  var to = forward ? path[pathIndex + 1] : path[pathIndex - 1];
+  var holdRatio = clampRange(Number(state.holdRatio) || 0.28, 0.08, 0.72);
+
+  if (legPhase <= holdRatio) {
+    return {
+      position: clonePoint(from),
+      from: clonePoint(from),
+      to: clonePoint(to),
+      progress: 0,
+      docked: true,
+    };
+  }
+
+  var movePhase = (legPhase - holdRatio) / Math.max(0.001, 1 - holdRatio);
+  var eased = easeInOutCubic(movePhase);
+  return {
+    position: {
+      id: state.id || '',
+      x: Number(from.x) + (Number(to.x) - Number(from.x)) * eased,
+      y: Number(from.y) + (Number(to.y) - Number(from.y)) * eased,
+      z: (Number(from.z) || 0) + ((Number(to.z) || 0) - (Number(from.z) || 0)) * eased,
+    },
+    from: clonePoint(from),
+    to: clonePoint(to),
+    progress: eased,
+    docked: false,
+  };
+}
+
+function applyFloatingTileSample(state, sample) {
+  state.position = sample.position;
+  state.from = sample.from;
+  state.to = sample.to;
+  state.progress = sample.progress;
+  state.docked = sample.docked;
 }
 
 function isGridAdjacent(a, b) {

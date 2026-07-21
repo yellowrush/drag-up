@@ -2741,7 +2741,7 @@ function createRedesignedYarnTimeChallenge13() {
     liftingBridges: [
       {
         id: 'north-lift',
-        center: { x: 11, y: 1, z: 0 },
+        center: { x: 9, y: 5, z: 0 },
         length: 3,
         orientation: 'horizontal',
         lowerZ: 0,
@@ -2777,23 +2777,23 @@ function createRedesignedYarnTimeChallenge13() {
       }),
       yarnTile('stair-up', 7, 3, 0, 'stair', { stairDirection: 'east' }),
       yarnTile('upper-a', 8, 3, 1, 'safe'),
-      yarnTile('upper-b', 8, 2, 1, 'safe'),
-      yarnTile('upper-c', 9, 2, 1, 'safe'),
-      yarnTile('upper-d', 9, 1, 1, 'safe'),
-      yarnTile('lift-high-left', 10, 1, 1, 'lifting-bridge', { liftBridgeId: 'north-lift' }),
-      yarnTile('lift-high-center', 11, 1, 1, 'lifting-bridge', { liftBridgeId: 'north-lift', liftBridgeCenter: true }),
-      yarnTile('lift-high-right', 12, 1, 1, 'lifting-bridge', { liftBridgeId: 'north-lift' }),
-      yarnTile('lift-low-left', 10, 1, 0, 'lifting-bridge', { liftBridgeId: 'north-lift' }),
-      yarnTile('lift-low-center', 11, 1, 0, 'lifting-bridge', { liftBridgeId: 'north-lift', liftBridgeCenter: true }),
-      yarnTile('lift-low-right', 12, 1, 0, 'lifting-bridge', { liftBridgeId: 'north-lift' }),
-      yarnTile('final-spike', 13, 1, 1, 'spike', {
+      yarnTile('upper-b', 8, 4, 1, 'safe'),
+      yarnTile('upper-c', 9, 4, 1, 'safe'),
+      yarnTile('upper-d', 10, 4, 1, 'safe'),
+      yarnTile('lift-high-left', 8, 5, 1, 'lifting-bridge', { liftBridgeId: 'north-lift' }),
+      yarnTile('lift-high-center', 9, 5, 1, 'lifting-bridge', { liftBridgeId: 'north-lift', liftBridgeCenter: true }),
+      yarnTile('lift-high-right', 10, 5, 1, 'lifting-bridge', { liftBridgeId: 'north-lift' }),
+      yarnTile('lift-low-left', 8, 5, 0, 'lifting-bridge', { liftBridgeId: 'north-lift' }),
+      yarnTile('lift-low-center', 9, 5, 0, 'lifting-bridge', { liftBridgeId: 'north-lift', liftBridgeCenter: true }),
+      yarnTile('lift-low-right', 10, 5, 0, 'lifting-bridge', { liftBridgeId: 'north-lift' }),
+      yarnTile('final-spike', 11, 5, 1, 'spike', {
         initialPhase: 0.58,
         cycleDuration: 3200,
         activeFrom: 0.25,
         activeTo: 0.9,
         bridge: true,
       }),
-      yarnTile('goal', 14, 1, 1, 'goal'),
+      yarnTile('goal', 12, 5, 1, 'goal'),
       yarnTile('start-south-leaf', 0, 2, 0, 'safe'),
       yarnTile('crumble-north-leaf', 3, 0, 0, 'crumble', {
         initialIntegrity: 0,
@@ -2809,8 +2809,8 @@ function createRedesignedYarnTimeChallenge13() {
         activeTo: 0.9,
         bridge: true,
       }),
-      yarnTile('upper-balcony', 8, 4, 1, 'safe'),
-      yarnTile('upper-end-leaf', 14, 2, 1, 'safe'),
+      yarnTile('upper-balcony', 8, 6, 1, 'safe'),
+      yarnTile('upper-end-leaf', 12, 6, 1, 'safe'),
     ],
     cat: {
       startNode: 'start',
@@ -2861,7 +2861,7 @@ function createRedesignedYarnTimeChallenge14() {
     liftingBridges: [
       {
         id: 'upper-lift',
-        center: { x: 12, y: 2, z: 0 },
+        center: { x: 10, y: 5, z: 0 },
         length: 3,
         orientation: 'horizontal',
         lowerZ: 0,
@@ -2898,17 +2898,17 @@ function createRedesignedYarnTimeChallenge14() {
       }),
       yarnTile('stair-up', 9, 3, 0, 'stair', { stairDirection: 'east' }),
       yarnTile('upper-a', 10, 3, 1, 'safe'),
-      yarnTile('upper-b', 10, 2, 1, 'safe'),
-      yarnTile('lift-high-left', 11, 2, 1, 'lifting-bridge', { liftBridgeId: 'upper-lift' }),
-      yarnTile('lift-high-center', 12, 2, 1, 'lifting-bridge', { liftBridgeId: 'upper-lift', liftBridgeCenter: true }),
-      yarnTile('lift-high-right', 13, 2, 1, 'lifting-bridge', { liftBridgeId: 'upper-lift' }),
-      yarnTile('lift-low-left', 11, 2, 0, 'lifting-bridge', { liftBridgeId: 'upper-lift' }),
-      yarnTile('lift-low-center', 12, 2, 0, 'lifting-bridge', { liftBridgeId: 'upper-lift', liftBridgeCenter: true }),
-      yarnTile('lift-low-right', 13, 2, 0, 'lifting-bridge', { liftBridgeId: 'upper-lift' }),
-      yarnTile('upper-key', 14, 2, 1, 'safe'),
-      yarnTile('final-switch', 14, 1, 1, 'switch', { opensDoorId: 'final-door' }),
-      yarnTile('final-door', 15, 2, 1, 'door', { initialOpen: false, bridge: true }),
-      yarnTile('goal', 16, 2, 1, 'goal'),
+      yarnTile('upper-b', 10, 4, 1, 'safe'),
+      yarnTile('lift-high-left', 9, 5, 1, 'lifting-bridge', { liftBridgeId: 'upper-lift' }),
+      yarnTile('lift-high-center', 10, 5, 1, 'lifting-bridge', { liftBridgeId: 'upper-lift', liftBridgeCenter: true }),
+      yarnTile('lift-high-right', 11, 5, 1, 'lifting-bridge', { liftBridgeId: 'upper-lift' }),
+      yarnTile('lift-low-left', 9, 5, 0, 'lifting-bridge', { liftBridgeId: 'upper-lift' }),
+      yarnTile('lift-low-center', 10, 5, 0, 'lifting-bridge', { liftBridgeId: 'upper-lift', liftBridgeCenter: true }),
+      yarnTile('lift-low-right', 11, 5, 0, 'lifting-bridge', { liftBridgeId: 'upper-lift' }),
+      yarnTile('upper-key', 12, 5, 1, 'safe'),
+      yarnTile('final-switch', 12, 4, 1, 'switch', { opensDoorId: 'final-door' }),
+      yarnTile('final-door', 13, 5, 1, 'door', { initialOpen: false, bridge: true }),
+      yarnTile('goal', 14, 5, 1, 'goal'),
       yarnTile('start-south-leaf', 0, 5, 0, 'safe'),
       yarnTile('door-south-leaf', 2, 5, 0, 'safe'),
       yarnTile('crumble-south-leaf', 4, 5, 0, 'crumble', {
@@ -2925,8 +2925,8 @@ function createRedesignedYarnTimeChallenge14() {
         activeTo: 0.91,
         bridge: true,
       }),
-      yarnTile('upper-south-leaf', 10, 4, 1, 'safe'),
-      yarnTile('upper-final-leaf', 14, 3, 1, 'safe'),
+      yarnTile('upper-south-leaf', 10, 6, 1, 'safe'),
+      yarnTile('upper-final-leaf', 14, 6, 1, 'safe'),
     ],
     cat: {
       startNode: 'start',
@@ -2977,7 +2977,7 @@ function createRedesignedYarnTimeChallenge15() {
     liftingBridges: [
       {
         id: 'tunnel-lift',
-        center: { x: 12, y: 2, z: 0 },
+        center: { x: 10, y: 5, z: 0 },
         length: 3,
         orientation: 'horizontal',
         lowerZ: 0,
@@ -3013,50 +3013,50 @@ function createRedesignedYarnTimeChallenge15() {
         bridge: true,
       }),
       yarnTile('tunnel-entry-a', 9, 3, 0, 'safe'),
-      yarnTile('tunnel-entry-b', 10, 3, 0, 'safe'),
-      yarnTile('tunnel-entry-c', 10, 2, 0, 'safe'),
-      yarnTile('tunnel-entry-d', 10, 1, 0, 'safe'),
-      yarnTile('tunnel-entry-e', 11, 1, 0, 'safe'),
-      yarnTile('tunnel-north', 12, 1, 0, 'safe'),
-      yarnTile('lift-high-left', 11, 2, 1, 'lifting-bridge', {
+      yarnTile('tunnel-entry-b', 9, 4, 0, 'safe'),
+      yarnTile('tunnel-entry-c', 10, 3, 0, 'safe'),
+      yarnTile('tunnel-entry-d', 8, 5, 0, 'safe'),
+      yarnTile('tunnel-entry-e', 11, 4, 0, 'safe'),
+      yarnTile('tunnel-north', 10, 4, 0, 'safe'),
+      yarnTile('lift-high-left', 9, 5, 1, 'lifting-bridge', {
         liftBridgeId: 'tunnel-lift',
         bridgeHoleOnly: true,
       }),
-      yarnTile('lift-high-center', 12, 2, 1, 'lifting-bridge', {
-        liftBridgeId: 'tunnel-lift',
-        liftBridgeCenter: true,
-        bridgeHoleOnly: true,
-      }),
-      yarnTile('lift-high-right', 13, 2, 1, 'lifting-bridge', {
-        liftBridgeId: 'tunnel-lift',
-        bridgeHoleOnly: true,
-      }),
-      yarnTile('lift-low-left', 11, 2, 0, 'lifting-bridge', {
-        liftBridgeId: 'tunnel-lift',
-        bridgeHoleOnly: true,
-      }),
-      yarnTile('lift-low-center', 12, 2, 0, 'lifting-bridge', {
+      yarnTile('lift-high-center', 10, 5, 1, 'lifting-bridge', {
         liftBridgeId: 'tunnel-lift',
         liftBridgeCenter: true,
         bridgeHoleOnly: true,
       }),
-      yarnTile('lift-low-right', 13, 2, 0, 'lifting-bridge', {
+      yarnTile('lift-high-right', 11, 5, 1, 'lifting-bridge', {
         liftBridgeId: 'tunnel-lift',
         bridgeHoleOnly: true,
       }),
-      yarnTile('tunnel-south', 12, 3, 0, 'safe'),
-      yarnTile('stair-up', 13, 3, 0, 'stair', { stairDirection: 'east' }),
-      yarnTile('upper-after', 14, 3, 1, 'safe'),
-      yarnTile('final-switch', 14, 2, 1, 'switch', { opensDoorId: 'final-door' }),
-      yarnTile('final-door', 15, 3, 1, 'door', { initialOpen: false, bridge: true }),
-      yarnTile('final-spike', 16, 3, 1, 'spike', {
+      yarnTile('lift-low-left', 9, 5, 0, 'lifting-bridge', {
+        liftBridgeId: 'tunnel-lift',
+        bridgeHoleOnly: true,
+      }),
+      yarnTile('lift-low-center', 10, 5, 0, 'lifting-bridge', {
+        liftBridgeId: 'tunnel-lift',
+        liftBridgeCenter: true,
+        bridgeHoleOnly: true,
+      }),
+      yarnTile('lift-low-right', 11, 5, 0, 'lifting-bridge', {
+        liftBridgeId: 'tunnel-lift',
+        bridgeHoleOnly: true,
+      }),
+      yarnTile('tunnel-south', 10, 6, 0, 'safe'),
+      yarnTile('stair-up', 11, 6, 0, 'stair', { stairDirection: 'east' }),
+      yarnTile('upper-after', 12, 6, 1, 'safe'),
+      yarnTile('final-switch', 12, 5, 1, 'switch', { opensDoorId: 'final-door' }),
+      yarnTile('final-door', 13, 6, 1, 'door', { initialOpen: false, bridge: true }),
+      yarnTile('final-spike', 14, 6, 1, 'spike', {
         initialPhase: 0.62,
         cycleDuration: 3400,
         activeFrom: 0.24,
         activeTo: 0.9,
         bridge: true,
       }),
-      yarnTile('goal', 17, 3, 1, 'goal'),
+      yarnTile('goal', 15, 6, 1, 'goal'),
       yarnTile('start-south-leaf', 0, 5, 0, 'safe'),
       yarnTile('entry-north-leaf', 1, 2, 0, 'safe'),
       yarnTile('crumble-south-leaf', 4, 5, 0, 'crumble', {
@@ -3073,8 +3073,8 @@ function createRedesignedYarnTimeChallenge15() {
         activeTo: 0.9,
         bridge: true,
       }),
-      yarnTile('upper-dead', 14, 4, 1, 'safe'),
-      yarnTile('tunnel-dead', 11, 0, 0, 'safe'),
+      yarnTile('upper-dead', 12, 7, 1, 'safe'),
+      yarnTile('tunnel-dead', 11, 3, 0, 'safe'),
     ],
     cat: {
       startNode: 'start',
@@ -3101,6 +3101,443 @@ function createRedesignedYarnTimeChallenge15() {
   };
 }
 
+function createYarnTimeFloatingTutorial16() {
+  return {
+    id: 'yarn-time-challenge-16',
+    label: '\u6bdb\u7ebf\u7403 16\uff1a\u6f02\u6d6e\u7816\u5757',
+    blurb: 'yarn-time',
+    instruction: '\u7b49\u6f02\u6d6e\u7816\u5757\u9760\u8fd1\uff0c\u628a\u6bdb\u7ebf\u7403\u653e\u4e0a\u53bb\uff0c\u5c0f\u732b\u4f1a\u88ab\u8f7d\u5230\u5bf9\u9762\u3002',
+    roomStyle: 'isometric-grid',
+    grid: {
+      tileWidth: 38,
+      tileHeight: 20,
+      tileDepth: 18,
+    },
+    nodes: [
+      yarnTile('start', 0, 2, 0, 'start'),
+      yarnTile('wait-left', 1, 2, 0, 'safe'),
+      yarnTile('float-east', 2, 2, 0, 'floating-tile', {
+        motionPath: [
+          { x: 2, y: 2, z: 0 },
+          { x: 4, y: 2, z: 0 },
+        ],
+        cycleDuration: 7200,
+        holdRatio: 0.62,
+      }),
+      yarnTile('mid-left', 5, 2, 0, 'safe'),
+      yarnTile('wait-front', 5, 3, 0, 'safe'),
+      yarnTile('float-depth', 5, 4, 0, 'floating-tile', {
+        motionPath: [
+          { x: 5, y: 4, z: 0 },
+          { x: 5, y: 6, z: 0 },
+        ],
+        cycleDuration: 7200,
+        holdRatio: 0.62,
+        initialPhase: 0.08,
+      }),
+      yarnTile('back-pad', 5, 7, 0, 'safe'),
+      yarnTile('wait-low', 6, 7, 0, 'safe'),
+      yarnTile('float-up', 7, 7, 0, 'floating-tile', {
+        motionPath: [
+          { x: 7, y: 7, z: 0 },
+          { x: 7, y: 7, z: 1 },
+        ],
+        cycleDuration: 6800,
+        holdRatio: 0.62,
+        initialPhase: 0.12,
+      }),
+      yarnTile('sky-pad', 8, 7, 1, 'safe'),
+      yarnTile('goal', 9, 7, 1, 'goal'),
+    ],
+    cat: {
+      startNode: 'start',
+      visionRadius: 1.5,
+      moveSpeed: 0.00118,
+    },
+    yarn: {
+      startNode: 'start',
+      placementRadius: 99,
+    },
+    clock: {
+      actions: [],
+      energy: 0,
+      pauseDuration: 0,
+      rewindDuration: 0,
+      rechargeDuration: 8000,
+    },
+    time: {
+      startAt: 0,
+    },
+    goal: {
+      nodeId: 'goal',
+    },
+  };
+}
+
+function createYarnTimeMultiRouteChallenge17() {
+  return {
+    id: 'yarn-time-challenge-17',
+    label: '\u6bdb\u7ebf\u7403 17\uff1a\u7a7a\u4e2d\u53cc\u8def',
+    blurb: 'yarn-time',
+    instruction: '\u6253\u5f00\u95e8\u540e\u53ef\u4ee5\u9009\u4e0a\u65b9\u65cb\u8f6c\u6865\uff0c\u4e5f\u53ef\u4ee5\u9009\u4e0b\u65b9\u6f02\u6d6e\u7816\u5757\u3002',
+    roomStyle: 'isometric-grid',
+    grid: {
+      tileWidth: 32,
+      tileHeight: 17,
+      tileDepth: 18,
+    },
+    rotatingBridges: [
+      {
+        id: 'north-turn',
+        center: { x: 5, y: 2, z: 0 },
+        length: 3,
+        initialOrientation: 'vertical',
+        duration: 440,
+      },
+    ],
+    liftingBridges: [
+      {
+        id: 'south-lift',
+        center: { x: 7, y: 4, z: 0 },
+        length: 3,
+        orientation: 'horizontal',
+        lowerZ: 0,
+        upperZ: 1,
+        initialZ: 0,
+        duration: 560,
+      },
+    ],
+    nodes: [
+      yarnTile('start', 0, 3, 0, 'start'),
+      yarnTile('entry', 1, 3, 0, 'safe'),
+      yarnTile('gate-switch', 1, 2, 0, 'switch', { opensDoorId: 'gate-door' }),
+      yarnTile('gate-door', 2, 3, 0, 'door', { initialOpen: false, bridge: true }),
+      yarnTile('hub', 3, 3, 0, 'safe'),
+
+      yarnTile('north-start', 3, 2, 0, 'safe'),
+      yarnTile('rot-west', 4, 2, 0, 'rotating-bridge', { bridgeId: 'north-turn' }),
+      yarnTile('rot-center', 5, 2, 0, 'rotating-bridge', { bridgeId: 'north-turn', bridgeCenter: true }),
+      yarnTile('rot-east', 6, 2, 0, 'rotating-bridge', { bridgeId: 'north-turn' }),
+      yarnTile('rot-north', 5, 1, 0, 'rotating-bridge', { bridgeId: 'north-turn' }),
+      yarnTile('rot-south', 5, 3, 0, 'rotating-bridge', { bridgeId: 'north-turn' }),
+      yarnTile('north-spike', 7, 2, 0, 'spike', {
+        initialPhase: 0.58,
+        cycleDuration: 3600,
+        activeFrom: 0.24,
+        activeTo: 0.9,
+        bridge: true,
+      }),
+      yarnTile('north-stair', 8, 2, 0, 'stair', { stairDirection: 'east' }),
+      yarnTile('upper-north', 9, 2, 1, 'safe'),
+      yarnTile('upper-merge', 9, 3, 1, 'safe'),
+      yarnTile('goal', 10, 3, 1, 'goal'),
+
+      yarnTile('south-start', 3, 4, 0, 'safe'),
+      yarnTile('south-crumble', 4, 4, 0, 'crumble', {
+        initialIntegrity: 0.78,
+        safeAt: 0.46,
+        damageDuration: 7400,
+        recoverDuration: 1500,
+        bridge: true,
+      }),
+      yarnTile('south-approach', 5, 4, 0, 'safe'),
+      yarnTile('lift-low-left', 6, 4, 0, 'lifting-bridge', { liftBridgeId: 'south-lift' }),
+      yarnTile('lift-low-center', 7, 4, 0, 'lifting-bridge', { liftBridgeId: 'south-lift', liftBridgeCenter: true }),
+      yarnTile('lift-low-right', 8, 4, 0, 'lifting-bridge', { liftBridgeId: 'south-lift' }),
+      yarnTile('lift-high-left', 6, 4, 1, 'lifting-bridge', { liftBridgeId: 'south-lift' }),
+      yarnTile('lift-high-center', 7, 4, 1, 'lifting-bridge', { liftBridgeId: 'south-lift', liftBridgeCenter: true }),
+      yarnTile('lift-high-right', 8, 4, 1, 'lifting-bridge', { liftBridgeId: 'south-lift' }),
+      yarnTile('float-rise', 9, 4, 0, 'floating-tile', {
+        motionPath: [
+          { x: 9, y: 4, z: 0 },
+          { x: 9, y: 4, z: 1 },
+        ],
+        cycleDuration: 7200,
+        holdRatio: 0.62,
+        initialPhase: 0.04,
+      }),
+      yarnTile('upper-south', 9, 5, 1, 'safe'),
+    ],
+    cat: {
+      startNode: 'start',
+      visionRadius: 1.62,
+      moveSpeed: 0.0012,
+    },
+    yarn: {
+      startNode: 'start',
+      placementRadius: 99,
+    },
+    clock: {
+      actions: ['pause', 'rewind'],
+      energy: 3,
+      pauseDuration: 4700,
+      rewindDuration: 3500,
+      rechargeDuration: 8000,
+    },
+    time: {
+      startAt: 0,
+    },
+    goal: {
+      nodeId: 'goal',
+    },
+  };
+}
+
+function createYarnTimeMultiRouteChallenge18() {
+  return {
+    id: 'yarn-time-challenge-18',
+    label: '\u6bdb\u7ebf\u7403 18\uff1a\u4e0a\u4e0b\u56de\u73af',
+    blurb: 'yarn-time',
+    instruction: '\u4e0a\u5c42\u548c\u4e0b\u5c42\u90fd\u6709\u8def\uff0c\u7528\u4e0d\u540c\u673a\u5173\u627e\u5230\u5408\u6d41\u70b9\u3002',
+    roomStyle: 'isometric-grid',
+    grid: {
+      tileWidth: 30,
+      tileHeight: 16,
+      tileDepth: 18,
+    },
+    rotatingBridges: [
+      {
+        id: 'upper-turn',
+        center: { x: 7, y: 4, z: 1 },
+        length: 3,
+        initialOrientation: 'vertical',
+        duration: 460,
+      },
+    ],
+    liftingBridges: [
+      {
+        id: 'lower-lift',
+        center: { x: 8, y: 6, z: 0 },
+        length: 3,
+        orientation: 'horizontal',
+        lowerZ: 0,
+        upperZ: 1,
+        initialZ: 0,
+        duration: 580,
+      },
+    ],
+    nodes: [
+      yarnTile('start', 0, 5, 0, 'start'),
+      yarnTile('entry', 1, 5, 0, 'safe'),
+      yarnTile('gate-switch', 1, 4, 0, 'switch', { opensDoorId: 'gate-door' }),
+      yarnTile('gate-door', 2, 5, 0, 'door', { initialOpen: false, bridge: true }),
+      yarnTile('hub', 3, 5, 0, 'safe'),
+
+      yarnTile('upper-route-start', 3, 4, 0, 'safe'),
+      yarnTile('upper-stair', 4, 4, 0, 'stair', { stairDirection: 'east' }),
+      yarnTile('upper-west', 5, 4, 1, 'safe'),
+      yarnTile('upper-rot-west', 6, 4, 1, 'rotating-bridge', { bridgeId: 'upper-turn' }),
+      yarnTile('upper-rot-center', 7, 4, 1, 'rotating-bridge', { bridgeId: 'upper-turn', bridgeCenter: true }),
+      yarnTile('upper-rot-east', 8, 4, 1, 'rotating-bridge', { bridgeId: 'upper-turn' }),
+      yarnTile('upper-rot-north', 7, 3, 1, 'rotating-bridge', { bridgeId: 'upper-turn' }),
+      yarnTile('upper-rot-south', 7, 5, 1, 'rotating-bridge', { bridgeId: 'upper-turn' }),
+      yarnTile('upper-spike', 9, 4, 1, 'spike', {
+        initialPhase: 0.62,
+        cycleDuration: 3800,
+        activeFrom: 0.25,
+        activeTo: 0.9,
+        bridge: true,
+      }),
+      yarnTile('float-sky', 10, 4, 1, 'floating-tile', {
+        motionPath: [
+          { x: 10, y: 4, z: 1 },
+          { x: 10, y: 6, z: 1 },
+        ],
+        cycleDuration: 7600,
+        holdRatio: 0.62,
+        initialPhase: 0.06,
+      }),
+      yarnTile('upper-merge', 10, 7, 1, 'safe'),
+      yarnTile('final-merge', 11, 7, 1, 'safe'),
+      yarnTile('goal', 12, 7, 1, 'goal'),
+
+      yarnTile('lower-route-start', 3, 6, 0, 'safe'),
+      yarnTile('lower-crumble', 4, 6, 0, 'crumble', {
+        initialIntegrity: 0.74,
+        safeAt: 0.48,
+        damageDuration: 7600,
+        recoverDuration: 1500,
+        bridge: true,
+      }),
+      yarnTile('lower-spike', 5, 6, 0, 'spike', {
+        initialPhase: 0.58,
+        cycleDuration: 3600,
+        activeFrom: 0.24,
+        activeTo: 0.9,
+        bridge: true,
+      }),
+      yarnTile('lower-approach', 6, 6, 0, 'safe'),
+      yarnTile('lift-low-left', 7, 6, 0, 'lifting-bridge', { liftBridgeId: 'lower-lift' }),
+      yarnTile('lift-low-center', 8, 6, 0, 'lifting-bridge', { liftBridgeId: 'lower-lift', liftBridgeCenter: true }),
+      yarnTile('lift-low-right', 9, 6, 0, 'lifting-bridge', { liftBridgeId: 'lower-lift' }),
+      yarnTile('lift-high-left', 7, 6, 1, 'lifting-bridge', { liftBridgeId: 'lower-lift' }),
+      yarnTile('lift-high-center', 8, 6, 1, 'lifting-bridge', { liftBridgeId: 'lower-lift', liftBridgeCenter: true }),
+      yarnTile('lift-high-right', 9, 6, 1, 'lifting-bridge', { liftBridgeId: 'lower-lift' }),
+      yarnTile('lower-exit', 10, 6, 0, 'safe'),
+      yarnTile('float-up', 11, 6, 0, 'floating-tile', {
+        motionPath: [
+          { x: 11, y: 6, z: 0 },
+          { x: 11, y: 6, z: 1 },
+        ],
+        cycleDuration: 7200,
+        holdRatio: 0.62,
+        initialPhase: 0.1,
+      }),
+    ],
+    cat: {
+      startNode: 'start',
+      visionRadius: 1.66,
+      moveSpeed: 0.00118,
+    },
+    yarn: {
+      startNode: 'start',
+      placementRadius: 99,
+    },
+    clock: {
+      actions: ['pause', 'rewind'],
+      energy: 3,
+      pauseDuration: 5000,
+      rewindDuration: 3600,
+      rechargeDuration: 8200,
+    },
+    time: {
+      startAt: 0,
+    },
+    goal: {
+      nodeId: 'goal',
+    },
+  };
+}
+
+function createYarnTimeMultiRouteChallenge19() {
+  return {
+    id: 'yarn-time-challenge-19',
+    label: '\u6bdb\u7ebf\u7403 19\uff1a\u53cc\u7ebf\u5f00\u95e8',
+    blurb: 'yarn-time',
+    instruction: '\u5317\u7ebf\u548c\u5357\u7ebf\u90fd\u80fd\u5f00\u7ec8\u70b9\u95e8\uff0c\u5148\u9009\u597d\u4e00\u6761\u8def\u518d\u63a8\u8fdb\u3002',
+    roomStyle: 'isometric-grid',
+    grid: {
+      tileWidth: 29,
+      tileHeight: 15,
+      tileDepth: 18,
+    },
+    rotatingBridges: [
+      {
+        id: 'north-turn',
+        center: { x: 5, y: 3, z: 0 },
+        length: 3,
+        initialOrientation: 'vertical',
+        duration: 470,
+      },
+    ],
+    liftingBridges: [
+      {
+        id: 'south-lift',
+        center: { x: 7, y: 6, z: 0 },
+        length: 3,
+        orientation: 'horizontal',
+        lowerZ: 0,
+        upperZ: 1,
+        initialZ: 0,
+        duration: 600,
+      },
+    ],
+    nodes: [
+      yarnTile('start', 0, 5, 0, 'start'),
+      yarnTile('entry', 1, 5, 0, 'safe'),
+      yarnTile('gate-switch', 1, 4, 0, 'switch', { opensDoorId: 'gate-door' }),
+      yarnTile('gate-door', 2, 5, 0, 'door', { initialOpen: false, bridge: true }),
+      yarnTile('hub', 3, 5, 0, 'safe'),
+
+      yarnTile('north-a', 3, 4, 0, 'safe'),
+      yarnTile('north-b', 3, 3, 0, 'safe'),
+      yarnTile('rot-west', 4, 3, 0, 'rotating-bridge', { bridgeId: 'north-turn' }),
+      yarnTile('rot-center', 5, 3, 0, 'rotating-bridge', { bridgeId: 'north-turn', bridgeCenter: true }),
+      yarnTile('rot-east', 6, 3, 0, 'rotating-bridge', { bridgeId: 'north-turn' }),
+      yarnTile('rot-north', 5, 2, 0, 'rotating-bridge', { bridgeId: 'north-turn' }),
+      yarnTile('rot-south', 5, 4, 0, 'rotating-bridge', { bridgeId: 'north-turn' }),
+      yarnTile('north-spike', 7, 3, 0, 'spike', {
+        initialPhase: 0.6,
+        cycleDuration: 3900,
+        activeFrom: 0.24,
+        activeTo: 0.9,
+        bridge: true,
+      }),
+      yarnTile('north-stair', 8, 3, 0, 'stair', { stairDirection: 'east' }),
+      yarnTile('upper-north', 9, 3, 1, 'safe'),
+      yarnTile('float-sky', 10, 3, 1, 'floating-tile', {
+        motionPath: [
+          { x: 10, y: 3, z: 1 },
+          { x: 10, y: 5, z: 1 },
+        ],
+        cycleDuration: 7800,
+        holdRatio: 0.62,
+        initialPhase: 0.08,
+      }),
+      yarnTile('north-final-switch', 11, 5, 1, 'switch', { opensDoorId: 'final-door' }),
+
+      yarnTile('south-a', 3, 6, 0, 'safe'),
+      yarnTile('south-crumble', 4, 6, 0, 'crumble', {
+        initialIntegrity: 0.76,
+        safeAt: 0.48,
+        damageDuration: 7800,
+        recoverDuration: 1600,
+        bridge: true,
+      }),
+      yarnTile('south-spike', 5, 6, 0, 'spike', {
+        initialPhase: 0.56,
+        cycleDuration: 3700,
+        activeFrom: 0.22,
+        activeTo: 0.88,
+        bridge: true,
+      }),
+      yarnTile('lift-low-left', 6, 6, 0, 'lifting-bridge', { liftBridgeId: 'south-lift' }),
+      yarnTile('lift-low-center', 7, 6, 0, 'lifting-bridge', { liftBridgeId: 'south-lift', liftBridgeCenter: true }),
+      yarnTile('lift-low-right', 8, 6, 0, 'lifting-bridge', { liftBridgeId: 'south-lift' }),
+      yarnTile('lift-high-left', 6, 6, 1, 'lifting-bridge', { liftBridgeId: 'south-lift' }),
+      yarnTile('lift-high-center', 7, 6, 1, 'lifting-bridge', { liftBridgeId: 'south-lift', liftBridgeCenter: true }),
+      yarnTile('lift-high-right', 8, 6, 1, 'lifting-bridge', { liftBridgeId: 'south-lift' }),
+      yarnTile('south-exit', 9, 6, 0, 'safe'),
+      yarnTile('float-up', 9, 7, 0, 'floating-tile', {
+        motionPath: [
+          { x: 9, y: 7, z: 0 },
+          { x: 9, y: 7, z: 1 },
+        ],
+        cycleDuration: 7400,
+        holdRatio: 0.62,
+        initialPhase: 0.12,
+      }),
+      yarnTile('south-final-switch', 10, 7, 1, 'switch', { opensDoorId: 'final-door' }),
+      yarnTile('south-final-a', 11, 7, 1, 'safe'),
+
+      yarnTile('final-door', 11, 6, 1, 'door', { initialOpen: false, bridge: true }),
+      yarnTile('goal', 12, 6, 1, 'goal'),
+    ],
+    cat: {
+      startNode: 'start',
+      visionRadius: 1.7,
+      moveSpeed: 0.00116,
+    },
+    yarn: {
+      startNode: 'start',
+      placementRadius: 99,
+    },
+    clock: {
+      actions: ['pause', 'rewind'],
+      energy: 4,
+      pauseDuration: 5200,
+      rewindDuration: 3800,
+      rechargeDuration: 8200,
+    },
+    time: {
+      startAt: 0,
+    },
+    goal: {
+      nodeId: 'goal',
+    },
+  };
+}
+
 var strictYarnTimeChallengeStart = YARN_TIME_LEVELS.findIndex(function (level) {
   return level.id === 'yarn-time-challenge-12';
 });
@@ -3111,7 +3548,11 @@ if (strictYarnTimeChallengeStart >= 0) {
     createRedesignedYarnTimeChallenge12(),
     createRedesignedYarnTimeChallenge13(),
     createRedesignedYarnTimeChallenge14(),
-    createRedesignedYarnTimeChallenge15()
+    createRedesignedYarnTimeChallenge15(),
+    createYarnTimeFloatingTutorial16(),
+    createYarnTimeMultiRouteChallenge17(),
+    createYarnTimeMultiRouteChallenge18(),
+    createYarnTimeMultiRouteChallenge19()
   );
 }
 
