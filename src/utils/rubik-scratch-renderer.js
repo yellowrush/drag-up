@@ -329,24 +329,137 @@ function drawRubikTurnGuides(ctx, interaction, layout) {
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  var candidates = interaction.candidates.slice().sort(function (a, b) {
-    var aActive = getIsSameTurn(a, interaction.activeTurn) ? 1 : 0;
-    var bActive = getIsSameTurn(b, interaction.activeTurn) ? 1 : 0;
-    return aActive - bActive;
-  });
-  candidates.forEach(function (candidate) {
-    drawTurnGuideArrow(
-      ctx,
-      candidate,
-      layout.unit,
-      getIsSameTurn(candidate, interaction.activeTurn),
-      interaction.ambiguous,
-    );
+
+  if (interaction.mode === 'confirm') {
+    drawTurnGuideArrow(ctx, interaction.candidates[0], layout.unit, true, false, true);
+    drawTurnConfirmControls(ctx, interaction.confirm, layout.unit);
+    ctx.restore();
+    return;
+  }
+
+  var activeCandidates = interaction.activeTurn
+    ? interaction.candidates.filter(function (candidate) {
+      return getIsSameTurn(candidate, interaction.activeTurn);
+    })
+    : [];
+  if (activeCandidates.length) {
+    drawTurnGuideArrow(ctx, activeCandidates[0], layout.unit, true, interaction.ambiguous, false);
+    ctx.restore();
+    return;
+  }
+
+  drawSwipeStartCue(ctx, interaction, layout.unit);
+  ctx.restore();
+}
+
+function drawSwipeStartCue(ctx, interaction, unit) {
+  var center = interaction.hitCenter;
+  if (!center) return;
+  var t = Date.now() / 1000;
+  var pulse = (Math.sin(t * Math.PI * 2.1) + 1) / 2;
+  var radius = unit * (0.58 + pulse * 0.12);
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,246,188,0.72)';
+  ctx.fillStyle = 'rgba(255,231,153,0.1)';
+  ctx.lineWidth = Math.max(2.2, unit * 0.052);
+  ctx.shadowColor = 'rgba(255,226,150,0.32)';
+  ctx.shadowBlur = unit * 0.18;
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  var directions = getUniqueGuideDirections(interaction.candidates);
+  directions.slice(0, 4).forEach(function (direction) {
+    var sx = center.x + direction.x * unit * 0.28;
+    var sy = center.y + direction.y * unit * 0.28;
+    var ex = center.x + direction.x * unit * 0.92;
+    var ey = center.y + direction.y * unit * 0.92;
+    ctx.strokeStyle = 'rgba(255,255,255,0.34)';
+    ctx.fillStyle = 'rgba(255,255,255,0.34)';
+    ctx.lineWidth = Math.max(2, unit * 0.042);
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+    traceArrowHead(ctx, { x: ex, y: ey }, Math.atan2(direction.y, direction.x), unit * 0.13, 0.66);
   });
   ctx.restore();
 }
 
-function drawTurnGuideArrow(ctx, candidate, unit, active, ambiguous) {
+function getUniqueGuideDirections(candidates) {
+  var directions = [];
+  (candidates || []).forEach(function (candidate) {
+    var vector = candidate.vector || { x: 0, y: 0 };
+    var length = vectorLength(vector);
+    if (length <= 0) return;
+    var direction = {
+      x: vector.x / length,
+      y: vector.y / length,
+      angle: Math.atan2(vector.y, vector.x),
+    };
+    var hasClose = directions.some(function (existing) {
+      var delta = Math.abs(existing.angle - direction.angle);
+      delta = Math.min(delta, Math.PI * 2 - delta);
+      return delta < 0.24;
+    });
+    if (!hasClose) directions.push(direction);
+  });
+  return directions.sort(function (a, b) {
+    return a.angle - b.angle;
+  });
+}
+
+function drawTurnConfirmControls(ctx, confirm, unit) {
+  if (!confirm) return;
+  var radius = confirm.radius || unit * 0.64;
+  ctx.save();
+  if (confirm.total > 1) {
+    drawCircleIconButton(ctx, confirm.prevCenter, radius, 'prev', unit, false);
+    drawCircleIconButton(ctx, confirm.nextCenter, radius, 'next', unit, false);
+  }
+  drawCircleIconButton(ctx, confirm.confirmCenter, radius * 1.04, 'confirm', unit, true);
+  ctx.restore();
+}
+
+function drawCircleIconButton(ctx, center, radius, kind, unit, primary) {
+  if (!center) return;
+  ctx.save();
+  ctx.shadowColor = primary ? 'rgba(65,135,78,0.42)' : 'rgba(0,0,0,0.24)';
+  ctx.shadowBlur = unit * (primary ? 0.18 : 0.08);
+  ctx.fillStyle = primary ? 'rgba(208,249,182,0.94)' : 'rgba(255,246,205,0.88)';
+  ctx.strokeStyle = primary ? 'rgba(45,127,68,0.82)' : 'rgba(139,101,51,0.54)';
+  ctx.lineWidth = Math.max(2, unit * 0.042);
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  if (kind === 'confirm') {
+    drawPawPrint(ctx, center.x, center.y + radius * 0.02, radius * 0.78);
+  } else {
+    drawChevronIcon(ctx, center, radius * 0.58, kind === 'next' ? 1 : -1);
+  }
+  ctx.restore();
+}
+
+function drawChevronIcon(ctx, center, size, dir) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(95,62,30,0.9)';
+  ctx.lineWidth = Math.max(3, size * 0.18);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(center.x - dir * size * 0.28, center.y - size * 0.42);
+  ctx.lineTo(center.x + dir * size * 0.26, center.y);
+  ctx.lineTo(center.x - dir * size * 0.28, center.y + size * 0.42);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawTurnGuideArrow(ctx, candidate, unit, active, ambiguous, showButton) {
+  if (!candidate) return;
   var sx = candidate.start ? candidate.start.x : 0;
   var sy = candidate.start ? candidate.start.y : 0;
   var ex = candidate.end ? candidate.end.x : sx + candidate.vector.x;
@@ -366,7 +479,7 @@ function drawTurnGuideArrow(ctx, candidate, unit, active, ambiguous) {
   var buttonCenter = candidate.buttonCenter || { x: ex, y: ey };
 
   ctx.save();
-  if (active) {
+  if (active && showButton) {
     ctx.fillStyle = 'rgba(255,229,149,0.13)';
     ctx.beginPath();
     ctx.arc(buttonCenter.x, buttonCenter.y, Math.max(unit * 0.68, (candidate.hitRadius || 0) * 0.86), 0, Math.PI * 2);
