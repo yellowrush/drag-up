@@ -16,6 +16,13 @@ export const ACCESSORIES = [
     unlockType: 'score',
   },
   {
+    id: 'pixel-gamepad-pin',
+    name: '\u50cf\u7d20\u624b\u67c4\u53d1\u5361',
+    requiredScore: 85,
+    description: '\u50cf\u7d20\u5c0f\u624b\u67c4\uff0c\u901a\u5173\u65f6\u8df3\u51fa\u5f69\u8272\u65b9\u5757',
+    unlockType: 'score',
+  },
+  {
     id: 'blue-cap',
     name: '\u732b\u811a\u5370\u53d1\u5361',
     requiredScore: 100,
@@ -23,10 +30,24 @@ export const ACCESSORIES = [
     unlockType: 'score',
   },
   {
+    id: 'blue-collar-bell',
+    name: '\u84dd\u9886\u5706\u94c3',
+    requiredScore: 120,
+    description: '\u84dd\u8272\u9879\u5708\u6302\u4e00\u9897\u5706\u5706\u91d1\u94c3',
+    unlockType: 'score',
+  },
+  {
     id: 'star-crown',
     name: '\u661f\u661f\u738b\u51a0',
     requiredScore: 180,
     description: '\u95ea\u4eae\u7684\u4e09\u661f\u738b\u51a0',
+    unlockType: 'score',
+  },
+  {
+    id: 'patrol-cap',
+    name: '\u5de1\u903b\u8b66\u5e3d',
+    requiredScore: 240,
+    description: '\u6d77\u84dd\u5e3d\u6a90\u548c\u91d1\u8272\u661f\u5fbd',
     unlockType: 'score',
   },
   {
@@ -75,6 +96,13 @@ export const EXPRESSIONS = [
     unlockType: 'score',
   },
   {
+    id: 'night-spark',
+    name: '\u591c\u5f71\u5927\u773c',
+    requiredScore: 40,
+    description: '\u9ed1\u4eae\u5c0f\u8138\uff0c\u773c\u775b\u50cf\u591c\u91cc\u53d1\u5149',
+    unlockType: 'score',
+  },
+  {
     id: 'surprised',
     name: '\u60ca\u8bb6',
     requiredScore: 70,
@@ -86,6 +114,13 @@ export const EXPRESSIONS = [
     name: '\u751f\u6c14',
     requiredScore: 130,
     description: '\u9f13\u8138\u5c0f\u4e0d\u670d',
+    unlockType: 'score',
+  },
+  {
+    id: 'round-blue-smile',
+    name: '\u5706\u84dd\u7b11\u8138',
+    requiredScore: 160,
+    description: '\u84dd\u767d\u5706\u8138\u548c\u5f00\u6717\u7b11\u53e3',
     unlockType: 'score',
   },
   {

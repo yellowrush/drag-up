@@ -1,4 +1,5 @@
 import { PlayEngine } from './utils/play-engine.js'
+import { renderCubAvatar } from './utils/cub.js'
 import { GameStorage } from './utils/storage.js'
 import { LEVELS, getNextLevel } from './utils/levels-data.js'
 import { RUBIK_SCRATCH_LEVELS, getNextRubikScratchLevel } from './utils/rubik-scratch-levels.js'
@@ -74,6 +75,7 @@ var LEADERBOARD_INVALID_ENV_TEXT = '\u4e91\u73af\u5883\u672a\u7ed1\u5b9a\u5f53\u
 var LEADERBOARD_FUNCTION_MISSING_TEXT = '\u6392\u884c\u699c\u4e91\u51fd\u6570\u672a\u90e8\u7f72'
 var LEADERBOARD_IDENTITY_FAILED_TEXT = '\u65e0\u6cd5\u83b7\u53d6\u5fae\u4fe1\u7528\u6237\u8eab\u4efd'
 var LEADERBOARD_PRIVACY_UNDECLARED_TEXT = '\u8bf7\u5148\u914d\u7f6e\u9690\u79c1\u4fdd\u62a4\u6307\u5f15'
+var LEADERBOARD_SECURITY_INFO_FAILED_TEXT = '\u672c\u5730\u5f00\u53d1\u8005\u5de5\u5177\u6682\u65e0\u6cd5\u83b7\u53d6\u5b89\u5168\u4fe1\u606f'
 var LEADERBOARD_WRITE_FAILED_TEXT = '\u79ef\u5206\u540c\u6b65\u5931\u8d25'
 var LEADERBOARD_READ_FAILED_TEXT = '\u6392\u884c\u699c\u8bfb\u53d6\u5931\u8d25'
 var LEADERBOARD_SYNC_DELAY = 1200
@@ -113,10 +115,20 @@ var SCORE_MODAL_PAD = 14
 var SCORE_MODAL_ROW_H = 58
 var SCORE_MODAL_GAP = 8
 var SCORE_MODAL_HEADER_H = 96
+var SCORE_TRYON_H = 82
+var SCORE_TRYON_GAP = 8
 var LEADERBOARD_ROW_H = 48
+var SCORE_MODAL_CONTENT_H =
+  SCORE_MODAL_PAD * 2 +
+  SCORE_MODAL_HEADER_H +
+  SCORE_TRYON_H +
+  SCORE_TRYON_GAP +
+  ACCESSORIES.length * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP)
+var SCORE_MODAL_MAX_H = Math.min(H - 96, Math.floor(H * 0.74))
+if (SCORE_MODAL_MAX_H < 320) SCORE_MODAL_MAX_H = Math.max(280, H - 120)
 var SCORE_MODAL_H = Math.min(
-  SCORE_MODAL_PAD * 2 + SCORE_MODAL_HEADER_H + ACCESSORIES.length * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP),
-  H - 40,
+  SCORE_MODAL_CONTENT_H,
+  SCORE_MODAL_MAX_H,
 )
 
 function isInside(x, y, rx, ry, rw, rh) {
@@ -267,6 +279,10 @@ function getActiveRewards() {
   })
 }
 
+function isRewardTryOnTab() {
+  return activeRewardTab === 'accessory' || activeRewardTab === 'expression'
+}
+
 function isRewardOwned(item) {
   return item.type === 'expression'
     ? rewardState.ownedExpressionIds.indexOf(item.id) !== -1
@@ -295,6 +311,22 @@ function rewardStatusText(item) {
   if (isRewardEquipped(item)) return '\u5df2\u88c5\u5907'
   if (isRewardOwned(item)) return '\u5df2\u62e5\u6709'
   return getRewardSourceText(item)
+}
+
+function getEquippedAccessoryName() {
+  var id = rewardState.equippedAccessoryId || ''
+  for (var i = 0; i < ACCESSORIES.length; i++) {
+    if (ACCESSORIES[i].id === id) return ACCESSORIES[i].name
+  }
+  return '\u672a\u6234\u9970\u54c1'
+}
+
+function getEquippedExpressionName() {
+  var id = rewardState.equippedExpressionId || ''
+  for (var i = 0; i < EXPRESSIONS.length; i++) {
+    if (EXPRESSIONS[i].id === id) return EXPRESSIONS[i].name
+  }
+  return '\u9ed8\u8ba4\u8868\u60c5'
 }
 
 function useReward(item) {
@@ -401,6 +433,7 @@ function getLeaderboardErrorText(reason) {
   if (reason === 'function-not-found') return LEADERBOARD_FUNCTION_MISSING_TEXT
   if (reason === 'missing-openid') return LEADERBOARD_IDENTITY_FAILED_TEXT
   if (reason === 'privacy-undeclared' || reason === 'privacy-required') return LEADERBOARD_PRIVACY_UNDECLARED_TEXT
+  if (reason === 'security-info-failed') return LEADERBOARD_SECURITY_INFO_FAILED_TEXT
   if (reason === 'db-write-failed') return LEADERBOARD_WRITE_FAILED_TEXT
   if (reason === 'db-read-failed') return LEADERBOARD_READ_FAILED_TEXT
   return LEADERBOARD_LOAD_FAILED_TEXT
@@ -1132,10 +1165,10 @@ function drawNextButton(r) {
 }
 
 function getScoreActionRect(index, mx, my) {
-  var rowY = my + SCORE_MODAL_PAD + SCORE_MODAL_HEADER_H + index * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP) - scoreScrollY
+  var row = getRewardRowRect(index, mx, my)
   return {
     x: mx + SCORE_MODAL_W - SCORE_MODAL_PAD - 84,
-    y: rowY + 14,
+    y: row.y + 14,
     w: 78,
     h: 30,
   }
@@ -1186,6 +1219,26 @@ function getScoreContentRect(mx, my) {
   }
 }
 
+function getRewardListRect(mx, my) {
+  var content = getScoreContentRect(mx, my)
+  return {
+    x: content.x,
+    y: content.y + SCORE_TRYON_H + SCORE_TRYON_GAP,
+    w: content.w,
+    h: Math.max(0, content.h - SCORE_TRYON_H - SCORE_TRYON_GAP),
+  }
+}
+
+function getRewardRowRect(index, mx, my) {
+  var list = getRewardListRect(mx, my)
+  return {
+    x: list.x,
+    y: list.y + index * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP) - scoreScrollY,
+    w: list.w,
+    h: SCORE_MODAL_ROW_H,
+  }
+}
+
 function getLeaderboardAuthRect(mx, my) {
   var content = getScoreContentRect(mx, my)
   return {
@@ -1231,7 +1284,7 @@ function getScoreMaxScroll(mx, my) {
     var tasks = getRewardTasks()
     return Math.max(0, tasks.length * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP) - taskH)
   }
-  var rewardContent = getScoreContentRect(mx, my)
+  var rewardContent = getRewardListRect(mx, my)
   return Math.max(0, getActiveRewards().length * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP) - rewardContent.h)
 }
 
@@ -1266,7 +1319,8 @@ function drawScoreModal() {
   } else if (activeRewardTab === 'task') {
     drawRewardTaskPanel(ctx, mx, my)
   } else {
-    var content = getScoreContentRect(mx, my)
+    var content = getRewardListRect(mx, my)
+    drawRewardTryOnPanel(ctx, mx, my)
     ctx.save()
     ctx.beginPath()
     ctx.rect(content.x, content.y, content.w, content.h)
@@ -1311,10 +1365,67 @@ function drawScoreTab(r, rect, label, active) {
   r.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 1)
 }
 
+function drawRewardTryOnPanel(r, mx, my) {
+  var content = getScoreContentRect(mx, my)
+  var panel = {
+    x: content.x,
+    y: content.y,
+    w: content.w,
+    h: SCORE_TRYON_H,
+  }
+  r.fillStyle = '#23233a'
+  r.strokeStyle = '#565873'
+  r.lineWidth = 1.3
+  drawRoundRect(r, panel.x, panel.y, panel.w, panel.h, 8)
+  r.fill()
+  r.stroke()
+
+  var avatar = {
+    x: panel.x + 10,
+    y: panel.y + 9,
+    w: 92,
+    h: panel.h - 18,
+  }
+  var bg = r.createLinearGradient(avatar.x, avatar.y, avatar.x, avatar.y + avatar.h)
+  bg.addColorStop(0, '#303052')
+  bg.addColorStop(1, '#222238')
+  r.fillStyle = bg
+  drawRoundRect(r, avatar.x, avatar.y, avatar.w, avatar.h, 8)
+  r.fill()
+  r.fillStyle = 'rgba(255,232,175,0.16)'
+  r.beginPath()
+  r.ellipse(avatar.x + avatar.w / 2, avatar.y + avatar.h - 10, avatar.w * 0.3, 6, 0, 0, Math.PI * 2)
+  r.fill()
+  r.save()
+  r.translate(avatar.x + avatar.w / 2, avatar.y + avatar.h / 2 + 6)
+  renderCubAvatar(r, 40, {
+    accessoryId: rewardState.equippedAccessoryId || '',
+    expressionId: rewardState.equippedExpressionId || '',
+    isHovered: true,
+    lookOffset: { x: 0, y: 0 },
+    time: Date.now() / 1000,
+  })
+  r.restore()
+
+  var textX = avatar.x + avatar.w + 12
+  r.textAlign = 'left'
+  r.textBaseline = 'middle'
+  r.fillStyle = '#aeb0c8'
+  r.font = 'bold 11px sans-serif'
+  r.fillText('\u5f53\u524d\u642d\u914d', textX, panel.y + 20)
+  r.fillStyle = '#f2f2f7'
+  r.font = 'bold 15px sans-serif'
+  r.fillText(truncateText(getEquippedExpressionName() + ' / ' + getEquippedAccessoryName(), 10), textX, panel.y + 42)
+  r.fillStyle = '#ffe8af'
+  r.font = 'bold 12px sans-serif'
+  r.fillText('\u5f53\u524d\u751f\u6548', textX, panel.y + 62)
+}
+
 function drawScoreAccessoryRow(r, item, index, mx, my) {
-  var rowX = mx + SCORE_MODAL_PAD
-  var rowY = my + SCORE_MODAL_PAD + SCORE_MODAL_HEADER_H + index * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP) - scoreScrollY
-  var rowW = SCORE_MODAL_W - SCORE_MODAL_PAD * 2
+  var row = getRewardRowRect(index, mx, my)
+  var rowX = row.x
+  var rowY = row.y
+  var rowW = row.w
   var owned = isRewardOwned(item)
   var equipped = isRewardEquipped(item)
 
@@ -1685,6 +1796,62 @@ function drawRewardPreview(r, item, cx, cy) {
     r.beginPath()
     r.arc(cx, cy + 8, 2.4, 0, Math.PI * 2)
     r.fill()
+  } else if (id === 'pixel-gamepad-pin') {
+    r.save()
+    r.translate(cx, cy)
+    r.rotate(-0.32)
+    r.fillStyle = '#5865ff'
+    r.strokeStyle = '#ffffff'
+    r.lineWidth = 2
+    r.beginPath()
+    drawRoundRect(r, -16, -7, 32, 14, 5)
+    r.fill()
+    r.stroke()
+    r.fillStyle = '#7ef0b4'
+    drawRoundRect(r, -12, -3, 9, 6, 2)
+    r.fill()
+    r.fillStyle = '#ffe46e'
+    r.fillRect(-10, -5, 2.5, 10)
+    r.fillRect(-14, -1.4, 10, 2.5)
+    r.fillStyle = '#ff7fa0'
+    r.beginPath()
+    r.arc(7, -2.5, 2.8, 0, Math.PI * 2)
+    r.fill()
+    r.fillStyle = '#7ee8ff'
+    r.beginPath()
+    r.arc(12, 2.5, 2.8, 0, Math.PI * 2)
+    r.fill()
+    r.restore()
+  } else if (id === 'blue-collar-bell') {
+    r.strokeStyle = '#ffffff'
+    r.lineWidth = 3
+    r.beginPath()
+    r.moveTo(cx - 15, cy - 10)
+    r.quadraticCurveTo(cx, cy - 3, cx + 15, cy - 10)
+    r.stroke()
+    r.strokeStyle = '#2d7cff'
+    r.lineWidth = 3.8
+    r.beginPath()
+    r.moveTo(cx - 14, cy - 10)
+    r.quadraticCurveTo(cx, cy - 4, cx + 14, cy - 10)
+    r.stroke()
+    r.fillStyle = '#f7c84b'
+    r.strokeStyle = '#8c5b12'
+    r.lineWidth = 2
+    r.beginPath()
+    r.arc(cx, cy, 11, 0, Math.PI * 2)
+    r.fill()
+    r.stroke()
+    r.beginPath()
+    r.moveTo(cx - 8, cy - 2)
+    r.lineTo(cx + 8, cy - 2)
+    r.moveTo(cx - 8, cy + 3)
+    r.quadraticCurveTo(cx, cy + 6, cx + 8, cy + 3)
+    r.stroke()
+    r.fillStyle = '#8c5b12'
+    r.beginPath()
+    r.arc(cx, cy + 8, 2.4, 0, Math.PI * 2)
+    r.fill()
   } else if (id === 'blue-cap') {
     r.save()
     r.translate(cx, cy)
@@ -1748,6 +1915,30 @@ function drawRewardPreview(r, item, cx, cy) {
     r.beginPath()
     r.ellipse(cx, cy + 6, 10, 2, 0, 0, Math.PI * 2)
     r.fill()
+  } else if (id === 'patrol-cap') {
+    r.save()
+    r.translate(cx, cy)
+    r.rotate(-0.08)
+    r.fillStyle = '#315aa6'
+    r.strokeStyle = '#ffffff'
+    r.lineWidth = 2
+    r.beginPath()
+    r.moveTo(-16, 3)
+    r.quadraticCurveTo(-10, -12, 0, -13)
+    r.quadraticCurveTo(11, -12, 16, 3)
+    r.quadraticCurveTo(2, 8, -16, 3)
+    r.closePath()
+    r.fill()
+    r.stroke()
+    r.fillStyle = '#23447d'
+    r.beginPath()
+    r.ellipse(2, 5, 15, 4, 0, 0, Math.PI * 2)
+    r.fill()
+    r.stroke()
+    r.strokeStyle = '#ffd95c'
+    r.lineWidth = 1.8
+    drawPreviewSpark(r, 0, -4, 4)
+    r.restore()
   } else if (id === 'magic-hat') {
     r.fillStyle = '#fff8f8'
     r.strokeStyle = '#ffffff'
@@ -1851,6 +2042,26 @@ function drawExpressionPreview(r, id, cx, cy) {
     r.arc(cx + 6, cy - 3, 3, 0, Math.PI * 2)
     r.fill()
     drawPreviewSmile(r, cx, cy + 5)
+  } else if (id === 'night-spark') {
+    r.beginPath()
+    r.arc(cx - 6, cy - 4, 3.4, 0, Math.PI * 2)
+    r.arc(cx + 6, cy - 4, 3.4, 0, Math.PI * 2)
+    r.fill()
+    r.fillStyle = '#111111'
+    r.beginPath()
+    r.arc(cx - 5, cy - 3, 1.5, 0, Math.PI * 2)
+    r.arc(cx + 7, cy - 3, 1.5, 0, Math.PI * 2)
+    r.fill()
+    drawPreviewSmile(r, cx, cy + 5)
+    r.strokeStyle = '#7ee8ff'
+    r.lineWidth = 1.8
+    drawPreviewSpark(r, cx - 14, cy - 10, 3)
+    drawPreviewSpark(r, cx + 14, cy - 10, 3)
+    r.fillStyle = 'rgba(126,232,255,0.28)'
+    r.beginPath()
+    r.arc(cx + 16, cy + 7, 4, -0.8, 1.6)
+    r.arc(cx + 19, cy + 6, 4, 1.7, -0.55, true)
+    r.fill()
   } else if (id === 'surprised') {
     r.beginPath()
     r.arc(cx - 6, cy - 4, 3.5, 0, Math.PI * 2)
@@ -1904,6 +2115,30 @@ function drawExpressionPreview(r, id, cx, cy) {
     r.quadraticCurveTo(cx, cy + 4.2, cx + 5.8, cy + 8.6)
     r.stroke()
     drawPreviewAngerIcon(r, cx + 20, cy - 8, 10)
+  } else if (id === 'round-blue-smile') {
+    r.fillStyle = '#4aa3ff'
+    r.beginPath()
+    r.arc(cx, cy, 13, 0, Math.PI * 2)
+    r.fill()
+    r.fillStyle = '#ffffff'
+    r.beginPath()
+    r.ellipse(cx, cy + 2, 10, 10.5, 0, 0, Math.PI * 2)
+    r.fill()
+    r.fillStyle = '#111111'
+    r.beginPath()
+    r.arc(cx - 5, cy - 4, 2.4, 0, Math.PI * 2)
+    r.arc(cx + 5, cy - 4, 2.4, 0, Math.PI * 2)
+    r.fill()
+    r.fillStyle = '#ff7f8e'
+    r.beginPath()
+    r.ellipse(cx, cy + 7, 5, 4, 0, 0, Math.PI * 2)
+    r.fill()
+    r.strokeStyle = '#8ed6ff'
+    r.lineWidth = 1.6
+    r.beginPath()
+    r.arc(cx - 15, cy - 9, 3, 0, Math.PI * 2)
+    r.arc(cx + 15, cy + 7, 2.5, 0, Math.PI * 2)
+    r.stroke()
   } else if (id === 'proud') {
     r.fillStyle = '#ffffff'
     r.beginPath()

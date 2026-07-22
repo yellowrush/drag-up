@@ -133,16 +133,36 @@
           </view>
         </view>
 
+        <view
+          v-if="isRewardTryOnTab"
+          class="tryon-panel"
+        >
+          <canvas
+            id="rewardPreviewCanvas"
+            canvas-id="rewardPreviewCanvas"
+            type="2d"
+            class="tryon-canvas"
+          />
+          <view class="tryon-copy">
+            <text class="tryon-label">{{ tryOnLabel }}</text>
+            <text class="tryon-name">{{ tryOnName }}</text>
+            <text class="tryon-status">{{ tryOnStatus }}</text>
+          </view>
+        </view>
+
         <scroll-view
           v-if="activeRewardTab === 'accessory' || activeRewardTab === 'expression'"
           scroll-y
-          class="reward-scroll"
+          class="reward-scroll reward-scroll-with-tryon"
         >
           <view
             v-for="item in rewardItems"
             :key="`${item.type}-${item.id}`"
             class="reward-row"
-            :class="{ owned: isOwned(item), equipped: isEquipped(item) }"
+            :class="{
+              owned: isOwned(item),
+              equipped: isEquipped(item),
+            }"
           >
             <view class="reward-preview">
               <view :class="['preview-mark', item.type, item.id]">
@@ -264,8 +284,18 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, markRaw, onMounted, ref, shallowRef } from 'vue';
+  import {
+    computed,
+    getCurrentInstance,
+    markRaw,
+    nextTick,
+    onMounted,
+    ref,
+    shallowRef,
+    watch,
+  } from 'vue';
   import gameCanvas from '@/components/game-canvas.vue';
+  import { renderCubAvatar } from '@/utils/cub.js';
   import { GameStorage } from '@/utils/storage.js';
   import { CAT_BOX_LEVELS, getNextLevel } from '@/utils/levels-data.js';
   import {
@@ -331,6 +361,7 @@
   const shareRewardClaimedText = '\u5206\u4eab\u5b8c\u6210\uff0c\u5df2\u9886\u53d6\u597d\u53cb\u7231\u5fc3';
   const leaderboardSyncDelay = 1200;
   const leaderboardSyncMinInterval = 30000;
+  const instance = getCurrentInstance();
   let currentLevelId = '';
   let leaderboardSyncTimer: any = null;
   let leaderboardSyncPending = false;
@@ -356,6 +387,20 @@
       type: activeRewardTab.value,
     }));
   });
+  const isRewardTryOnTab = computed(
+    () => activeRewardTab.value === 'accessory' || activeRewardTab.value === 'expression',
+  );
+  const tryOnAccessoryId = computed(() =>
+    rewardState.value.equippedAccessoryId || '',
+  );
+  const tryOnExpressionId = computed(() =>
+    rewardState.value.equippedExpressionId || '',
+  );
+  const tryOnLabel = computed(() => '\u5f53\u524d\u642d\u914d');
+  const tryOnName = computed(() =>
+    `${getEquippedExpressionName()} / ${getEquippedAccessoryName()}`,
+  );
+  const tryOnStatus = computed(() => '\u5f53\u524d\u751f\u6548');
   const rewardTasks = computed(() => {
     rewardState.value.totalScore;
     return RewardStorage.getTaskStates({
@@ -376,6 +421,19 @@
       /* keep default */
     }
   });
+
+  watch(
+    () => [
+      showScoreModal.value,
+      activeRewardTab.value,
+      rewardState.value.equippedAccessoryId,
+      rewardState.value.equippedExpressionId,
+    ],
+    () => {
+      scheduleRewardPreviewRender();
+    },
+    { immediate: true },
+  );
 
   function onGameReady(eng: any) {
     engine.value = markRaw(eng);
@@ -663,6 +721,7 @@
           : RewardStorage.equipAccessory('');
       rewardState.value = unequipped.state;
       applyEquippedRewards();
+      scheduleRewardPreviewRender();
       return;
     }
 
@@ -681,6 +740,97 @@
         : RewardStorage.equipAccessory(item.id);
     rewardState.value = equipped.state;
     applyEquippedRewards();
+  }
+
+  function getEquippedAccessoryName() {
+    const id = rewardState.value.equippedAccessoryId || '';
+    const accessory = ACCESSORIES.find((item: any) => item.id === id);
+    return accessory ? accessory.name : '\u672a\u6234\u9970\u54c1';
+  }
+
+  function getEquippedExpressionName() {
+    const id = rewardState.value.equippedExpressionId || '';
+    const expression = EXPRESSIONS.find((item: any) => item.id === id);
+    return expression ? expression.name : '\u9ed8\u8ba4\u8868\u60c5';
+  }
+
+  function scheduleRewardPreviewRender() {
+    if (!showScoreModal.value || !isRewardTryOnTab.value) return;
+    nextTick(() => {
+      renderRewardPreviewCanvas();
+    });
+  }
+
+  function renderRewardPreviewCanvas() {
+    if (!showScoreModal.value || !isRewardTryOnTab.value) return;
+
+    // #ifdef H5
+    const canvas = document.getElementById(
+      'rewardPreviewCanvas',
+    ) as HTMLCanvasElement | null;
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        drawTryOnCanvas(canvas, ctx, rect.width || 96, rect.height || 90);
+      }
+    }
+    // #endif
+
+    // #ifdef MP-WEIXIN
+    const query = uni.createSelectorQuery().in(instance);
+    query
+      .select('#rewardPreviewCanvas')
+      .fields({ node: true, size: true })
+      .exec((res: any[]) => {
+        const target = res && res[0];
+        if (!target || !target.node) return;
+        const canvasNode = target.node;
+        const ctx = canvasNode.getContext('2d');
+        if (!ctx) return;
+        drawTryOnCanvas(
+          canvasNode,
+          ctx,
+          target.width || 96,
+          target.height || 90,
+        );
+      });
+    // #endif
+  }
+
+  function drawTryOnCanvas(
+    canvas: any,
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+  ) {
+    const dpr =
+      typeof window !== 'undefined' && window.devicePixelRatio
+        ? window.devicePixelRatio
+        : 1;
+    canvas.width = Math.max(1, Math.floor(width * dpr));
+    canvas.height = Math.max(1, Math.floor(height * dpr));
+    if (typeof ctx.setTransform === 'function') {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    } else {
+      ctx.scale(dpr, dpr);
+    }
+    ctx.clearRect(0, 0, width, height);
+
+    ctx.save();
+    ctx.fillStyle = '#222238';
+    ctx.beginPath();
+    ctx.ellipse(width / 2, height - 14, width * 0.32, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.translate(width / 2, height / 2 + 6);
+    renderCubAvatar(ctx, 42, {
+      accessoryId: tryOnAccessoryId.value,
+      expressionId: tryOnExpressionId.value,
+      isHovered: true,
+      lookOffset: { x: 0, y: 0 },
+      time: Date.now() / 1000,
+    });
+    ctx.restore();
   }
 
   function getTaskContext() {
@@ -958,6 +1108,12 @@
     max-height: 80vh;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   }
+  .score-modal {
+    max-height: 74vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
   .modal-title {
     color: #fff;
     font-size: 18px;
@@ -1092,8 +1248,65 @@
     color: #ffe8af;
     border-bottom: 3px solid #ffe8af;
   }
+  .tryon-panel {
+    min-height: 96px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    padding: 10px;
+    background: #23233a;
+    border: 1px solid #565873;
+    border-radius: 8px;
+    box-sizing: border-box;
+  }
+  .tryon-canvas {
+    width: 96px;
+    height: 76px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    background:
+      radial-gradient(ellipse at 50% 82%, rgba(255, 232, 175, 0.16) 0 32%, transparent 33%),
+      linear-gradient(180deg, #303052 0%, #222238 100%);
+  }
+  .tryon-copy {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+  }
+  .tryon-label {
+    color: #aeb0c8;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+  .tryon-name {
+    color: #f2f2f7;
+    font-size: 15px;
+    font-weight: 900;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tryon-status {
+    color: #ffe8af;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .reward-scroll {
-    max-height: 54vh;
+    max-height: 46vh;
+  }
+  .reward-scroll-with-tryon {
+    max-height: calc(46vh - 106px);
+    min-height: 144px;
   }
   .task-panel {
     min-height: 250px;
@@ -1181,6 +1394,32 @@
   }
   .leaderboard-scroll {
     max-height: 46vh;
+  }
+  @media (max-height: 700px) {
+    .score-modal {
+      max-height: 72vh;
+      padding: 18px;
+    }
+    .score-head {
+      margin-bottom: 10px;
+    }
+    .reward-tabs {
+      margin-bottom: 10px;
+    }
+    .tryon-panel {
+      min-height: 86px;
+      gap: 10px;
+      margin-bottom: 8px;
+      padding: 8px;
+    }
+    .tryon-canvas {
+      width: 88px;
+      height: 68px;
+    }
+    .reward-scroll-with-tryon {
+      max-height: calc(46vh - 100px);
+      min-height: 132px;
+    }
   }
   .leaderboard-retry {
     margin-top: 4px;
@@ -1391,6 +1630,77 @@
     background:
       repeating-radial-gradient(ellipse at 50% 50%, transparent 0 4px, rgba(255, 255, 255, 0.85) 5px 6px),
       #ff9fc2;
+  }
+  .preview-mark.accessory.pixel-gamepad-pin {
+    width: 32px;
+    height: 16px;
+    background:
+      radial-gradient(circle at 70% 35%, #ff7fa0 0 8%, transparent 9%),
+      radial-gradient(circle at 82% 62%, #7ee8ff 0 8%, transparent 9%),
+      linear-gradient(90deg, transparent 16%, #ffe46e 17% 24%, transparent 25%),
+      linear-gradient(0deg, transparent 33%, #ffe46e 34% 48%, transparent 49%),
+      #5865ff;
+    border: 2px solid #ffffff;
+    border-radius: 6px;
+    transform: rotate(-18deg);
+  }
+  .preview-mark.accessory.pixel-gamepad-pin::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 5px;
+    width: 8px;
+    height: 6px;
+    background: #7ef0b4;
+    border-radius: 2px;
+  }
+  .preview-mark.accessory.blue-collar-bell {
+    width: 30px;
+    height: 28px;
+    background:
+      radial-gradient(ellipse at 34% 48%, rgba(255, 255, 255, 0.7) 0 9%, transparent 10%),
+      radial-gradient(circle at 50% 64%, #f7c84b 0 32%, #8c5b12 33% 39%, transparent 40%),
+      radial-gradient(ellipse at 50% 28%, transparent 0 55%, #2d7cff 56% 70%, transparent 71%);
+  }
+  .preview-mark.accessory.blue-collar-bell::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 17px;
+    width: 14px;
+    height: 2px;
+    background: #8c5b12;
+    border-radius: 2px;
+  }
+  .preview-mark.accessory.blue-collar-bell::after {
+    content: '';
+    position: absolute;
+    left: 13px;
+    bottom: 2px;
+    width: 5px;
+    height: 4px;
+    background: #8c5b12;
+    border-radius: 50%;
+  }
+  .preview-mark.accessory.patrol-cap {
+    width: 32px;
+    height: 22px;
+    background:
+      radial-gradient(circle at 50% 36%, #ffd95c 0 12%, #8d6418 13% 16%, transparent 17%),
+      radial-gradient(ellipse at 57% 78%, #23447d 0 49%, transparent 50%),
+      radial-gradient(ellipse at 50% 44%, #315aa6 0 59%, transparent 60%);
+    border-bottom: 2px solid #ffffff;
+    transform: rotate(-5deg);
+  }
+  .preview-mark.accessory.patrol-cap::before {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 11px;
+    width: 27px;
+    height: 7px;
+    border-top: 2px solid rgba(255, 255, 255, 0.74);
+    border-radius: 50%;
   }
   .preview-mark.expression {
     width: 28px;
@@ -1613,6 +1923,51 @@
     background: #ff8ca6;
     transform: rotate(45deg);
     border-radius: 2px;
+  }
+  .preview-mark.expression.night-spark {
+    box-shadow:
+      -11px -7px 0 -8px #7ee8ff,
+      12px -8px 0 -8px #ffffff,
+      13px 8px 0 -9px #7ee8ff;
+  }
+  .preview-mark.expression.night-spark::before {
+    left: 4px;
+    top: 7px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    box-shadow: 13px 0 0 #ffffff;
+  }
+  .preview-mark.expression.night-spark::after {
+    left: 8px;
+    top: 18px;
+    width: 12px;
+    height: 5px;
+    border-bottom: 2px solid #ffffff;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .preview-mark.expression.round-blue-smile {
+    background:
+      radial-gradient(ellipse at 50% 62%, #ffffff 0 54%, transparent 55%),
+      #4aa3ff;
+  }
+  .preview-mark.expression.round-blue-smile::before {
+    left: 6px;
+    top: 8px;
+    width: 5px;
+    height: 6px;
+    background: #111111;
+    border-radius: 50%;
+    box-shadow: 11px 0 0 #111111;
+  }
+  .preview-mark.expression.round-blue-smile::after {
+    left: 9px;
+    top: 17px;
+    width: 10px;
+    height: 7px;
+    background: #ff7f8e;
+    border-radius: 0 0 8px 8px;
   }
   .task-preview {
     color: #ffe8af;

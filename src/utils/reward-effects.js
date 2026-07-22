@@ -26,14 +26,27 @@ export function renderRewardSuccessBurst(ctx, center, radius, t, options) {
     renderSteamPuffs(ctx, radius, t);
   } else if (key === 'wink') {
     renderWinkPop(ctx, radius, t);
+  } else if (key === 'pixel') {
+    renderPixelConfetti(ctx, radius, t);
+  } else if (key === 'badge') {
+    renderBadgeGlints(ctx, radius, t);
+  } else if (key === 'moon') {
+    renderMoonGlints(ctx, radius, t);
+  } else if (key === 'bubble') {
+    renderBubblePop(ctx, radius, t);
   }
   ctx.restore();
 }
 
 function getRewardEffectKey(accessoryId, expressionId) {
   if (expressionId === 'friend-heart') return 'hearts';
+  if (expressionId === 'night-spark') return 'moon';
+  if (expressionId === 'round-blue-smile') return 'bubble';
   if (accessoryId === 'red-bow') return 'ribbon';
   if (accessoryId === 'gold-bell') return 'bell';
+  if (accessoryId === 'blue-collar-bell') return 'bell';
+  if (accessoryId === 'pixel-gamepad-pin') return 'pixel';
+  if (accessoryId === 'patrol-cap') return 'badge';
   if (accessoryId === 'blue-cap') return 'paw';
   if (accessoryId === 'star-crown') return 'crown';
   if (accessoryId === 'magic-hat') return 'cross';
@@ -198,6 +211,81 @@ function renderWinkPop(ctx, radius, t) {
   ctx.moveTo(radius * 0.28, -radius * 0.36);
   ctx.quadraticCurveTo(radius * 0.4, -radius * 0.28, radius * 0.52, -radius * 0.36);
   ctx.stroke();
+}
+
+function renderPixelConfetti(ctx, radius, t) {
+  var ease = easeOutCubic(t);
+  var colors = ['#5865ff', '#7ef0b4', '#ffe46e', '#ff7fa0'];
+  ctx.globalAlpha = Math.max(0, 1 - t * 0.9);
+  for (var i = 0; i < 10; i++) {
+    var angle = (Math.PI * 2 * i) / 10 + t * 0.7;
+    var distance = radius * (0.18 + ease * (0.48 + (i % 3) * 0.06));
+    var size = radius * (0.045 + (i % 2) * 0.012);
+    ctx.save();
+    ctx.translate(Math.cos(angle) * distance, Math.sin(angle) * distance);
+    ctx.rotate(angle + t * Math.PI);
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.fillRect(-size / 2, -size / 2, size, size);
+    ctx.restore();
+  }
+}
+
+function renderBadgeGlints(ctx, radius, t) {
+  var ease = easeOutCubic(t);
+  ctx.globalAlpha = Math.max(0, 1 - t * 0.88);
+  ctx.strokeStyle = '#ffd95c';
+  ctx.lineWidth = Math.max(2, radius * 0.035);
+  ctx.lineCap = 'round';
+  for (var i = 0; i < 6; i++) {
+    var angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
+    var distance = radius * (0.2 + ease * 0.58);
+    ctx.save();
+    ctx.translate(Math.cos(angle) * distance, Math.sin(angle) * distance);
+    ctx.rotate(angle);
+    drawSpark(ctx, radius * 0.075, i % 2 ? '#fff4b8' : '#ffd95c');
+    ctx.restore();
+  }
+  ctx.strokeStyle = '#8ed6ff';
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * (0.24 + ease * 0.38), 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function renderMoonGlints(ctx, radius, t) {
+  var ease = easeOutCubic(t);
+  ctx.globalAlpha = Math.max(0, 1 - t * 0.9);
+  ctx.fillStyle = 'rgba(126,232,255,0.28)';
+  ctx.strokeStyle = '#7ee8ff';
+  ctx.lineWidth = Math.max(2, radius * 0.035);
+  ctx.beginPath();
+  ctx.arc(radius * 0.12, -radius * 0.12, radius * (0.16 + ease * 0.08), -0.9, 1.7);
+  ctx.arc(radius * 0.2, -radius * 0.15, radius * (0.16 + ease * 0.08), 1.8, -0.6, true);
+  ctx.fill();
+  for (var i = 0; i < 6; i++) {
+    var angle = (Math.PI * 2 * i) / 6 + t;
+    var distance = radius * (0.22 + ease * 0.52);
+    ctx.save();
+    ctx.translate(Math.cos(angle) * distance, Math.sin(angle) * distance);
+    drawSpark(ctx, radius * 0.055, i % 2 ? '#ffffff' : '#7ee8ff');
+    ctx.restore();
+  }
+}
+
+function renderBubblePop(ctx, radius, t) {
+  var ease = easeOutCubic(t);
+  ctx.globalAlpha = Math.max(0, 1 - t * 0.86);
+  ctx.strokeStyle = '#8ed6ff';
+  ctx.fillStyle = 'rgba(142,214,255,0.16)';
+  ctx.lineWidth = Math.max(2, radius * 0.028);
+  for (var i = 0; i < 8; i++) {
+    var angle = (Math.PI * 2 * i) / 8 - Math.PI / 2;
+    var distance = radius * (0.18 + ease * 0.54);
+    var size = radius * (0.055 + (i % 3) * 0.018);
+    ctx.beginPath();
+    ctx.arc(Math.cos(angle) * distance, Math.sin(angle) * distance, size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
 }
 
 function drawHeart(ctx, x, y, size, color) {
