@@ -60,9 +60,13 @@ Upload scripts now print stable markers:
 
 - `[upload] Preparing WeChat upload`
 - `[ci-upload] Preparing WeChat upload`
-- `[upload] Progress done/total`
-- `[ci-upload] Success response:`
+- `[upload] Upload started`
+- `[ci-upload] Upload progress 40% (4/10)`
+- `[ci-upload] Upload succeeded`
 - `[ci-upload] Failed`
 
 Failures include the main message plus any available `code`, `errCode`, and
 `errMsg` fields from `miniprogram-ci`.
+
+Set `CI_UPLOAD_DEBUG=1` to print the full `miniprogram-ci` response when a CI
+run needs deeper debugging.

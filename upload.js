@@ -2,9 +2,10 @@ const ci = require('miniprogram-ci')
 const dns = require('dns')
 const {
   assertProjectExists,
+  createUploadProgressLogger,
   formatError,
   loadUploadConfig,
-  printObject,
+  printUploadResult,
 } = require('./scripts/wechat-upload-config')
 
 dns.setDefaultResultOrder('ipv4first')
@@ -41,18 +42,10 @@ async function upload() {
         es6: true,
         minify: true,
       },
-      onProgressUpdate(info) {
-        if (info.status === 'doing') {
-          const done = info.data && info.data.done ? info.data.done : 0
-          const total = info.data && info.data.total ? info.data.total : '?'
-          console.log(`[upload] Progress ${done}/${total}`)
-        } else if (info.status) {
-          console.log(`[upload] ${info.status}`)
-        }
-      },
+      onProgressUpdate: createUploadProgressLogger('[upload]'),
     })
 
-    printObject('[upload] Success response:', result)
+    printUploadResult('[upload]', result)
   } finally {
     config.cleanupPrivateKey()
   }

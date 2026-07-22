@@ -17,9 +17,10 @@ const dns = require('dns')
 const { getAppVersion } = require('./scripts/app-version')
 const {
   assertProjectExists,
+  createUploadProgressLogger,
   formatError,
   loadUploadConfig,
-  printObject,
+  printUploadResult,
 } = require('./scripts/wechat-upload-config')
 
 dns.setDefaultResultOrder('ipv4first')
@@ -55,18 +56,10 @@ async function upload() {
         es6: true,
         minify: true,
       },
-      onProgressUpdate(info) {
-        if (info.status === 'doing') {
-          const done = (info.data && info.data.done) || 0
-          const total = (info.data && info.data.total) || '?'
-          console.log(`[ci-upload] Progress ${done}/${total}`)
-        } else if (info.status) {
-          console.log(`[ci-upload] ${info.status}`)
-        }
-      },
+      onProgressUpdate: createUploadProgressLogger('[ci-upload]'),
     })
 
-    printObject('[ci-upload] Success response:', result)
+    printUploadResult('[ci-upload]', result)
   } finally {
     config.cleanupPrivateKey()
   }

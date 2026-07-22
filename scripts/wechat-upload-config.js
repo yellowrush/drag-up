@@ -105,6 +105,66 @@ function printObject(label, value) {
   console.log(JSON.stringify(value, null, 2))
 }
 
+function createUploadProgressLogger(prefix) {
+  let started = false
+  let lastPercent = -1
+  let lastStatus = ''
+
+  return function onProgressUpdate(info) {
+    if (!info || !info.status) return
+
+    if (info.status === 'doing') {
+      const done = Number(info.data && info.data.done)
+      const total = Number(info.data && info.data.total)
+
+      if (!started) {
+        console.log(`${prefix} Upload started`)
+        started = true
+      }
+
+      if (!Number.isFinite(done) || !Number.isFinite(total) || total <= 0) return
+
+      const percent = Math.max(0, Math.min(100, Math.floor((done / total) * 100)))
+      const bucket = percent === 100 ? 100 : Math.floor(percent / 10) * 10
+      if (bucket > lastPercent) {
+        console.log(`${prefix} Upload progress ${bucket}% (${done}/${total})`)
+        lastPercent = bucket
+      }
+      return
+    }
+
+    if (info.status === 'done') {
+      return
+    }
+
+    if (info.status !== lastStatus) {
+      console.log(`${prefix} Status: ${info.status}`)
+      lastStatus = info.status
+    }
+  }
+}
+
+function printUploadResult(prefix, result) {
+  console.log(`${prefix} Upload succeeded`)
+
+  const fullPackage = result && result.subPackageInfo && result.subPackageInfo.__FULL__
+  if (fullPackage && fullPackage.size) {
+    console.log(`${prefix} Package size: ${formatBytes(fullPackage.size)}`)
+  }
+
+  if (process.env.CI_UPLOAD_DEBUG === '1') {
+    printObject(`${prefix} Full miniprogram-ci response:`, result)
+  }
+}
+
+function formatBytes(value) {
+  const bytes = Number(value)
+  if (!Number.isFinite(bytes)) return String(value)
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+}
+
 function safeUnlink(file) {
   try {
     fs.unlinkSync(file)
@@ -115,7 +175,9 @@ function safeUnlink(file) {
 
 module.exports = {
   assertProjectExists,
+  createUploadProgressLogger,
   formatError,
   loadUploadConfig,
   printObject,
+  printUploadResult,
 }
