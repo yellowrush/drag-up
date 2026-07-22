@@ -216,7 +216,26 @@
         </view>
 
         <view v-else class="leaderboard-panel">
-          <view v-if="leaderboardStatus === 'unavailable'" class="leaderboard-empty">
+          <view class="leaderboard-scope-tabs">
+            <view
+              class="leaderboard-scope-tab"
+              :class="{ active: activeLeaderboardScope === 'friend' }"
+              @tap="onLeaderboardScopeTap('friend')"
+            >
+              &#22909;&#21451;
+            </view>
+            <view
+              class="leaderboard-scope-tab"
+              :class="{ active: activeLeaderboardScope === 'server' }"
+              @tap="onLeaderboardScopeTap('server')"
+            >
+              &#20840;&#26381;
+            </view>
+          </view>
+          <view v-if="activeLeaderboardScope === 'friend'" class="leaderboard-empty">
+            &#35831;&#22312;&#24494;&#20449;&#23567;&#28216;&#25103;&#20013;&#26597;&#30475;&#22909;&#21451;&#25490;&#34892;&#27036;
+          </view>
+          <view v-else-if="leaderboardStatus === 'unavailable'" class="leaderboard-empty">
             &#35831;&#22312;&#24494;&#20449;&#23567;&#28216;&#25103;&#20013;&#26597;&#30475;&#20840;&#26381;&#25490;&#34892;&#27036;
           </view>
           <view v-else>
@@ -344,6 +363,7 @@
   const completedLevels = ref<string[]>([]);
   const rewardState = ref(RewardStorage.getState());
   const activeRewardTab = ref('accessory');
+  const activeLeaderboardScope = ref('friend');
   const taskHint = ref('');
   const leaderboardStatus = ref('idle');
   const leaderboardRows = ref<any[]>([]);
@@ -579,12 +599,28 @@
     activeRewardTab.value = tab;
     taskHint.value = '';
     if (tab === 'leaderboard') {
+      if (activeLeaderboardScope.value === 'server') {
+        loadLeaderboard();
+      }
+    }
+  }
+
+  function onLeaderboardScopeTap(scope: string) {
+    activeLeaderboardScope.value = scope === 'server' ? 'server' : 'friend';
+    if (activeLeaderboardScope.value === 'server') {
       loadLeaderboard();
+    } else {
+      leaderboardError.value = '';
     }
   }
 
   function syncLeaderboardInBackground() {
-    if (!LeaderboardClient.isSupported()) return;
+    if (
+      !LeaderboardClient.isSupported() &&
+      !LeaderboardClient.isFriendLeaderboardSupported()
+    ) {
+      return;
+    }
     leaderboardSyncPending = true;
     const elapsed = Date.now() - leaderboardLastSyncAt;
     const wait = Math.max(
@@ -602,10 +638,13 @@
     leaderboardSyncInFlight = true;
     leaderboardLastSyncAt = Date.now();
     try {
-      const result = await LeaderboardClient.syncScore(
-        rewardState.value.levelScores || {},
-        leaderboardProfile.value,
-      );
+      await LeaderboardClient.syncFriendScore(rewardState.value.levelScores || {});
+      const result = LeaderboardClient.isSupported()
+        ? await LeaderboardClient.syncScore(
+            rewardState.value.levelScores || {},
+            leaderboardProfile.value,
+          )
+        : null;
       applySyncedRewardScores(result);
     } catch (e) {
       /* leaderboard sync is best-effort */
@@ -619,6 +658,10 @@
 
   async function loadLeaderboard() {
     refreshRewards();
+    if (activeLeaderboardScope.value === 'friend') {
+      await LeaderboardClient.syncFriendScore(rewardState.value.levelScores || {});
+      return;
+    }
     if (!LeaderboardClient.isSupported()) {
       leaderboardStatus.value = 'unavailable';
       leaderboardRows.value = [];
@@ -1326,6 +1369,30 @@
   }
   .leaderboard-panel {
     min-height: 260px;
+  }
+  .leaderboard-scope-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .leaderboard-scope-tab {
+    flex: 1;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #d9daec;
+    background: #2f2f50;
+    border: 1px solid #565873;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 900;
+    box-sizing: border-box;
+  }
+  .leaderboard-scope-tab.active {
+    color: #ffe8af;
+    background: #3d3f51;
+    border: 2px solid #ffe8af;
   }
   .leaderboard-actions {
     display: flex;

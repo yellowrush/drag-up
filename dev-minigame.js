@@ -3,6 +3,23 @@ const path = require('path')
 const fs = require('fs')
 
 const DIST = path.resolve(__dirname, 'dist/dev/minigame')
+const OPEN_DATA_CONTEXT = path.resolve(__dirname, 'src/open-data-context')
+const OPEN_DATA_CONTEXT_DIST = path.join(DIST, 'open-data-context')
+
+function copyDir(src, dest) {
+  if (!fs.existsSync(src)) return
+  fs.mkdirSync(dest, { recursive: true })
+  fs.readdirSync(src, { withFileTypes: true }).forEach(function (entry) {
+    if (entry.name === 'node_modules') return
+    const from = path.join(src, entry.name)
+    const to = path.join(dest, entry.name)
+    if (entry.isDirectory()) {
+      copyDir(from, to)
+    } else {
+      fs.copyFileSync(from, to)
+    }
+  })
+}
 
 async function dev() {
   fs.mkdirSync(DIST, { recursive: true })
@@ -16,6 +33,11 @@ async function dev() {
     path.resolve(__dirname, 'src/project.config.minigame.json'),
     path.join(DIST, 'project.config.json'),
   )
+
+  copyDir(OPEN_DATA_CONTEXT, path.join(DIST, 'open-data-context'))
+  fs.watch(OPEN_DATA_CONTEXT, { recursive: true }, function () {
+    copyDir(OPEN_DATA_CONTEXT, OPEN_DATA_CONTEXT_DIST)
+  })
 
   const ctx = await esbuild.context({
     entryPoints: [path.resolve(__dirname, 'src/game.js')],

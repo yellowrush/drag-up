@@ -2,6 +2,7 @@
   "deviceOrientation": "portrait",
   "showStatusBar": false,
   "cloud": true,
+  "openDataContext": "open-data-context",
   "networkTimeout": {
     "request": 5000,
     "connectSocket": 5000,

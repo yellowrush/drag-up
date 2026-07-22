@@ -1,27 +1,28 @@
-const esbuild = require('esbuild')
-const path = require('path')
-const fs = require('fs')
+const esbuild = require('esbuild');
+const path = require('path');
+const fs = require('fs');
 
-const DIST = path.resolve(__dirname, 'dist/build/minigame')
-const CLOUD_FUNCTIONS = path.resolve(__dirname, 'cloudfunctions')
+const DIST = path.resolve(__dirname, 'dist/build/minigame');
+const CLOUD_FUNCTIONS = path.resolve(__dirname, 'cloudfunctions');
+const OPEN_DATA_CONTEXT = path.resolve(__dirname, 'src/open-data-context');
 
 function copyDir(src, dest) {
-  if (!fs.existsSync(src)) return
-  fs.mkdirSync(dest, { recursive: true })
+  if (!fs.existsSync(src)) return;
+  fs.mkdirSync(dest, { recursive: true });
   fs.readdirSync(src, { withFileTypes: true }).forEach(function (entry) {
-    if (entry.name === 'node_modules') return
-    const from = path.join(src, entry.name)
-    const to = path.join(dest, entry.name)
+    if (entry.name === 'node_modules') return;
+    const from = path.join(src, entry.name);
+    const to = path.join(dest, entry.name);
     if (entry.isDirectory()) {
-      copyDir(from, to)
+      copyDir(from, to);
     } else {
-      fs.copyFileSync(from, to)
+      fs.copyFileSync(from, to);
     }
-  })
+  });
 }
 
 async function build() {
-  fs.mkdirSync(DIST, { recursive: true })
+  fs.mkdirSync(DIST, { recursive: true });
 
   await esbuild.build({
     entryPoints: [path.resolve(__dirname, 'src/game.js')],
@@ -31,24 +32,25 @@ async function build() {
     platform: 'neutral',
     target: 'es2015',
     minify: true,
-  })
+  });
 
   fs.copyFileSync(
     path.resolve(__dirname, 'src/game.json'),
     path.join(DIST, 'game.json'),
-  )
+  );
 
   fs.copyFileSync(
     path.resolve(__dirname, 'src/project.config.minigame.json'),
     path.join(DIST, 'project.config.json'),
-  )
+  );
 
-  copyDir(CLOUD_FUNCTIONS, path.join(DIST, 'cloudfunctions'))
+  copyDir(CLOUD_FUNCTIONS, path.join(DIST, 'cloudfunctions'));
+  copyDir(OPEN_DATA_CONTEXT, path.join(DIST, 'open-data-context'));
 
-  console.log('Mini-game build complete:', DIST)
+  console.log('Mini-game build complete:', DIST);
 }
 
-build().catch(err => {
-  console.error('Build failed:', err)
-  process.exit(1)
-})
+build().catch((err) => {
+  console.error('Build failed:', err);
+  process.exit(1);
+});

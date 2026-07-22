@@ -1,0 +1,50 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [develop]
+
+# Cancel previous runs when a new push arrives
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build minigame
+        run: npm run build:minigame
+
+      - name: Upload to WeChat (experience version)
+        env:
+          WX_PRIVATE_KEY: ${{ secrets.WX_PRIVATE_KEY }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: node ci-upload.js minigame
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Deploy Result" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ New experience version uploaded to WeChat!" >> $GITHUB_STEP_SUMMARY
+            echo "Open WeChat DevTools or the Mini Program to test." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Build or upload failed. Check the logs above." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** 1.0.${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY

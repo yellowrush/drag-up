@@ -66,6 +66,12 @@ var leaderboardState = {
   error: '',
   profile: LeaderboardClient.getStoredProfile(),
 }
+var activeLeaderboardScope = 'friend'
+var friendLeaderboardDirty = true
+var friendLeaderboardLastRectKey = ''
+var friendLeaderboardLastRenderAt = 0
+var friendLeaderboardRenderRetryCount = 0
+var friendLeaderboardLastSyncKey = ''
 var avatarImageCache = {}
 var leaderboardAuthButton = null
 var leaderboardAuthButtonKey = ''
@@ -394,8 +400,7 @@ function useRewardTask(task) {
 }
 
 function syncLeaderboardInBackground() {
-  if (!LeaderboardClient.isSupported()) return
-  if (!leaderboardState.profile) return
+  if (!LeaderboardClient.isSupported() && !LeaderboardClient.isFriendLeaderboardSupported()) return
   leaderboardSyncPending = true
   var elapsed = Date.now() - leaderboardLastSyncAt
   var wait = Math.max(LEADERBOARD_SYNC_DELAY, LEADERBOARD_SYNC_MIN_INTERVAL - elapsed)
@@ -406,14 +411,19 @@ function syncLeaderboardInBackground() {
 function runQueuedLeaderboardSync() {
   leaderboardSyncTimer = null
   if (!leaderboardSyncPending || leaderboardSyncInFlight) return
-  if (!leaderboardState.profile) return
   leaderboardSyncPending = false
   leaderboardSyncInFlight = true
   leaderboardLastSyncAt = Date.now()
-  LeaderboardClient.syncScore(
-    rewardState.levelScores || {},
-    leaderboardState.profile,
-  ).then(function (result) {
+  LeaderboardClient.syncFriendScore(rewardState.levelScores || {}).catch(function () {
+    return null
+  }).then(function () {
+    friendLeaderboardDirty = true
+    if (!LeaderboardClient.isSupported() || !leaderboardState.profile) return null
+    return LeaderboardClient.syncScore(
+      rewardState.levelScores || {},
+      leaderboardState.profile,
+    )
+  }).then(function (result) {
     applySyncedRewardScores(result)
   }).catch(function () {}).then(function () {
     leaderboardSyncInFlight = false
@@ -439,8 +449,63 @@ function getLeaderboardErrorText(reason) {
   return LEADERBOARD_LOAD_FAILED_TEXT
 }
 
+function renderFriendLeaderboard(rect) {
+  if (!rect || !LeaderboardClient.isFriendLeaderboardSupported()) return
+  var rectKey = [
+    Math.round(rect.w),
+    Math.round(rect.h),
+    rewardState.totalScore || 0,
+    rewardState.levelScores ? Object.keys(rewardState.levelScores).length : 0,
+  ].join(':')
+  var now = Date.now()
+  if (friendLeaderboardDirty || friendLeaderboardLastRectKey !== rectKey) {
+    friendLeaderboardRenderRetryCount = 0
+  }
+  if (
+    !friendLeaderboardDirty &&
+    friendLeaderboardLastRectKey === rectKey &&
+    (
+      friendLeaderboardRenderRetryCount >= 3 ||
+      now - friendLeaderboardLastRenderAt < 1000
+    )
+  ) {
+    return
+  }
+  LeaderboardClient.renderFriendLeaderboard({
+    width: rect.w,
+    height: rect.h,
+    dpr: dpr,
+    levelScores: rewardState.levelScores || {},
+  })
+  friendLeaderboardDirty = false
+  friendLeaderboardLastRectKey = rectKey
+  friendLeaderboardLastRenderAt = now
+  friendLeaderboardRenderRetryCount += 1
+  if (friendLeaderboardLastSyncKey !== rectKey) {
+    friendLeaderboardLastSyncKey = rectKey
+    LeaderboardClient.syncFriendScore(rewardState.levelScores || {}).catch(function () {
+      return null
+    })
+  }
+}
+
+function hideFriendLeaderboard() {
+  friendLeaderboardDirty = true
+  friendLeaderboardLastRectKey = ''
+  friendLeaderboardLastRenderAt = 0
+  friendLeaderboardRenderRetryCount = 0
+  friendLeaderboardLastSyncKey = ''
+  if (LeaderboardClient.hideFriendLeaderboard) {
+    LeaderboardClient.hideFriendLeaderboard()
+  }
+}
+
 function loadLeaderboard() {
   refreshRewards()
+  if (activeLeaderboardScope === 'friend') {
+    friendLeaderboardDirty = true
+    return
+  }
   logLeaderboardUi('load leaderboard', {
     hasProfile: !!leaderboardState.profile,
     localTotalScore: rewardState.totalScore || 0,
@@ -523,9 +588,26 @@ function setActiveRewardTab(tab) {
   scoreScrollY = 0
   scoreTaskHint = ''
   if (tab !== 'leaderboard') {
+    hideFriendLeaderboard()
     destroyLeaderboardAuthButton()
   }
   if (tab === 'leaderboard') {
+    activeLeaderboardScope = activeLeaderboardScope || 'friend'
+    if (activeLeaderboardScope === 'friend') {
+      friendLeaderboardDirty = true
+    } else {
+      loadLeaderboard()
+    }
+  }
+}
+
+function setActiveLeaderboardScope(scope) {
+  activeLeaderboardScope = scope === 'server' ? 'server' : 'friend'
+  scoreScrollY = 0
+  if (activeLeaderboardScope === 'friend') {
+    friendLeaderboardDirty = true
+  } else {
+    hideFriendLeaderboard()
     loadLeaderboard()
   }
 }
@@ -608,6 +690,7 @@ function loadLevel(id) {
   instruction = engine.maze.instruction || ''
   showLevelSelect = false
   showScoreModal = false
+  hideFriendLeaderboard()
   showNext = false
 }
 
@@ -621,6 +704,7 @@ function handleTouchStart(e) {
     var smy = (H - SCORE_MODAL_H) / 2
     if (!isInside(x, y, smx, smy, SCORE_MODAL_W, SCORE_MODAL_H)) {
       showScoreModal = false
+      hideFriendLeaderboard()
       modalTouchId = null
       modalTouchMode = ''
       return
@@ -703,7 +787,11 @@ function handleTouchStart(e) {
       showLevelSelect = false
       showScoreModal = true
       if (activeRewardTab === 'leaderboard') {
-        loadLeaderboard()
+        if (activeLeaderboardScope === 'friend') {
+          friendLeaderboardDirty = true
+        } else {
+          loadLeaderboard()
+        }
       }
       return
     }
@@ -773,12 +861,17 @@ wx.onTouchEnd(function (e) {
         }
       } else if (modalTouchMode === 'score-list') {
         if (activeRewardTab === 'leaderboard') {
-          if (
+          var leaderboardScope = getLeaderboardScopeAt(st.clientX, st.clientY, smx, smy)
+          if (leaderboardScope) {
+            setActiveLeaderboardScope(leaderboardScope)
+          } else if (
+            activeLeaderboardScope === 'server' &&
             leaderboardState.status === 'error' &&
             isInsideRect(st.clientX, st.clientY, getLeaderboardRetryRect(smx, smy))
           ) {
             loadLeaderboard()
           } else if (
+            activeLeaderboardScope === 'server' &&
             !leaderboardAuthButton &&
             isInsideRect(st.clientX, st.clientY, getLeaderboardAuthRect(smx, smy))
           ) {
@@ -1243,7 +1336,7 @@ function getLeaderboardAuthRect(mx, my) {
   var content = getScoreContentRect(mx, my)
   return {
     x: content.x + content.w - 88,
-    y: content.y + 5,
+    y: content.y + 47,
     w: 82,
     h: 32,
   }
@@ -1265,14 +1358,46 @@ function getLeaderboardListRect(mx, my) {
   var content = getScoreContentRect(mx, my)
   return {
     x: content.x,
-    y: content.y + 58,
+    y: content.y + 100,
     w: content.w,
-    h: content.h - 58,
+    h: content.h - 100,
+  }
+}
+
+function getLeaderboardScopeRect(scope, mx, my) {
+  var content = getScoreContentRect(mx, my)
+  var gap = 8
+  var w = (content.w - gap) / 2
+  var index = scope === 'server' ? 1 : 0
+  return {
+    x: content.x + index * (w + gap),
+    y: content.y + 4,
+    w: w,
+    h: 32,
+  }
+}
+
+function getLeaderboardScopeAt(x, y, mx, my) {
+  var friend = getLeaderboardScopeRect('friend', mx, my)
+  if (isInsideRect(x, y, friend)) return 'friend'
+  var server = getLeaderboardScopeRect('server', mx, my)
+  if (isInsideRect(x, y, server)) return 'server'
+  return ''
+}
+
+function getFriendLeaderboardRect(mx, my) {
+  var content = getScoreContentRect(mx, my)
+  return {
+    x: content.x,
+    y: content.y + 44,
+    w: content.w,
+    h: content.h - 44,
   }
 }
 
 function getScoreMaxScroll(mx, my) {
   if (activeRewardTab === 'leaderboard') {
+    if (activeLeaderboardScope === 'friend') return 0
     var list = getLeaderboardListRect(mx, my)
     var contentH = leaderboardState.rows.length * (LEADERBOARD_ROW_H + SCORE_MODAL_GAP)
     return Math.max(0, contentH - list.h)
@@ -1563,8 +1688,13 @@ function drawTaskActionButton(r, rect, label, enabled) {
 
 function drawLeaderboardPanel(r, mx, my) {
   var content = getScoreContentRect(mx, my)
+  drawLeaderboardScopeTabs(r, mx, my)
+  if (activeLeaderboardScope === 'friend') {
+    drawFriendLeaderboardPanel(r, mx, my)
+    return
+  }
   if (leaderboardState.status === 'unavailable') {
-    drawLeaderboardMessage(r, content, '\u8bf7\u5728\u5fae\u4fe1\u5c0f\u6e38\u620f\u4e2d\u67e5\u770b\u5168\u670d\u6392\u884c\u699c')
+    drawLeaderboardMessage(r, getLeaderboardListRect(mx, my), '\u8bf7\u5728\u5fae\u4fe1\u5c0f\u6e38\u620f\u4e2d\u67e5\u770b\u5168\u670d\u6392\u884c\u699c')
     return
   }
 
@@ -1594,25 +1724,64 @@ function drawLeaderboardPanel(r, mx, my) {
   drawLeaderboardRows(r, mx, my)
 }
 
+function drawLeaderboardScopeTabs(r, mx, my) {
+  drawLeaderboardScopeTab(r, getLeaderboardScopeRect('friend', mx, my), '\u597d\u53cb', activeLeaderboardScope === 'friend')
+  drawLeaderboardScopeTab(r, getLeaderboardScopeRect('server', mx, my), '\u5168\u670d', activeLeaderboardScope === 'server')
+}
+
+function drawLeaderboardScopeTab(r, rect, label, active) {
+  r.fillStyle = active ? '#3d3f51' : '#2f2f50'
+  r.strokeStyle = active ? '#ffe8af' : '#565873'
+  r.lineWidth = active ? 2 : 1.2
+  drawRoundRect(r, rect.x, rect.y, rect.w, rect.h, 8)
+  r.fill()
+  r.stroke()
+  r.fillStyle = active ? '#ffe8af' : '#d9daec'
+  r.font = 'bold 12px sans-serif'
+  r.textAlign = 'center'
+  r.textBaseline = 'middle'
+  r.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 1)
+}
+
+function drawFriendLeaderboardPanel(r, mx, my) {
+  var rect = getFriendLeaderboardRect(mx, my)
+  r.fillStyle = '#23233a'
+  drawRoundRect(r, rect.x, rect.y, rect.w, rect.h, 8)
+  r.fill()
+  if (!LeaderboardClient.isFriendLeaderboardSupported()) {
+    drawLeaderboardMessage(r, rect, '\u8bf7\u5728\u5fae\u4fe1\u5c0f\u6e38\u620f\u4e2d\u67e5\u770b\u597d\u53cb\u6392\u884c\u699c')
+    return
+  }
+  renderFriendLeaderboard(rect)
+  var sharedCanvas = LeaderboardClient.getFriendLeaderboardCanvas
+    ? LeaderboardClient.getFriendLeaderboardCanvas()
+    : null
+  if (sharedCanvas) {
+    r.drawImage(sharedCanvas, rect.x, rect.y, rect.w, rect.h)
+  } else {
+    drawLeaderboardMessage(r, rect, '\u597d\u53cb\u699c\u52a0\u8f7d\u4e2d...')
+  }
+}
+
 function drawLeaderboardSummary(r, mx, my) {
   var content = getScoreContentRect(mx, my)
   var authRect = getLeaderboardAuthRect(mx, my)
   var avatar = getLeaderboardProfileAvatar()
   r.fillStyle = '#34344f'
-  drawRoundRect(r, content.x, content.y + 4, content.w - 96, 38, 8)
+  drawRoundRect(r, content.x, content.y + 46, content.w - 96, 38, 8)
   r.fill()
-  drawLeaderboardAvatar(r, avatar, content.x + 8, content.y + 8, 30)
+  drawLeaderboardAvatar(r, avatar, content.x + 8, content.y + 50, 30)
   r.fillStyle = '#aeb0c8'
   r.font = 'bold 11px sans-serif'
   r.textAlign = 'left'
   r.textBaseline = 'middle'
-  r.fillText(truncateText(getLeaderboardProfileName(), 9), content.x + 46, content.y + 15)
+  r.fillText(truncateText(getLeaderboardProfileName(), 9), content.x + 46, content.y + 57)
   r.fillStyle = '#ffe8af'
   r.font = 'bold 14px sans-serif'
   var selfText = leaderboardState.self
     ? '#' + leaderboardState.self.rank + ' / ' + leaderboardState.self.totalScore
     : '--'
-  r.fillText(selfText, content.x + 46, content.y + 32)
+  r.fillText(selfText, content.x + 46, content.y + 74)
 
   drawLeaderboardButton(
     r,

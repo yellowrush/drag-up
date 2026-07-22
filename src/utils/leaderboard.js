@@ -2,6 +2,8 @@ import { GameStorage } from './storage.js';
 import { CLOUD_ENV_ID, LEADERBOARD_LIMIT } from './leaderboard-config.js';
 
 const PROFILE_KEY = 'leaderboardProfileV1';
+const FRIEND_SCORE_KEY = 'dragUpTotalScoreV1';
+const FRIEND_SCORE_SCHEMA_VERSION = 1;
 const LOCAL_PLAYER_NAME = '\u672c\u5730\u73a9\u5bb6';
 const ANONYMOUS_PLAYER_NAME = '\u533f\u540d\u73a9\u5bb6';
 const MAX_LEVEL_SCORE = 10;
@@ -33,6 +35,15 @@ function getCloudEnv() {
 function hasCloud() {
   var w = getWx();
   return !!(w && w.cloud && typeof w.cloud.callFunction === 'function');
+}
+
+function hasFriendLeaderboard() {
+  var w = getWx();
+  return !!(
+    w &&
+    typeof w.setUserCloudStorage === 'function' &&
+    typeof w.getOpenDataContext === 'function'
+  );
 }
 
 function warnLeaderboard(message, detail, key) {
@@ -152,6 +163,26 @@ export function normalizeLeaderboardScores(levelScores) {
       score: normalized[levelId],
     };
   });
+}
+
+function summarizeLevelScores(levelScores) {
+  var scores = normalizeLeaderboardScores(levelScores);
+  return {
+    totalScore: scores.reduce(function (total, item) {
+      return total + (Number(item.score) || 0);
+    }, 0),
+    completedCount: scores.length,
+  };
+}
+
+function getFriendScorePayload(levelScores) {
+  var summary = summarizeLevelScores(levelScores);
+  return {
+    schemaVersion: FRIEND_SCORE_SCHEMA_VERSION,
+    totalScore: summary.totalScore,
+    completedCount: summary.completedCount,
+    updatedAt: Date.now(),
+  };
 }
 
 function cleanProfile(profile) {
@@ -343,6 +374,33 @@ async function syncScore(levelScores, profile) {
   });
 }
 
+async function syncFriendScore(levelScores) {
+  var w = getWx();
+  if (!w || typeof w.setUserCloudStorage !== 'function') {
+    return { ok: false, reason: 'unsupported' };
+  }
+  var payload = getFriendScorePayload(levelScores);
+  return new Promise(function (resolve) {
+    w.setUserCloudStorage({
+      KVDataList: [
+        {
+          key: FRIEND_SCORE_KEY,
+          value: JSON.stringify(payload),
+        },
+      ],
+      success: function () {
+        logLeaderboard('syncFriendScore success', payload);
+        resolve({ ok: true, key: FRIEND_SCORE_KEY, ...payload });
+      },
+      fail: function (err) {
+        var message = getCloudErrorMessage(err);
+        warnLeaderboard('syncFriendScore failed', message, 'friend-storage-failed');
+        resolve({ ok: false, reason: 'friend-storage-failed', errMsg: message });
+      },
+    });
+  });
+}
+
 async function getLeaderboard(limit) {
   if (!hasCloud()) {
     return { ok: false, reason: 'unsupported', rows: [], self: null };
@@ -353,6 +411,60 @@ async function getLeaderboard(limit) {
   return callCloudFunction('getLeaderboard', {
     limit: Math.max(1, Math.min(LEADERBOARD_LIMIT, Number(limit) || LEADERBOARD_LIMIT)),
   });
+}
+
+function getOpenDataContext() {
+  var w = getWx();
+  if (!w || typeof w.getOpenDataContext !== 'function') return null;
+  try {
+    return w.getOpenDataContext();
+  } catch (err) {
+    warnLeaderboard('getOpenDataContext failed', err, 'open-data-context-failed');
+    return null;
+  }
+}
+
+function getFriendLeaderboardCanvas() {
+  var context = getOpenDataContext();
+  return context && context.canvas ? context.canvas : null;
+}
+
+function renderFriendLeaderboard(options) {
+  var context = getOpenDataContext();
+  if (!context || typeof context.postMessage !== 'function') {
+    return { ok: false, reason: 'unsupported' };
+  }
+  var canvas = context.canvas;
+  var width = Math.max(1, Math.round(Number(options && options.width) || 280));
+  var height = Math.max(1, Math.round(Number(options && options.height) || 240));
+  var dpr = Math.max(1, Number(options && options.dpr) || 1);
+  if (canvas) {
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+  }
+  var levelScores = (options && options.levelScores) || {};
+  var payload = getFriendScorePayload(levelScores);
+  var message = {
+    type: 'renderFriendLeaderboard',
+    key: FRIEND_SCORE_KEY,
+    width: width,
+    height: height,
+    dpr: dpr,
+    selfScore: payload.totalScore,
+    selfCompletedCount: payload.completedCount,
+    selfUpdatedAt: payload.updatedAt,
+  };
+  context.postMessage(message);
+  return { ok: true, key: FRIEND_SCORE_KEY };
+}
+
+function hideFriendLeaderboard() {
+  var context = getOpenDataContext();
+  if (!context || typeof context.postMessage !== 'function') {
+    return { ok: false, reason: 'unsupported' };
+  }
+  context.postMessage({ type: 'hideFriendLeaderboard' });
+  return { ok: true };
 }
 
 function attachSyncResult(result, syncResult) {
@@ -483,13 +595,18 @@ async function requestProfile() {
 
 export const LeaderboardClient = {
   isSupported: hasCloud,
+  isFriendLeaderboardSupported: hasFriendLeaderboard,
   init: initCloud,
   getStoredProfile: getStoredProfile,
   getAuthorizedProfile: getAuthorizedProfile,
   refreshProfileFromCache: refreshProfileFromCache,
   saveProfile: saveProfile,
   requestProfile: requestProfile,
+  syncFriendScore: syncFriendScore,
   syncScore: syncScore,
   getLeaderboard: getLeaderboard,
   syncAndFetch: syncAndFetch,
+  renderFriendLeaderboard: renderFriendLeaderboard,
+  getFriendLeaderboardCanvas: getFriendLeaderboardCanvas,
+  hideFriendLeaderboard: hideFriendLeaderboard,
 };
