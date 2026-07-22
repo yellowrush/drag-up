@@ -479,15 +479,16 @@ function drawDistantFloats(ctx, layout, tile) {
   ctx.save();
   ctx.globalAlpha = 0.32;
   [
-    { x: layout.x + layout.w * 0.16, y: layout.y + layout.h * 0.16, s: 0.72 },
-    { x: layout.x + layout.w * 0.84, y: layout.y + layout.h * 0.72, s: 0.58 },
-    { x: layout.x + layout.w * 0.10, y: layout.y + layout.h * 0.86, s: 0.46 },
+    { x: layout.x + layout.w * 0.12, y: layout.y + layout.h * 0.18, s: 0.72 },
+    { x: layout.x + layout.w * 0.88, y: layout.y + layout.h * 0.22, s: 0.64 },
+    { x: layout.x + layout.w * 0.10, y: layout.y + layout.h * 0.80, s: 0.52 },
+    { x: layout.x + layout.w * 0.86, y: layout.y + layout.h * 0.76, s: 0.46 },
   ].forEach(function (float) {
     ctx.fillStyle = 'rgba(191,226,221,0.55)';
     ctx.strokeStyle = 'rgba(222,246,242,0.42)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.ellipse(float.x, float.y, tile.w * float.s, tile.h * float.s * 0.52, -0.12, 0, TAU);
+    ctx.ellipse(float.x, float.y, tile.w * float.s, tile.h * float.s * 0.52, 0, 0, TAU);
     ctx.fill();
     ctx.stroke();
   });
