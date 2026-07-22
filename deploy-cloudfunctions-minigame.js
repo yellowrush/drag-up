@@ -5,12 +5,15 @@ const dns = require('dns')
 const JSZip = require('jszip')
 const cloudApiTools = require('miniprogram-ci/dist/ci/cloud/cloudapi')
 const cloudAPI = require('miniprogram-ci/dist/common/cloud-api')
+const {
+  assertProjectExists,
+  formatError,
+  loadUploadConfig,
+} = require('./scripts/wechat-upload-config')
 
 dns.setDefaultResultOrder('ipv4first')
 
-const APPID = 'wxcdf46c8da7dacd7a'
 const DIST = path.resolve(__dirname, 'dist/build/minigame')
-const PRIVATE_KEY = path.resolve(__dirname, 'private.wxcdf46c8da7dacd7a.key')
 const CLOUD_CONFIG = path.resolve(__dirname, 'cloudbaserc.json')
 
 const cloudConfig = JSON.parse(fs.readFileSync(CLOUD_CONFIG, 'utf8'))
@@ -20,57 +23,60 @@ const functions = cloudConfig.functions || [
   { name: 'getLeaderboard', runtime: 'Nodejs20.19' },
 ]
 
-if (!fs.existsSync(DIST)) {
-  console.error('Missing minigame build:', DIST)
-  console.error('Run npm run build:minigame first.')
-  process.exit(1)
-}
-
-if (!fs.existsSync(PRIVATE_KEY)) {
-  console.error('Missing private key:', PRIVATE_KEY)
-  process.exit(1)
-}
-
 async function deploy() {
+  const uploadConfig = loadUploadConfig({ mode: 'minigame', defaultMode: 'minigame' })
+  assertProjectExists(uploadConfig)
+
+  console.log('[cloudfunctions] Preparing deploy')
+  console.log(`  AppId: ${uploadConfig.appid}`)
+  console.log(`  EnvId: ${envId}`)
+  console.log(`  Project: ${DIST}`)
+  console.log(`  Private key: ${uploadConfig.privateKeySource}`)
+
   const project = new ci.Project({
-    appid: APPID,
+    appid: uploadConfig.appid,
     type: 'miniGame',
     projectPath: DIST,
-    privateKeyPath: PRIVATE_KEY,
+    privateKeyPath: uploadConfig.privateKeyPath,
   })
 
-  cloudApiTools.initCloudAPI(APPID)
-  const envInfo = await getEnvInfo(project)
-  const region = envInfo.functions && envInfo.functions[0] && envInfo.functions[0].region
-  if (!region) {
-    throw new Error(`Missing cloud function region for env ${envId}`)
-  }
-  const codeSecret = await cloudApiTools.get3rdCloudCodeSecret(project)
-  const requestOptions = {
-    request: cloudApiTools.boundTransactRequest(project),
-    transactType: cloudAPI.TransactType.IDE,
-  }
+  try {
+    cloudApiTools.initCloudAPI(uploadConfig.appid)
+    const envInfo = await getEnvInfo(project)
+    const region = envInfo.functions && envInfo.functions[0] && envInfo.functions[0].region
+    if (!region) {
+      throw new Error(`Missing cloud function region for env ${envId}`)
+    }
+    const codeSecret = await cloudApiTools.get3rdCloudCodeSecret(project)
+    const requestOptions = {
+      request: cloudApiTools.boundTransactRequest(project),
+      transactType: cloudAPI.TransactType.IDE,
+    }
 
-  for (const item of functions) {
-    const name = item.name
-    const functionPath = path.join(DIST, 'cloudfunctions', name)
-    await ensureFunctionExists({
-      name,
-      runtime: item.runtime || 'Nodejs20.19',
-      region,
-      codeSecret,
-      requestOptions,
-      envInfo,
-    })
-    console.log(`Uploading ${name} to ${envId}...`)
-    const result = await ci.cloud.uploadFunction({
-      project,
-      env: envId,
-      name,
-      path: functionPath,
-      remoteNpmInstall: true,
-    })
-    console.log(`${name} uploaded:`, result)
+    for (const item of functions) {
+      const name = item.name
+      const functionPath = path.join(DIST, 'cloudfunctions', name)
+      await ensureFunctionExists({
+        name,
+        runtime: item.runtime || 'Nodejs20.19',
+        region,
+        codeSecret,
+        requestOptions,
+        envInfo,
+      })
+      console.log(`[cloudfunctions] Uploading ${name} to ${envId}`)
+      const result = await ci.cloud.uploadFunction({
+        project,
+        env: envId,
+        name,
+        path: functionPath,
+        remoteNpmInstall: true,
+      })
+      console.log(`[cloudfunctions] ${name} uploaded`)
+      console.log(JSON.stringify(result, null, 2))
+    }
+  } finally {
+    uploadConfig.cleanupPrivateKey()
   }
 }
 
@@ -81,7 +87,7 @@ async function getEnvInfo(project) {
   })
   const envInfo = (res.envList || []).find(item => item.envId === envId)
   if (!envInfo) {
-    throw new Error(`Env not found for current appid: ${envId}`)
+    throw new Error(`Env not found for WX_APPID: ${envId}`)
   }
   return envInfo
 }
@@ -141,7 +147,7 @@ async function waitFunctionActive(options) {
       functionName: name,
       codeSecret,
     }, requestOptions)
-    console.log(`${name} status: ${info.status}`)
+    console.log(`[cloudfunctions] ${name} status: ${info.status}`)
     if (info.status === 'Active') return
     if (info.status === 'CreateFailed') {
       throw new Error(`Create function failed: ${info.statusDesc || name}`)
@@ -182,6 +188,7 @@ function sleep(ms) {
 deploy().then(() => {
   process.exit(0)
 }).catch(err => {
-  console.error('Cloud function deploy failed:', err)
+  console.error('[cloudfunctions] Deploy failed')
+  console.error(formatError(err))
   process.exit(1)
 })

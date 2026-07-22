@@ -1,6 +1,7 @@
 const esbuild = require('esbuild');
 const path = require('path');
 const fs = require('fs');
+const { copyProjectConfigWithEnvAppId } = require('./scripts/wechat-project-config');
 
 const DIST = path.resolve(__dirname, 'dist/build/minigame');
 const CLOUD_FUNCTIONS = path.resolve(__dirname, 'cloudfunctions');
@@ -39,7 +40,7 @@ async function build() {
     path.join(DIST, 'game.json'),
   );
 
-  fs.copyFileSync(
+  copyProjectConfigWithEnvAppId(
     path.resolve(__dirname, 'src/project.config.minigame.json'),
     path.join(DIST, 'project.config.json'),
   );

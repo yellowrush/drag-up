@@ -3,8 +3,8 @@ name: Build & Deploy
 on:
   push:
     branches: [develop]
+  workflow_dispatch:
 
-# Cancel previous runs when a new push arrives
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
@@ -23,28 +23,32 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build minigame
+        env:
+          WX_APPID: ${{ secrets.WX_APPID }}
         run: npm run build:minigame
 
-      - name: Upload to WeChat (experience version)
+      - name: Upload WeChat experience version
         env:
+          WX_APPID: ${{ secrets.WX_APPID }}
           WX_PRIVATE_KEY: ${{ secrets.WX_PRIVATE_KEY }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
           GITHUB_SHA: ${{ github.sha }}
-        run: node ci-upload.js minigame
+        run: npm run upload:minigame:ci
 
       - name: Summary
         if: always()
         run: |
           echo "## Deploy Result" >> $GITHUB_STEP_SUMMARY
           if [ "${{ job.status }}" = "success" ]; then
-            echo "✅ New experience version uploaded to WeChat!" >> $GITHUB_STEP_SUMMARY
-            echo "Open WeChat DevTools or the Mini Program to test." >> $GITHUB_STEP_SUMMARY
+            echo "WeChat experience version uploaded successfully." >> $GITHUB_STEP_SUMMARY
+            echo "Open WeChat DevTools or the Mini Game tester entry to verify." >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ Build or upload failed. Check the logs above." >> $GITHUB_STEP_SUMMARY
+            echo "Build or upload failed. Check the step logs above." >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode:** minigame" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** 1.0.${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
