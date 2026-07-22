@@ -25,22 +25,26 @@ During the minigame build, `WX_APPID` is also written into
 `dist/build/minigame/project.config.json`. Source config files keep an empty
 `appid` so appIds are not committed.
 
-The CI upload version defaults to `1.0.<github_run_number>`, and the
+The CI upload version defaults to the `package.json` `version`, and the
 description defaults to `CI: <short_commit_sha>`.
+
+`package.json` is the only version value to edit by hand. Before app builds,
+`npm run sync:version` updates `src/manifest.json`
+`versionName` and derives `versionCode` from that package version.
 
 ## Local upload
 
 Set the appId before uploading:
 
 ```bash
-WX_APPID=wxxxxxxxxxxxxxxxxx npm run upload:minigame -- 1.0.10 "manual test"
+WX_APPID=wxxxxxxxxxxxxxxxxx npm run upload:minigame -- 1.1.0 "manual test"
 ```
 
 On Windows PowerShell:
 
 ```powershell
 $env:WX_APPID = "wxxxxxxxxxxxxxxxxx"
-npm.cmd run upload:minigame -- 1.0.10 "manual test"
+npm.cmd run upload:minigame -- 1.1.0 "manual test"
 ```
 
 By default the local script looks for `private.<WX_APPID>.key`. To use another

@@ -1,8 +1,17 @@
 {
   "name": "drag-up",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "scripts": {
+    "sync:version": "node scripts/sync-app-version.js",
+    "predev:h5": "npm run sync:version",
+    "prebuild:h5": "npm run sync:version",
+    "predev:mp-weixin": "npm run sync:version",
+    "prebuild:mp-weixin": "npm run sync:version",
+    "predev:minigame": "npm run sync:version",
+    "prebuild:minigame": "npm run sync:version",
+    "predev": "npm run sync:version",
+    "predeploy:mp-weixin": "npm run sync:version",
     "dev": "node dev-minigame.js",
     "dev:h5": "uni --platform h5",
     "build:h5": "uni build --platform h5",

@@ -41,6 +41,7 @@ jobs:
       - name: Summary
         if: always()
         run: |
+          VERSION=$(node -p "require('./package.json').version")
           echo "## Deploy Result" >> $GITHUB_STEP_SUMMARY
           if [ "${{ job.status }}" = "success" ]; then
             echo "WeChat experience version uploaded successfully." >> $GITHUB_STEP_SUMMARY
@@ -51,4 +52,4 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Mode:** minigame" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** 1.0.${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${VERSION}" >> $GITHUB_STEP_SUMMARY

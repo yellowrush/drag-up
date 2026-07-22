@@ -10,7 +10,7 @@ const {
 dns.setDefaultResultOrder('ipv4first')
 
 const MODE = process.argv[2] || 'mp-weixin'
-const version = process.argv[3] || '1.0.0'
+const version = process.argv[3] || require('./scripts/app-version').getAppVersion()
 const desc = process.argv[4] || 'Manual upload'
 
 async function upload() {

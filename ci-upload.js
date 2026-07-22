@@ -9,11 +9,12 @@
  *   WX_APPID=<appid> WX_PRIVATE_KEY=<key_content> node ci-upload.js [mode] [version] [desc]
  *
  *   mode    - "minigame" (default) or "mp-weixin"
- *   version - defaults to 1.0.<run_number>
+ *   version - defaults to package.json version
  *   desc    - defaults to "CI: <commit_short_hash>"
  */
 const ci = require('miniprogram-ci')
 const dns = require('dns')
+const { getAppVersion } = require('./scripts/app-version')
 const {
   assertProjectExists,
   formatError,
@@ -24,7 +25,7 @@ const {
 dns.setDefaultResultOrder('ipv4first')
 
 const MODE = process.argv[2] || 'minigame'
-const version = process.argv[3] || `1.0.${process.env.GITHUB_RUN_NUMBER || '0'}`
+const version = process.argv[3] || getAppVersion()
 const desc = process.argv[4] || (process.env.GITHUB_SHA ? `CI: ${process.env.GITHUB_SHA.slice(0, 7)}` : 'CI auto upload')
 
 async function upload() {
