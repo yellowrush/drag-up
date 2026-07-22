@@ -69,8 +69,6 @@ var leaderboardState = {
 var activeLeaderboardScope = 'friend'
 var friendLeaderboardDirty = true
 var friendLeaderboardLastRectKey = ''
-var friendLeaderboardLastRenderAt = 0
-var friendLeaderboardRenderRetryCount = 0
 var friendLeaderboardLastSyncKey = ''
 var avatarImageCache = {}
 var leaderboardAuthButton = null
@@ -457,17 +455,9 @@ function renderFriendLeaderboard(rect) {
     rewardState.totalScore || 0,
     rewardState.levelScores ? Object.keys(rewardState.levelScores).length : 0,
   ].join(':')
-  var now = Date.now()
-  if (friendLeaderboardDirty || friendLeaderboardLastRectKey !== rectKey) {
-    friendLeaderboardRenderRetryCount = 0
-  }
   if (
     !friendLeaderboardDirty &&
-    friendLeaderboardLastRectKey === rectKey &&
-    (
-      friendLeaderboardRenderRetryCount >= 3 ||
-      now - friendLeaderboardLastRenderAt < 1000
-    )
+    friendLeaderboardLastRectKey === rectKey
   ) {
     return
   }
@@ -479,8 +469,6 @@ function renderFriendLeaderboard(rect) {
   })
   friendLeaderboardDirty = false
   friendLeaderboardLastRectKey = rectKey
-  friendLeaderboardLastRenderAt = now
-  friendLeaderboardRenderRetryCount += 1
   if (friendLeaderboardLastSyncKey !== rectKey) {
     friendLeaderboardLastSyncKey = rectKey
     LeaderboardClient.syncFriendScore(rewardState.levelScores || {}).catch(function () {
@@ -492,8 +480,6 @@ function renderFriendLeaderboard(rect) {
 function hideFriendLeaderboard() {
   friendLeaderboardDirty = true
   friendLeaderboardLastRectKey = ''
-  friendLeaderboardLastRenderAt = 0
-  friendLeaderboardRenderRetryCount = 0
   friendLeaderboardLastSyncKey = ''
   if (LeaderboardClient.hideFriendLeaderboard) {
     LeaderboardClient.hideFriendLeaderboard()

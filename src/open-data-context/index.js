@@ -1,5 +1,6 @@
 var SCORE_KEY = 'dragUpTotalScoreV1';
 var MAX_ROWS = 10;
+var CACHE_TTL_MS = 60000;
 var state = {
   width: 280,
   height: 240,
@@ -7,6 +8,12 @@ var state = {
   selfScore: 0,
   selfCompletedCount: 0,
   selfUpdatedAt: 0,
+};
+var cachedResult = {
+  cacheKey: '',
+  fetchedAt: 0,
+  rows: null,
+  error: null,
 };
 
 function getSharedCanvas() {
@@ -217,6 +224,28 @@ function drawSelfSummary(ctx) {
   ctx.fillText(String(state.selfScore), state.width - 12, y + h / 2 + 1);
 }
 
+function getRequestCacheKey(message) {
+  return [
+    message.key || SCORE_KEY,
+    Math.round(Number(message.width) || state.width),
+    Math.round(Number(message.height) || state.height),
+    state.selfScore,
+    state.selfCompletedCount,
+  ].join(':');
+}
+
+function drawLeaderboardResult(ctx, rows) {
+  if (!rows || !rows.length) {
+    drawMessage(ctx, '\u6682\u65e0\u597d\u53cb\u6210\u7ee9');
+    drawSelfSummary(ctx);
+    return;
+  }
+  drawRows(ctx, rows);
+  if (!rows.some(isSelfRow)) {
+    drawSelfSummary(ctx);
+  }
+}
+
 function renderFriendLeaderboard(message) {
   SCORE_KEY = message.key || SCORE_KEY;
   state.selfScore = Math.max(0, Math.round(Number(message.selfScore) || 0));
@@ -228,6 +257,18 @@ function renderFriendLeaderboard(message) {
 
   var ctx = setupCanvas(message.width, message.height, message.dpr);
   if (!ctx) return;
+  var cacheKey = getRequestCacheKey(message);
+  if (
+    cachedResult.cacheKey === cacheKey &&
+    Date.now() - cachedResult.fetchedAt < CACHE_TTL_MS
+  ) {
+    if (cachedResult.error) {
+      drawError(ctx, '\u597d\u53cb\u699c\u52a0\u8f7d\u5931\u8d25', cachedResult.error);
+    } else {
+      drawLeaderboardResult(ctx, cachedResult.rows || []);
+    }
+    return;
+  }
   drawMessage(ctx, '\u597d\u53cb\u699c\u52a0\u8f7d\u4e2d...');
 
   if (
@@ -245,8 +286,13 @@ function renderFriendLeaderboard(message) {
   var timeout = setTimeout(function () {
     if (settled) return;
     settled = true;
-    drawMessage(ctx, '\u6682\u65e0\u597d\u53cb\u6210\u7ee9');
-    drawSelfSummary(ctx);
+    cachedResult = {
+      cacheKey: cacheKey,
+      fetchedAt: Date.now(),
+      rows: [],
+      error: null,
+    };
+    drawLeaderboardResult(ctx, []);
   }, 3000);
 
   wx.getFriendCloudStorage({
@@ -262,14 +308,22 @@ function renderFriendLeaderboard(message) {
         .filter(Boolean)
         .sort(sortRows);
       if (!rows.length) {
-        drawMessage(ctx, '\u6682\u65e0\u597d\u53cb\u6210\u7ee9');
-        drawSelfSummary(ctx);
+        cachedResult = {
+          cacheKey: cacheKey,
+          fetchedAt: Date.now(),
+          rows: [],
+          error: null,
+        };
+        drawLeaderboardResult(ctx, []);
         return;
       }
-      drawRows(ctx, rows);
-      if (!rows.some(isSelfRow)) {
-        drawSelfSummary(ctx);
-      }
+      cachedResult = {
+        cacheKey: cacheKey,
+        fetchedAt: Date.now(),
+        rows: rows,
+        error: null,
+      };
+      drawLeaderboardResult(ctx, rows);
     },
     fail: function (err) {
       if (settled) return;
@@ -278,6 +332,12 @@ function renderFriendLeaderboard(message) {
       if (typeof console !== 'undefined' && typeof console.warn === 'function') {
         console.warn('[open-data-context] getFriendCloudStorage failed', err);
       }
+      cachedResult = {
+        cacheKey: cacheKey,
+        fetchedAt: Date.now(),
+        rows: null,
+        error: err || { errMsg: 'getFriendCloudStorage failed' },
+      };
       drawError(ctx, '\u597d\u53cb\u699c\u52a0\u8f7d\u5931\u8d25', err);
     },
   });
