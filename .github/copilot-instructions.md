@@ -9,6 +9,9 @@ When working on an issue:
 - Keep each PR focused on one issue and link the issue in the PR description.
 - Prefer small level, copy, or gameplay changes before broad engine changes.
 - For Yarn Time level edits, keep layouts lower-left to upper-right, keep horizontal width at 16 or less, and verify reachability.
+- Follow `docs/kid-idea-agent-output.md` for PR evidence.
+- For modification tasks, include a side-by-side Before / After comparison in the PR description.
+- For new level tasks, include a Markdown table with one row per added level.
 - Run `npm run build:minigame` before finishing.
 - Do not publish a production release.
 - Do not edit secrets, account settings, private keys, or cloud-function deployment settings.

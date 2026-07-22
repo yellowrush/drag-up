@@ -90,9 +90,10 @@ async function ensureLabels(labels) {
 
 function classifyIdea(idea) {
   const text = idea.toLowerCase()
-  if (/copy|text|hint|button|label|name/.test(text)) return 'copy'
-  if (/level|map|stage|route|hard|easy|clear|pass/.test(text)) return 'level'
-  if (/gameplay|mechanic|move|rotate|reward|platform|item/.test(text)) return 'gameplay'
+  if (/copy|text|hint|button|label|name|\u6587\u6848|\u6587\u5b57|\u63d0\u793a|\u540d\u5b57|\u8bf4\u660e|\u6309\u94ae/.test(text)) return 'copy'
+  if (/level|map|stage|route|hard|easy|clear|pass|\u5173\u5361|\u5730\u56fe|\u8def\u7ebf|\u96be|\u7b80\u5355|\u901a\u5173|\u65b0\u589e|\u65b0\u52a0|\u52a0\u4e00\u4e2a/.test(text)) return 'level'
+  if (/change|modify|before|after|\u4fee\u6539|\u6539\u4e00\u4e0b|\u8c03\u6574|\u53d8\u6210/.test(text)) return 'modification'
+  if (/gameplay|mechanic|move|rotate|reward|platform|item|\u73a9\u6cd5|\u673a\u5236|\u79fb\u52a8|\u65cb\u8f6c|\u5956\u52b1|\u5e73\u53f0|\u9053\u5177/.test(text)) return 'gameplay'
   return 'idea'
 }
 
@@ -124,6 +125,9 @@ function issueBody(idea, playtest) {
     '- Follow `COLLABORATION-GUIDE.md`.',
     '- Keep the PR focused on this single issue.',
     '- Prefer small level, copy, or gameplay changes before engine-wide changes.',
+    '- Follow `docs/kid-idea-agent-output.md` for PR evidence.',
+    '- If this changes an existing level, screen, visual state, copy location, or gameplay behavior, include a side-by-side Before / After comparison in the PR description.',
+    '- If this adds levels, include a Markdown table in the PR description with one row per new level.',
     '- Run `npm run build:minigame` before finishing.',
     '- Do not publish a production release.',
     '- Do not edit secrets, account settings, cloud-function deployment settings, or private keys.',
