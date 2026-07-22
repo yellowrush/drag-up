@@ -29,9 +29,14 @@ jobs:
         run: npm ci
 
       - name: Prepare upload metadata
+        env:
+          PR_DRAFT: ${{ github.event.pull_request.draft || false }}
+          PR_TITLE: ${{ github.event.pull_request.title || '' }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
           SHORT_SHA="${GITHUB_SHA::7}"
+          SHOULD_UPLOAD="true"
+          UPLOAD_SKIP_REASON=""
 
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             PR_NUMBER="${{ github.event.pull_request.number }}"
@@ -39,6 +44,14 @@ jobs:
             UPLOAD_DESC="PR #${PR_NUMBER} ${BRANCH_NAME}: ${SHORT_SHA}"
             SOURCE_LABEL="PR #${PR_NUMBER}"
             SOURCE_BRANCH="${BRANCH_NAME}"
+
+            if [ "${PR_DRAFT}" = "true" ]; then
+              SHOULD_UPLOAD="false"
+              UPLOAD_SKIP_REASON="PR is still a draft."
+            elif echo "${PR_TITLE}" | grep -Eiq '^\[?WIP\]?|work in progress'; then
+              SHOULD_UPLOAD="false"
+              UPLOAD_SKIP_REASON="PR title is marked as WIP."
+            fi
           elif [ "${{ github.ref_name }}" = "develop" ]; then
             UPLOAD_DESC="develop experience: ${SHORT_SHA}"
             SOURCE_LABEL="develop"
@@ -54,16 +67,24 @@ jobs:
           echo "SOURCE_LABEL=${SOURCE_LABEL}" >> "$GITHUB_ENV"
           echo "SOURCE_BRANCH=${SOURCE_BRANCH}" >> "$GITHUB_ENV"
           echo "SHORT_SHA=${SHORT_SHA}" >> "$GITHUB_ENV"
+          echo "SHOULD_UPLOAD=${SHOULD_UPLOAD}" >> "$GITHUB_ENV"
+          echo "UPLOAD_SKIP_REASON=${UPLOAD_SKIP_REASON}" >> "$GITHUB_ENV"
 
       - name: Build minigame
         run: npm run build:minigame
 
       - name: Upload WeChat experience version
-        if: env.WX_APPID != '' && env.WX_PRIVATE_KEY != ''
+        if: env.SHOULD_UPLOAD == 'true' && env.WX_APPID != '' && env.WX_PRIVATE_KEY != ''
         run: npm run upload:minigame:ci
 
+      - name: Wait for PR to finish before upload
+        if: env.SHOULD_UPLOAD != 'true'
+        run: |
+          echo "Build succeeded, but WeChat upload is waiting for the PR to be ready." >> "$GITHUB_STEP_SUMMARY"
+          echo "${UPLOAD_SKIP_REASON}" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Skip upload without secrets
-        if: env.WX_APPID == '' || env.WX_PRIVATE_KEY == ''
+        if: env.SHOULD_UPLOAD == 'true' && (env.WX_APPID == '' || env.WX_PRIVATE_KEY == '')
         run: |
           echo "WeChat upload skipped because WX_APPID or WX_PRIVATE_KEY is unavailable." >> "$GITHUB_STEP_SUMMARY"
           echo "This can happen for forked PRs. Use a same-repository branch or manual workflow_dispatch if upload is required." >> "$GITHUB_STEP_SUMMARY"
@@ -73,7 +94,9 @@ jobs:
         run: |
           echo "## Deploy Result" >> $GITHUB_STEP_SUMMARY
           if [ "${{ job.status }}" = "success" ]; then
-            if [ -n "${WX_APPID}" ] && [ -n "${WX_PRIVATE_KEY}" ]; then
+            if [ "${SHOULD_UPLOAD}" != "true" ]; then
+              echo "Build succeeded. WeChat upload is waiting for the PR to be ready." >> $GITHUB_STEP_SUMMARY
+            elif [ -n "${WX_APPID}" ] && [ -n "${WX_PRIVATE_KEY}" ]; then
               echo "WeChat experience version uploaded successfully." >> $GITHUB_STEP_SUMMARY
             else
               echo "Build succeeded, but WeChat upload was skipped because secrets were unavailable." >> $GITHUB_STEP_SUMMARY
@@ -90,6 +113,8 @@ jobs:
           echo "**Short commit:** ${SHORT_SHA}" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${UPLOAD_VERSION}" >> $GITHUB_STEP_SUMMARY
           echo "**Upload description:** ${UPLOAD_DESC}" >> $GITHUB_STEP_SUMMARY
+          echo "**Should upload:** ${SHOULD_UPLOAD}" >> $GITHUB_STEP_SUMMARY
+          echo "**Skip reason:** ${UPLOAD_SKIP_REASON:-none}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Playtest focus" >> $GITHUB_STEP_SUMMARY
           echo "- Confirm the experience version opens in WeChat." >> $GITHUB_STEP_SUMMARY
