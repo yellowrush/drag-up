@@ -25,6 +25,20 @@ start kid-idea-box/index.html
 3. 在 GitHub 仓库里提前创建这些 label，或者首次提交时让 API 使用已有 label。
 4. 把部署后的网页链接发给小朋友，并在微信里置顶。
 
+## 避免无关 PR 反复部署 Preview
+
+Vercel 默认会给每个 PR 创建 Preview Deployment。这个仓库里大多数 PR 只改游戏代码，不会改想法箱，所以建议在 Vercel 项目里配置 Ignored Build Step：
+
+1. 打开 Vercel 项目 `drag-up-kid-idea-box`。
+2. 进入 `Settings -> Git -> Ignored Build Step`。
+3. 填入：
+
+```text
+node vercel-ignore-build.js
+```
+
+这个脚本只在 `kid-idea-box/` 目录有变化时允许 Vercel 构建；其他 PR 会显示 skipped，不再反复部署 Preview。
+
 ## GitHub token 权限
 
 推荐使用 fine-grained personal access token：
