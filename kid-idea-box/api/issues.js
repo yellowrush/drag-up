@@ -1,8 +1,11 @@
 const DEFAULT_LABELS = ['kid-idea', 'needs-parent-review', 'from-idea-box']
+const READY_LABELS = ['copilot-ready', 'codex-ready']
 const LABEL_COLORS = {
   'kid-idea': 'f4b942',
   'needs-parent-review': '227c6f',
   'from-idea-box': '9ec5fe',
+  'copilot-ready': '8957e5',
+  'codex-ready': '0969da',
 }
 
 function json(res, status, payload) {
@@ -78,7 +81,7 @@ async function ensureLabels(labels) {
         })
         usableLabels.push(name)
       } catch (_) {
-        // Creating the issue without labels is better than rejecting the kid's idea.
+        // Creating the issue without labels is better than rejecting the idea.
       }
     }
   }
@@ -87,40 +90,43 @@ async function ensureLabels(labels) {
 
 function classifyIdea(idea) {
   const text = idea.toLowerCase()
-  if (/文案|文字|提示|名字|说明|按钮/.test(text)) return '文案'
-  if (/玩法|机制|移动|旋转|奖励|猫爪|平台|道具/.test(text)) return '玩法想法'
-  if (/关卡|第\s*\d+\s*关|地图|难|简单|通关|路线/.test(text)) return '关卡'
-  return '想法'
+  if (/copy|text|hint|button|label|name/.test(text)) return 'copy'
+  if (/level|map|stage|route|hard|easy|clear|pass/.test(text)) return 'level'
+  if (/gameplay|mechanic|move|rotate|reward|platform|item/.test(text)) return 'gameplay'
+  return 'idea'
 }
 
 function titleFromIdea(idea) {
   const compact = idea.replace(/\s+/g, ' ').trim()
   const shortTitle = compact.length > 32 ? `${compact.slice(0, 32)}...` : compact
-  return `小朋友想法：${shortTitle}`
+  return `Kid idea: ${shortTitle}`
 }
 
 function issueBody(idea, playtest) {
   const type = classifyIdea(idea)
   return [
-    '## 小朋友原始想法',
+    '## Kid idea',
     '',
     idea,
     '',
-    '## 自动提取',
+    '## Auto summary',
     '',
-    `- 任务类型：${type}`,
-    '- 来源：小朋友想法箱',
-    '- 默认流程：维护者审核后，再交给 Codex/Copilot 生成 PR',
+    `- Task type: ${type}`,
+    '- Source: kid idea box',
+    '- Default flow: maintainer reviews this issue, then adds `copilot-ready` or `codex-ready`.',
     '',
-    '## 试玩重点',
+    '## Playtest focus',
     '',
-    playtest || '请试玩时看看是否更好玩、是否能通关、有没有看不懂的地方。',
+    playtest || 'Check whether it is more fun, understandable, and playable.',
     '',
-    '## 安全提醒',
+    '## Agent instructions',
     '',
-    '- 不直接发布正式版。',
-    '- 不修改密钥、账号、云函数部署或隐私配置。',
-    '- 需要维护者确认后再添加 `codex-ready` 或 `copilot-ready` 标签。',
+    '- Follow `COLLABORATION-GUIDE.md`.',
+    '- Keep the PR focused on this single issue.',
+    '- Prefer small level, copy, or gameplay changes before engine-wide changes.',
+    '- Run `npm run build:minigame` before finishing.',
+    '- Do not publish a production release.',
+    '- Do not edit secrets, account settings, cloud-function deployment settings, or private keys.',
   ].join('\n')
 }
 
@@ -151,7 +157,7 @@ async function createIssue(req, res) {
   for await (const chunk of req) {
     raw += chunk
     if (raw.length > 10000) {
-      json(res, 413, { error: '内容太长了，请少写一点。' })
+      json(res, 413, { error: 'The idea is too long. Please make it shorter.' })
       return
     }
   }
@@ -161,11 +167,12 @@ async function createIssue(req, res) {
   const playtest = String(payload.playtest || '').trim()
 
   if (idea.length < 6) {
-    json(res, 400, { error: '想法至少需要 6 个字。' })
+    json(res, 400, { error: 'Please write at least 6 characters.' })
     return
   }
 
   const { labels } = getConfig()
+  await ensureLabels(READY_LABELS)
   const usableLabels = await ensureLabels(labels)
   const issue = await github('/issues', {
     method: 'POST',
@@ -195,6 +202,6 @@ module.exports = async function handler(req, res) {
     json(res, 405, { error: 'Method not allowed' })
   } catch (error) {
     console.error(error)
-    json(res, error.status || 500, { error: error.message || '服务器开小差了。' })
+    json(res, error.status || 500, { error: error.message || 'Server error.' })
   }
 }

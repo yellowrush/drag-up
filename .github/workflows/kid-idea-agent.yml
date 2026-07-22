@@ -1,0 +1,150 @@
+name: Kid Idea Agent Router
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue number to route
+        required: true
+        type: string
+      agent:
+        description: Agent to route to
+        required: true
+        type: choice
+        options:
+          - copilot
+          - codex
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  assign-copilot:
+    name: Assign issue to Copilot
+    if: >-
+      ${{
+        (github.event_name == 'issues' && github.event.label.name == 'copilot-ready') ||
+        (github.event_name == 'workflow_dispatch' && inputs.agent == 'copilot')
+      }}
+    runs-on: ubuntu-latest
+    env:
+      COPILOT_AGENT_TOKEN: ${{ secrets.COPILOT_AGENT_TOKEN }}
+    steps:
+      - name: Check Copilot agent token
+        if: env.COPILOT_AGENT_TOKEN == ''
+        run: |
+          echo "Missing COPILOT_AGENT_TOKEN." >> "$GITHUB_STEP_SUMMARY"
+          echo "Create a fine-grained user token with Issues, Actions, Contents, and Pull requests read/write permissions for this repository." >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+      - name: Assign Copilot coding agent
+        uses: actions/github-script@v7
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+        with:
+          github-token: ${{ secrets.COPILOT_AGENT_TOKEN }}
+          script: |
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+            const issue_number = Number(process.env.ISSUE_NUMBER)
+            const custom_instructions = [
+              'Follow COLLABORATION-GUIDE.md.',
+              'This is a kid idea task for the Drag Up game.',
+              'Keep the pull request focused on this single issue.',
+              'Prefer small level, copy, or gameplay changes before engine-wide changes.',
+              'Use branch names like codex/kid-idea-short-topic when possible.',
+              'Run npm run build:minigame before finishing.',
+              'Do not publish a production release.',
+              'Do not edit secrets, account settings, cloud-function deployment settings, or private keys.'
+            ].join('\n')
+
+            await github.request('POST /repos/{owner}/{repo}/issues/{issue_number}/assignees', {
+              owner,
+              repo,
+              issue_number,
+              assignees: ['copilot-swe-agent[bot]'],
+              agent_assignment: {
+                target_repo: `${owner}/${repo}`,
+                base_branch: 'develop',
+                custom_instructions,
+                custom_agent: '',
+                model: ''
+              }
+            })
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body: [
+                'Assigned to GitHub Copilot coding agent.',
+                '',
+                'The agent should create a PR from `develop`. The PR build will upload a WeChat experience version for playtesting.'
+              ].join('\n')
+            })
+
+            core.summary
+              .addHeading('Copilot agent assigned')
+              .addRaw(`Issue #${issue_number}`)
+              .addBreak()
+              .addRaw(`Target: ${owner}/${repo}@develop`)
+              .write()
+
+  reserve-codex:
+    name: Reserve Codex routing hook
+    if: >-
+      ${{
+        (github.event_name == 'issues' && github.event.label.name == 'codex-ready') ||
+        (github.event_name == 'workflow_dispatch' && inputs.agent == 'codex')
+      }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Capture issue for future Codex agent
+        uses: actions/github-script@v7
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+        with:
+          script: |
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+            const issue_number = Number(process.env.ISSUE_NUMBER)
+            const { data: issue } = await github.rest.issues.get({
+              owner,
+              repo,
+              issue_number
+            })
+
+            const prompt = [
+              `Repository: ${owner}/${repo}`,
+              `Base branch: develop`,
+              `Issue: #${issue.number} ${issue.title}`,
+              '',
+              issue.body || '',
+              '',
+              'Instructions:',
+              '- Follow COLLABORATION-GUIDE.md.',
+              '- Create a focused branch and PR for this issue.',
+              '- Run npm run build:minigame before finishing.',
+              '- Do not publish a production release or edit secrets.'
+            ].join('\n')
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body: [
+                'Codex routing hook captured this issue.',
+                '',
+                'This label is reserved for a future Codex runner. For now, use `copilot-ready` to start automatic development, or paste this issue into Codex manually.'
+              ].join('\n')
+            })
+
+            core.summary
+              .addHeading('Codex routing hook')
+              .addRaw('The issue was converted into the standard future Codex prompt.')
+              .addBreak()
+              .addCodeBlock(prompt, 'text')
+              .write()

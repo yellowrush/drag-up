@@ -43,7 +43,18 @@ start kid-idea-box/index.html
 3. 可选填写“试玩时重点看哪里”。
 4. 点击发送。
 5. 网页刷新任务列表，显示自动生成的 GitHub Issue 链接和状态。
-6. 你审核 Issue 后，加 `codex-ready` 或 `copilot-ready` 标签，再让 agent 开 PR。
+6. 你审核 Issue 后，加 `copilot-ready` 标签让 Copilot 开 PR；未来也可以加 `codex-ready` 走 Codex 入口。
+
+## Agent label
+
+仓库里有 GitHub Actions 路由：
+
+- `copilot-ready`：把 Issue 分配给 GitHub Copilot coding agent。
+- `codex-ready`：捕获 Issue 并生成标准 Codex prompt，作为后续 Codex 自动执行入口。
+
+要启用 `copilot-ready`，在 GitHub Actions Secrets 里添加：
+
+- `COPILOT_AGENT_TOKEN`：fine-grained user token，只选 `drag-up` 仓库；Issues、Actions、Contents、Pull requests 设为 Read and write。
 
 ## 状态显示
 

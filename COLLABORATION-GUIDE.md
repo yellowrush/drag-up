@@ -24,7 +24,7 @@
 - 提一个玩法想法，比如“会移动的平台”“两条路都能通关”“猫爪旋转更明显”。
 - 反馈体验问题，比如“这里看不懂”“这里太难”“这里好像卡住了”。
 
-提交后，想法箱会自动创建 GitHub Issue，并在网页里的“任务进度”区域显示链接和状态。
+提交后，想法箱会自动创建 GitHub Issue，并在网页里的“任务进度”区域显示链接和状态。默认不会自动开发；你审核后再给 Issue 加 `copilot-ready` 或 `codex-ready` 标签。
 
 ## Codex 开始前先判断
 
@@ -62,6 +62,16 @@ PR 描述固定包含：
 ```
 
 不要把多个不相关想法塞进同一个 PR。一个 PR 越小，小朋友越容易试玩，你也越容易判断能不能合并。
+
+## 派给开发 Agent
+
+默认 Issue 只会进入任务箱，不会自动派给 Agent。
+
+- 加 `copilot-ready`：GitHub Actions 会把 Issue 分配给 GitHub Copilot coding agent。
+- 加 `codex-ready`：GitHub Actions 会捕获 Issue 并生成标准 Codex prompt；这是给后续 Codex 自动执行预留的入口。
+- 不要同时加两个 ready 标签。先用 `copilot-ready` 跑通自动 PR 流程。
+
+Copilot 需要仓库 Secret `COPILOT_AGENT_TOKEN`。这个 token 需要只授权本仓库，并具备 Issues、Actions、Contents、Pull requests 的读写权限。
 
 ## 自动体验版流程
 
