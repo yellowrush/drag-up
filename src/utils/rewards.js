@@ -153,6 +153,109 @@ export const EXPRESSIONS = [
   },
 ];
 
+export const STICKERS = [
+  {
+    id: 'cat-box-10',
+    name: '\u7bb1\u5b50\u5c0f\u63a2\u9669',
+    worldId: 'cat-box',
+    worldName: '\u732b\u7bb1\u5b50',
+    requiredCompleted: 10,
+    description: '\u732b\u7bb1\u5b50\u5b8c\u6210 10 \u5173',
+    theme: 'box',
+    palette: 'peach',
+  },
+  {
+    id: 'cat-box-20',
+    name: '\u7eb8\u7bb1\u57ce\u5821',
+    worldId: 'cat-box',
+    worldName: '\u732b\u7bb1\u5b50',
+    requiredCompleted: 20,
+    description: '\u732b\u7bb1\u5b50\u5b8c\u6210 20 \u5173',
+    theme: 'box',
+    palette: 'mint',
+  },
+  {
+    id: 'cat-box-30',
+    name: '\u7bb1\u5b50\u661f\u5149',
+    worldId: 'cat-box',
+    worldName: '\u732b\u7bb1\u5b50',
+    requiredCompleted: 30,
+    description: '\u732b\u7bb1\u5b50\u5b8c\u6210 30 \u5173',
+    theme: 'box',
+    palette: 'sky',
+  },
+  {
+    id: 'cat-box-40',
+    name: '\u6696\u6696\u7bb1\u5c4b',
+    worldId: 'cat-box',
+    worldName: '\u732b\u7bb1\u5b50',
+    requiredCompleted: 40,
+    description: '\u732b\u7bb1\u5b50\u5b8c\u6210 40 \u5173',
+    theme: 'box',
+    palette: 'lemon',
+  },
+  {
+    id: 'cat-box-50',
+    name: '\u7bb1\u5b50\u5de1\u6e38',
+    worldId: 'cat-box',
+    worldName: '\u732b\u7bb1\u5b50',
+    requiredCompleted: 50,
+    description: '\u732b\u7bb1\u5b50\u5b8c\u6210 50 \u5173',
+    theme: 'box',
+    palette: 'rose',
+  },
+  {
+    id: 'cat-box-60',
+    name: '\u7bb1\u5b50\u5927\u6ee1\u8db3',
+    worldId: 'cat-box',
+    worldName: '\u732b\u7bb1\u5b50',
+    requiredCompleted: 60,
+    description: '\u732b\u7bb1\u5b50\u5b8c\u6210 60 \u5173',
+    theme: 'box',
+    palette: 'violet',
+  },
+  {
+    id: 'cat-scratcher-10',
+    name: '\u6293\u6293\u521d\u7ae0',
+    worldId: 'cat-scratcher',
+    worldName: '\u732b\u6293\u677f',
+    requiredCompleted: 10,
+    description: '\u732b\u6293\u677f\u5b8c\u6210 10 \u5173',
+    theme: 'scratch',
+    palette: 'lemon',
+  },
+  {
+    id: 'cat-scratcher-20',
+    name: '\u6293\u75d5\u52cb\u7ae0',
+    worldId: 'cat-scratcher',
+    worldName: '\u732b\u6293\u677f',
+    requiredCompleted: 20,
+    description: '\u732b\u6293\u677f\u5b8c\u6210 20 \u5173',
+    theme: 'scratch',
+    palette: 'sky',
+  },
+  {
+    id: 'cat-scratcher-30',
+    name: '\u6293\u677f\u660e\u661f',
+    worldId: 'cat-scratcher',
+    worldName: '\u732b\u6293\u677f',
+    requiredCompleted: 30,
+    description: '\u732b\u6293\u677f\u5b8c\u6210 30 \u5173',
+    theme: 'scratch',
+    palette: 'rose',
+  },
+  {
+    id: 'yarn-ball-10',
+    name: '\u6bdb\u7ebf\u65c5\u884c',
+    worldId: 'yarn-ball',
+    worldName: '\u6bdb\u7ebf\u7403',
+    requiredCompleted: 10,
+    description: '\u6bdb\u7ebf\u7403\u5b8c\u6210 10 \u5173',
+    theme: 'yarn',
+    palette: 'mint',
+  },
+];
+
 export const REWARD_TASKS = [
   {
     id: 'daily-checkin',
@@ -226,7 +329,7 @@ export const REWARD_TASKS = [
 ];
 
 const REWARD_STATE_KEY = 'rewardStateV1';
-const CURRENT_REWARD_VERSION = 4;
+const CURRENT_REWARD_VERSION = 5;
 const MAX_LEVEL_SCORE = 10;
 const MIN_LEVEL_SCORE = 1;
 const FREE_ACTIONS = 1;
@@ -302,6 +405,12 @@ export function getExpressionById(id) {
   });
 }
 
+export function getStickerById(id) {
+  return STICKERS.find(function (item) {
+    return item.id === id;
+  });
+}
+
 export function getRewardTaskById(id) {
   return REWARD_TASKS.find(function (task) {
     return task.id === id;
@@ -335,6 +444,8 @@ function createDefaultState() {
     equippedAccessoryId: '',
     ownedExpressionIds: [],
     equippedExpressionId: '',
+    ownedStickerIds: [],
+    stickerSnapshots: {},
     checkin: {
       lastDate: '',
       streak: 0,
@@ -398,6 +509,30 @@ function normalizeState(raw) {
     });
   }
 
+  if (Array.isArray(raw.ownedStickerIds)) {
+    raw.ownedStickerIds.forEach(function (id) {
+      if (getStickerById(id) && state.ownedStickerIds.indexOf(id) === -1) {
+        state.ownedStickerIds.push(id);
+      }
+    });
+  }
+
+  if (raw.stickerSnapshots && typeof raw.stickerSnapshots === 'object') {
+    Object.keys(raw.stickerSnapshots).forEach(function (id) {
+      if (!getStickerById(id) || state.ownedStickerIds.indexOf(id) === -1) return;
+      var snapshot = normalizeStickerSnapshot(raw.stickerSnapshots[id]);
+      if (snapshot) {
+        state.stickerSnapshots[id] = snapshot;
+      }
+    });
+  }
+
+  state.ownedStickerIds.forEach(function (id) {
+    if (!state.stickerSnapshots[id]) {
+      state.stickerSnapshots[id] = createStickerSnapshot(state, getStickerById(id));
+    }
+  });
+
   if (
     raw.equippedAccessoryId &&
     state.ownedAccessoryIds.indexOf(raw.equippedAccessoryId) !== -1
@@ -427,12 +562,46 @@ function cloneState(state) {
     equippedAccessoryId: state.equippedAccessoryId || '',
     ownedExpressionIds: state.ownedExpressionIds.slice(),
     equippedExpressionId: state.equippedExpressionId || '',
+    ownedStickerIds: state.ownedStickerIds.slice(),
+    stickerSnapshots: cloneStickerSnapshots(state.stickerSnapshots),
     checkin: {
       lastDate: state.checkin && state.checkin.lastDate ? state.checkin.lastDate : '',
       streak: state.checkin ? Number(state.checkin.streak) || 0 : 0,
     },
     claimedTaskIds: state.claimedTaskIds.slice(),
     shareMinigameCompleted: !!state.shareMinigameCompleted,
+  };
+}
+
+function cloneStickerSnapshots(snapshots) {
+  var cloned = {};
+  Object.keys(snapshots || {}).forEach(function (id) {
+    var snapshot = normalizeStickerSnapshot(snapshots[id]);
+    if (snapshot) {
+      cloned[id] = snapshot;
+    }
+  });
+  return cloned;
+}
+
+function normalizeStickerSnapshot(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    accessoryId: getAccessoryById(raw.accessoryId) ? raw.accessoryId : '',
+    expressionId: getExpressionById(raw.expressionId) ? raw.expressionId : '',
+    unlockedAt: String(raw.unlockedAt || ''),
+    worldId: String(raw.worldId || ''),
+    requiredCompleted: Math.max(0, Math.round(Number(raw.requiredCompleted) || 0)),
+  };
+}
+
+function createStickerSnapshot(state, sticker) {
+  return {
+    accessoryId: state.equippedAccessoryId || '',
+    expressionId: state.equippedExpressionId || '',
+    unlockedAt: new Date().toISOString(),
+    worldId: sticker ? sticker.worldId : '',
+    requiredCompleted: sticker ? sticker.requiredCompleted : 0,
   };
 }
 
@@ -506,6 +675,36 @@ function getWorldProgress(task, context) {
   };
 }
 
+function getStickerProgress(sticker, context) {
+  var worlds = (context && context.levelWorlds) || [];
+  var completedLevels = (context && context.completedLevels) || [];
+  var world = worlds.find(function (item) {
+    return item.id === sticker.worldId;
+  });
+  var levels = world && Array.isArray(world.levels) ? world.levels : [];
+  var completedCount = levels.reduce(function (total, level) {
+    return total + (completedLevels.indexOf(level.id) !== -1 ? 1 : 0);
+  }, 0);
+  return {
+    completed: completedCount,
+    total: levels.length,
+    ready: completedCount >= sticker.requiredCompleted,
+  };
+}
+
+function grantAvailableStickersToState(state, context) {
+  var grantedIds = [];
+  STICKERS.forEach(function (sticker) {
+    if (state.ownedStickerIds.indexOf(sticker.id) !== -1) return;
+    var progress = getStickerProgress(sticker, context || {});
+    if (!progress.ready) return;
+    state.ownedStickerIds.push(sticker.id);
+    state.stickerSnapshots[sticker.id] = createStickerSnapshot(state, sticker);
+    grantedIds.push(sticker.id);
+  });
+  return grantedIds;
+}
+
 function isTaskClaimed(state, taskId) {
   return state.claimedTaskIds.indexOf(taskId) !== -1;
 }
@@ -565,9 +764,44 @@ function getTaskState(task, state, context) {
   };
 }
 
+function getStickerTaskState(sticker, state, context) {
+  var progress = getStickerProgress(sticker, context || {});
+  var owned = state.ownedStickerIds.indexOf(sticker.id) !== -1;
+  return {
+    id: 'sticker-' + sticker.id,
+    type: 'sticker',
+    name: sticker.name,
+    description: sticker.description,
+    rewardText: '\u8d34',
+    rewardType: 'sticker',
+    rewardId: sticker.id,
+    statusText: owned
+      ? '\u5df2\u83b7\u5f97'
+      : Math.min(progress.completed, sticker.requiredCompleted) + '/' + sticker.requiredCompleted + ' \u5173',
+    action: '',
+    actionText: owned ? '\u5df2\u83b7\u5f97' : '\u81ea\u52a8\u83b7\u53d6',
+    ready: progress.ready,
+    claimed: owned,
+    canTap: false,
+  };
+}
+
 export const RewardStorage = {
   getState() {
     return normalizeState(GameStorage.get(REWARD_STATE_KEY));
+  },
+
+  getStateWithAutoStickers(context) {
+    var state = this.getState();
+    var grantedIds = grantAvailableStickersToState(state, context || {});
+    if (!grantedIds.length) {
+      return { changed: false, grantedIds: [], state: cloneState(state) };
+    }
+    return {
+      changed: true,
+      grantedIds: grantedIds,
+      state: this.saveState(state),
+    };
   },
 
   saveState(state) {
@@ -646,11 +880,14 @@ export const RewardStorage = {
 
   getTaskStates(context) {
     var state = this.getState();
-    return REWARD_TASKS.filter(function (task) {
+    var tasks = REWARD_TASKS.filter(function (task) {
       return !task.deferred;
     }).map(function (task) {
       return getTaskState(task, state, context || {});
     });
+    return tasks.concat(STICKERS.map(function (sticker) {
+      return getStickerTaskState(sticker, state, context || {});
+    }));
   },
 
   claimTaskReward(taskId, context) {

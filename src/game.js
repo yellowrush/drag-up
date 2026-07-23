@@ -8,6 +8,7 @@ import { LeaderboardClient } from './utils/leaderboard.js'
 import {
   ACCESSORIES,
   EXPRESSIONS,
+  STICKERS,
   RewardStorage,
   getRewardSourceText,
   isScoreReward,
@@ -59,6 +60,7 @@ var scoreScrollStartY = 0
 var scoreTaskHint = ''
 var activeWorldIndex = 0
 var activeRewardTab = 'accessory'
+var selectedStickerId = ''
 var leaderboardState = {
   status: 'idle',
   rows: [],
@@ -250,7 +252,10 @@ function getModalLevelAt(x, y, mx, my) {
 }
 
 function refreshRewards() {
-  rewardState = RewardStorage.getState()
+  var autoSticker = RewardStorage.getStateWithAutoStickers
+    ? RewardStorage.getStateWithAutoStickers(getRewardTaskContext())
+    : null
+  rewardState = autoSticker ? autoSticker.state : RewardStorage.getState()
   if (engine && engine.setEquippedAccessory) {
     engine.setEquippedAccessory(rewardState.equippedAccessoryId || '')
   }
@@ -269,6 +274,21 @@ function applySyncedRewardScores(result) {
 }
 
 function getActiveRewards() {
+  if (activeRewardTab === 'sticker') {
+    return STICKERS.map(function (item) {
+      return {
+        id: item.id,
+        name: item.name,
+        worldId: item.worldId,
+        worldName: item.worldName,
+        requiredCompleted: item.requiredCompleted,
+        description: item.description,
+        theme: item.theme,
+        palette: item.palette,
+        type: 'sticker',
+      }
+    })
+  }
   var source = activeRewardTab === 'expression' ? EXPRESSIONS : ACCESSORIES
   return source.map(function (item) {
     return {
@@ -288,22 +308,28 @@ function isRewardTryOnTab() {
 }
 
 function isRewardOwned(item) {
+  if (item.type === 'sticker') {
+    return rewardState.ownedStickerIds.indexOf(item.id) !== -1
+  }
   return item.type === 'expression'
     ? rewardState.ownedExpressionIds.indexOf(item.id) !== -1
     : rewardState.ownedAccessoryIds.indexOf(item.id) !== -1
 }
 
 function isRewardEquipped(item) {
+  if (item.type === 'sticker') return false
   return item.type === 'expression'
     ? rewardState.equippedExpressionId === item.id
     : rewardState.equippedAccessoryId === item.id
 }
 
 function canUseReward(item) {
+  if (item.type === 'sticker') return isRewardOwned(item)
   return isRewardOwned(item) || (isScoreReward(item) && rewardState.totalScore >= item.requiredScore)
 }
 
 function rewardActionText(item) {
+  if (item.type === 'sticker') return isRewardOwned(item) ? '\u67e5\u770b' : '\u672a\u83b7\u5f97'
   if (isRewardEquipped(item)) return '\u5378\u4e0b'
   if (isRewardOwned(item)) return '\u88c5\u5907'
   if (isScoreReward(item) && rewardState.totalScore >= item.requiredScore) return '\u5151\u6362'
@@ -312,6 +338,7 @@ function rewardActionText(item) {
 }
 
 function rewardStatusText(item) {
+  if (item.type === 'sticker') return getStickerStatusText(item)
   if (isRewardEquipped(item)) return '\u5df2\u88c5\u5907'
   if (isRewardOwned(item)) return '\u5df2\u62e5\u6709'
   return getRewardSourceText(item)
@@ -335,6 +362,11 @@ function getEquippedExpressionName() {
 
 function useReward(item) {
   if (!canUseReward(item)) return
+  if (item.type === 'sticker') {
+    selectedStickerId = item.id
+    scoreScrollY = 0
+    return
+  }
   if (isRewardEquipped(item)) {
     var unequipped = item.type === 'expression'
       ? RewardStorage.equipExpression('')
@@ -363,6 +395,21 @@ function getRewardTaskContext() {
     levelWorlds: LEVEL_WORLDS,
     canShareMinigame: isShareMinigameSupported(),
   }
+}
+
+function getWorldCompletedCount(worldId) {
+  var world = LEVEL_WORLDS.find(function (item) {
+    return item.id === worldId
+  })
+  var levels = world && Array.isArray(world.levels) ? world.levels : []
+  return levels.reduce(function (total, level) {
+    return total + (completedLevels.indexOf(level.id) !== -1 ? 1 : 0)
+  }, 0)
+}
+
+function getStickerStatusText(sticker) {
+  if (isRewardOwned(sticker)) return '\u5df2\u83b7\u5f97'
+  return Math.min(getWorldCompletedCount(sticker.worldId), sticker.requiredCompleted) + '/' + sticker.requiredCompleted + ' \u5173'
 }
 
 function getRewardTasks() {
@@ -573,6 +620,7 @@ function setActiveRewardTab(tab) {
   activeRewardTab = tab
   scoreScrollY = 0
   scoreTaskHint = ''
+  selectedStickerId = ''
   if (tab !== 'leaderboard') {
     hideFriendLeaderboard()
     destroyLeaderboardAuthButton()
@@ -877,6 +925,14 @@ wx.onTouchEnd(function (e) {
               useRewardTask(tasks[ti])
               break
             }
+          }
+          modalTouchId = null
+          modalTouchMode = ''
+          return
+        }
+        if (activeRewardTab === 'sticker' && selectedStickerId) {
+          if (isInsideRect(st.clientX, st.clientY, getStickerDetailBackRect(smx, smy))) {
+            selectedStickerId = ''
           }
           modalTouchId = null
           modalTouchMode = ''
@@ -1255,7 +1311,7 @@ function getScoreActionRect(index, mx, my) {
 
 function getScoreTabRect(type, mx, my) {
   var gap = 6
-  var types = ['accessory', 'expression', 'task', 'leaderboard']
+  var types = ['accessory', 'expression', 'sticker', 'task', 'leaderboard']
   var index = types.indexOf(type)
   if (index < 0) index = 0
   var tabW = (SCORE_MODAL_W - SCORE_MODAL_PAD * 2 - gap * (types.length - 1)) / types.length
@@ -1276,6 +1332,10 @@ function getScoreTabAt(x, y, mx, my) {
   var expression = getScoreTabRect('expression', mx, my)
   if (isInside(x, y, expression.x, expression.y, expression.w, expression.h)) {
     return 'expression'
+  }
+  var sticker = getScoreTabRect('sticker', mx, my)
+  if (isInside(x, y, sticker.x, sticker.y, sticker.w, sticker.h)) {
+    return 'sticker'
   }
   var task = getScoreTabRect('task', mx, my)
   if (isInside(x, y, task.x, task.y, task.w, task.h)) {
@@ -1300,11 +1360,29 @@ function getScoreContentRect(mx, my) {
 
 function getRewardListRect(mx, my) {
   var content = getScoreContentRect(mx, my)
+  if (activeRewardTab === 'sticker') {
+    return {
+      x: content.x,
+      y: content.y,
+      w: content.w,
+      h: content.h,
+    }
+  }
   return {
     x: content.x,
     y: content.y + SCORE_TRYON_H + SCORE_TRYON_GAP,
     w: content.w,
     h: Math.max(0, content.h - SCORE_TRYON_H - SCORE_TRYON_GAP),
+  }
+}
+
+function getStickerDetailBackRect(mx, my) {
+  var content = getScoreContentRect(mx, my)
+  return {
+    x: content.x,
+    y: content.y,
+    w: 62,
+    h: 30,
   }
 }
 
@@ -1395,6 +1473,7 @@ function getScoreMaxScroll(mx, my) {
     var tasks = getRewardTasks()
     return Math.max(0, tasks.length * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP) - taskH)
   }
+  if (activeRewardTab === 'sticker' && selectedStickerId) return 0
   var rewardContent = getRewardListRect(mx, my)
   return Math.max(0, getActiveRewards().length * (SCORE_MODAL_ROW_H + SCORE_MODAL_GAP) - rewardContent.h)
 }
@@ -1429,9 +1508,13 @@ function drawScoreModal() {
     drawLeaderboardPanel(ctx, mx, my)
   } else if (activeRewardTab === 'task') {
     drawRewardTaskPanel(ctx, mx, my)
+  } else if (activeRewardTab === 'sticker' && selectedStickerId) {
+    drawStickerDetailPanel(ctx, mx, my)
   } else {
     var content = getRewardListRect(mx, my)
-    drawRewardTryOnPanel(ctx, mx, my)
+    if (isRewardTryOnTab()) {
+      drawRewardTryOnPanel(ctx, mx, my)
+    }
     ctx.save()
     ctx.beginPath()
     ctx.rect(content.x, content.y, content.w, content.h)
@@ -1446,6 +1529,7 @@ function drawScoreModal() {
 function drawScoreTabs(r, mx, my) {
   drawScoreTab(r, getScoreTabRect('accessory', mx, my), '\u9970\u54c1', activeRewardTab === 'accessory')
   drawScoreTab(r, getScoreTabRect('expression', mx, my), '\u8868\u60c5', activeRewardTab === 'expression')
+  drawScoreTab(r, getScoreTabRect('sticker', mx, my), '\u8d34\u56fe', activeRewardTab === 'sticker')
   drawScoreTab(r, getScoreTabRect('task', mx, my), '\u4efb\u52a1', activeRewardTab === 'task')
   drawScoreTab(r, getScoreTabRect('leaderboard', mx, my), '\u6392\u884c\u699c', activeRewardTab === 'leaderboard')
   r.strokeStyle = 'rgba(255,255,255,0.16)'
@@ -1552,7 +1636,7 @@ function drawScoreAccessoryRow(r, item, index, mx, my) {
   r.textAlign = 'left'
   r.textBaseline = 'middle'
   r.fillStyle = '#f2f2f7'
-  r.font = 'bold 13px sans-serif'
+  r.font = 'bold 11px sans-serif'
   r.fillText(truncateText(item.name, 9), rowX + 54, rowY + 20)
   r.fillStyle = '#aeb0c8'
   r.font = '11px sans-serif'
@@ -1578,6 +1662,32 @@ function drawScoreAccessoryRow(r, item, index, mx, my) {
   r.font = 'bold 11px sans-serif'
   r.textAlign = 'center'
   r.fillText(rewardActionText(item), action.x + action.w / 2, action.y + action.h / 2 + 1)
+}
+
+function drawStickerDetailPanel(r, mx, my) {
+  var content = getScoreContentRect(mx, my)
+  var sticker = getStickerById(selectedStickerId)
+  if (!sticker) {
+    selectedStickerId = ''
+    return
+  }
+  var snapshot = rewardState.stickerSnapshots && rewardState.stickerSnapshots[sticker.id]
+    ? rewardState.stickerSnapshots[sticker.id]
+    : null
+  var back = getStickerDetailBackRect(mx, my)
+  drawLeaderboardButton(r, back, '\u8fd4\u56de')
+
+  var cardW = content.w
+  var cardH = Math.min(content.h - 42, Math.floor(cardW * 1.18))
+  var cardX = content.x
+  var cardY = content.y + 42
+  drawStickerShareCard(r, sticker, snapshot, cardX, cardY, cardW, cardH, false)
+
+  r.fillStyle = '#aeb0c8'
+  r.font = '11px sans-serif'
+  r.textAlign = 'center'
+  r.textBaseline = 'middle'
+  r.fillText('\u5df2\u751f\u6210\u9002\u5408\u5206\u4eab\u7684\u8d34\u56fe\u753b\u9762', content.x + content.w / 2, cardY + cardH + 17)
 }
 
 function drawRewardTaskPanel(r, mx, my) {
@@ -1630,7 +1740,7 @@ function drawRewardTaskRow(r, task, index, rowX, rowY, rowW, mx, my, top) {
 
   r.textAlign = 'left'
   r.fillStyle = '#f2f2f7'
-  r.font = 'bold 13px sans-serif'
+  r.font = 'bold 11px sans-serif'
   r.fillText(truncateText(task.name, 9), rowX + 54, rowY + 20)
   r.fillStyle = '#aeb0c8'
   r.font = '11px sans-serif'
@@ -1758,7 +1868,7 @@ function drawLeaderboardSummary(r, mx, my) {
   r.fill()
   drawLeaderboardAvatar(r, avatar, content.x + 8, content.y + 50, 30)
   r.fillStyle = '#aeb0c8'
-  r.font = 'bold 11px sans-serif'
+  r.font = 'bold 13px sans-serif'
   r.textAlign = 'left'
   r.textBaseline = 'middle'
   r.fillText(truncateText(getLeaderboardProfileName(), 9), content.x + 46, content.y + 57)
@@ -1889,11 +1999,145 @@ function truncateText(text, maxLength) {
   return value.length > maxLength ? value.slice(0, maxLength - 1) + '...' : value
 }
 
+function getStickerById(id) {
+  for (var i = 0; i < STICKERS.length; i++) {
+    if (STICKERS[i].id === id) return STICKERS[i]
+  }
+  return null
+}
+
+function getStickerPalette(sticker) {
+  var palettes = {
+    peach: ['#fff0d8', '#ffd2b8', '#ff8ca6'],
+    mint: ['#e8fff5', '#bcebd2', '#5cb68f'],
+    sky: ['#e8f6ff', '#b9ddff', '#4aa3ff'],
+    lemon: ['#fff8cc', '#ffe28a', '#f3b545'],
+    rose: ['#ffe8ef', '#ffc1d1', '#e84b5f'],
+    violet: ['#f0ecff', '#d6c8ff', '#8f7aff'],
+  }
+  return palettes[sticker && sticker.palette] || palettes.peach
+}
+
+function drawStickerThumbnail(r, sticker, snapshot, cx, cy, owned) {
+  r.save()
+  if (!owned) {
+    r.fillStyle = '#222238'
+    drawRoundRect(r, cx - 18, cy - 18, 36, 36, 8)
+    r.fill()
+    r.fillStyle = '#8589a1'
+    r.font = 'bold 22px sans-serif'
+    r.textAlign = 'center'
+    r.textBaseline = 'middle'
+    r.fillText('?', cx, cy + 1)
+    r.restore()
+    return
+  }
+  drawStickerShareCard(r, sticker, snapshot, cx - 18, cy - 18, 36, 36, true)
+  r.restore()
+}
+
+function drawStickerShareCard(r, sticker, snapshot, x, y, w, h, compact) {
+  var colors = getStickerPalette(sticker)
+  var bg = r.createLinearGradient(x, y, x, y + h)
+  bg.addColorStop(0, colors[0])
+  bg.addColorStop(1, colors[1])
+  r.fillStyle = bg
+  drawRoundRect(r, x, y, w, h, compact ? 8 : 14)
+  r.fill()
+  r.strokeStyle = compact ? 'rgba(255,255,255,0.75)' : '#ffffff'
+  r.lineWidth = compact ? 1.5 : 3
+  r.stroke()
+
+  r.save()
+  r.beginPath()
+  drawRoundRect(r, x, y, w, h, compact ? 8 : 14)
+  r.clip()
+  drawStickerTheme(r, sticker, x, y, w, h, compact)
+  r.restore()
+
+  var catSize = compact ? 21 : Math.min(84, w * 0.31)
+  r.save()
+  r.translate(x + w / 2, y + h * (compact ? 0.52 : 0.48))
+  renderCubAvatar(r, catSize, {
+    accessoryId: snapshot && snapshot.accessoryId ? snapshot.accessoryId : '',
+    expressionId: snapshot && snapshot.expressionId ? snapshot.expressionId : 'joy',
+    isHovered: true,
+    lookOffset: { x: 0, y: 0 },
+    time: Date.now() / 1000,
+  })
+  r.restore()
+
+  if (!compact) {
+    r.fillStyle = '#ffffff'
+    r.strokeStyle = colors[2]
+    r.lineWidth = 5
+    r.font = 'bold 18px sans-serif'
+    r.textAlign = 'center'
+    r.textBaseline = 'middle'
+    r.strokeText(sticker.name, x + w / 2, y + 28)
+    r.fillText(sticker.name, x + w / 2, y + 28)
+    r.fillStyle = '#5f3713'
+    r.font = 'bold 13px sans-serif'
+    r.fillText(sticker.worldName + ' ' + sticker.requiredCompleted + '\u5173\u7eaa\u5ff5', x + w / 2, y + h - 25)
+  }
+}
+
+function drawStickerTheme(r, sticker, x, y, w, h, compact) {
+  var accent = getStickerPalette(sticker)[2]
+  r.fillStyle = 'rgba(255,255,255,0.42)'
+  r.beginPath()
+  r.ellipse(x + w * 0.5, y + h * 0.72, w * 0.29, h * 0.07, 0, 0, Math.PI * 2)
+  r.fill()
+  if (sticker.theme === 'scratch') {
+    r.strokeStyle = accent
+    r.lineWidth = compact ? 1.6 : 5
+    r.lineCap = 'round'
+    for (var si = 0; si < 3; si++) {
+      r.beginPath()
+      r.moveTo(x + w * (0.2 + si * 0.17), y + h * 0.2)
+      r.quadraticCurveTo(x + w * (0.3 + si * 0.15), y + h * 0.46, x + w * (0.22 + si * 0.18), y + h * 0.72)
+      r.stroke()
+    }
+  } else if (sticker.theme === 'yarn') {
+    r.strokeStyle = accent
+    r.lineWidth = compact ? 1.8 : 5
+    r.beginPath()
+    r.arc(x + w * 0.24, y + h * 0.27, w * 0.1, 0, Math.PI * 2)
+    r.stroke()
+    r.beginPath()
+    r.moveTo(x + w * 0.3, y + h * 0.3)
+    r.bezierCurveTo(x + w * 0.52, y + h * 0.1, x + w * 0.73, y + h * 0.55, x + w * 0.86, y + h * 0.34)
+    r.stroke()
+  } else {
+    r.fillStyle = accent
+    drawRoundRect(r, x + w * 0.15, y + h * 0.2, w * 0.25, h * 0.18, compact ? 3 : 8)
+    r.fill()
+    drawRoundRect(r, x + w * 0.63, y + h * 0.62, w * 0.23, h * 0.16, compact ? 3 : 8)
+    r.fill()
+  }
+  r.strokeStyle = '#ffffff'
+  r.lineWidth = compact ? 1.2 : 3
+  drawPreviewSpark(r, x + w * 0.8, y + h * 0.22, compact ? 3 : 8)
+  drawPreviewSpark(r, x + w * 0.2, y + h * 0.76, compact ? 2.5 : 7)
+}
+
 function drawRewardPreview(r, item, cx, cy) {
   r.save()
   r.fillStyle = '#222238'
   drawRoundRect(r, cx - 18, cy - 18, 36, 36, 8)
   r.fill()
+  if (item.type === 'sticker') {
+    r.restore()
+    drawStickerThumbnail(
+      r,
+      item,
+      rewardState.stickerSnapshots && rewardState.stickerSnapshots[item.id],
+      cx,
+      cy,
+      isRewardOwned(item),
+    )
+    return
+  }
   if (item.type === 'expression') {
     drawExpressionPreview(r, item.id, cx, cy)
     r.restore()

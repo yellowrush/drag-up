@@ -119,6 +119,13 @@
           </view>
           <view
             class="reward-tab"
+            :class="{ active: activeRewardTab === 'sticker' }"
+            @tap="onRewardTabTap('sticker')"
+          >
+            &#36148;&#22270;
+          </view>
+          <view
+            class="reward-tab"
             :class="{ active: activeRewardTab === 'task' }"
             @tap="onRewardTabTap('task')"
           >
@@ -187,6 +194,48 @@
             </view>
           </view>
         </scroll-view>
+
+        <view v-else-if="activeRewardTab === 'sticker'" class="sticker-panel">
+          <view v-if="selectedSticker" class="sticker-detail">
+            <view class="sticker-back" @tap="selectedStickerId = ''">
+              &#36820;&#22238;
+            </view>
+            <canvas
+              id="stickerShareCanvas"
+              canvas-id="stickerShareCanvas"
+              type="2d"
+              class="sticker-share-canvas"
+            />
+            <text class="sticker-share-note">&#24050;&#29983;&#25104;&#36866;&#21512;&#20998;&#20139;&#30340;&#36148;&#22270;&#30011;&#38754;</text>
+          </view>
+          <scroll-view v-else scroll-y class="reward-scroll">
+            <view
+              v-for="item in rewardItems"
+              :key="`${item.type}-${item.id}`"
+              class="reward-row sticker-row"
+              :class="{ owned: isOwned(item), locked: !isOwned(item) }"
+            >
+              <view class="reward-preview">
+                <view
+                  v-if="isOwned(item)"
+                  :class="['preview-mark', 'sticker', item.theme, item.palette]"
+                ></view>
+                <text v-else class="sticker-question">?</text>
+              </view>
+              <view class="reward-info">
+                <text class="reward-name">{{ item.name }}</text>
+                <text class="reward-desc">{{ rewardStatus(item) }}</text>
+              </view>
+              <view
+                class="reward-action"
+                :class="{ disabled: !canUseReward(item) }"
+                @tap.stop="onRewardAction(item)"
+              >
+                {{ rewardActionText(item) }}
+              </view>
+            </view>
+          </scroll-view>
+        </view>
 
         <view v-else-if="activeRewardTab === 'task'" class="task-panel">
           <view v-if="taskHint" class="task-hint">{{ taskHint }}</view>
@@ -329,6 +378,7 @@
   import {
     ACCESSORIES,
     EXPRESSIONS,
+    STICKERS,
     RewardStorage,
     getRewardSourceText,
     isScoreReward,
@@ -363,6 +413,7 @@
   const completedLevels = ref<string[]>([]);
   const rewardState = ref(RewardStorage.getState());
   const activeRewardTab = ref('accessory');
+  const selectedStickerId = ref('');
   const activeLeaderboardScope = ref('friend');
   const taskHint = ref('');
   const leaderboardStatus = ref('idle');
@@ -401,12 +452,20 @@
     leaderboardProfile.value ? leaderboardProfile.value.avatarUrl || '' : '',
   );
   const rewardItems = computed(() => {
-    const source = activeRewardTab.value === 'expression' ? EXPRESSIONS : ACCESSORIES;
+    const source =
+      activeRewardTab.value === 'sticker'
+        ? STICKERS
+        : activeRewardTab.value === 'expression'
+          ? EXPRESSIONS
+          : ACCESSORIES;
     return source.map((item: any) => ({
       ...item,
       type: activeRewardTab.value,
     }));
   });
+  const selectedSticker = computed(() =>
+    STICKERS.find((item: any) => item.id === selectedStickerId.value) || null,
+  );
   const isRewardTryOnTab = computed(
     () => activeRewardTab.value === 'accessory' || activeRewardTab.value === 'expression',
   );
@@ -448,9 +507,12 @@
       activeRewardTab.value,
       rewardState.value.equippedAccessoryId,
       rewardState.value.equippedExpressionId,
+      selectedStickerId.value,
+      rewardState.value.ownedStickerIds.length,
     ],
     () => {
       scheduleRewardPreviewRender();
+      scheduleStickerShareRender();
     },
     { immediate: true },
   );
@@ -582,7 +644,10 @@
   }
 
   function refreshRewards() {
-    rewardState.value = RewardStorage.getState();
+    const autoSticker = RewardStorage.getStateWithAutoStickers
+      ? RewardStorage.getStateWithAutoStickers(getTaskContext())
+      : null;
+    rewardState.value = autoSticker ? autoSticker.state : RewardStorage.getState();
     applyEquippedRewards();
   }
 
@@ -598,6 +663,7 @@
   function onRewardTabTap(tab: string) {
     activeRewardTab.value = tab;
     taskHint.value = '';
+    selectedStickerId.value = '';
     if (tab === 'leaderboard') {
       if (activeLeaderboardScope.value === 'server') {
         loadLeaderboard();
@@ -725,28 +791,35 @@
   }
 
   function isOwned(item: any) {
+    if (item.type === 'sticker') {
+      return rewardState.value.ownedStickerIds.includes(item.id);
+    }
     return item.type === 'expression'
       ? rewardState.value.ownedExpressionIds.includes(item.id)
       : rewardState.value.ownedAccessoryIds.includes(item.id);
   }
 
   function isEquipped(item: any) {
+    if (item.type === 'sticker') return false;
     return item.type === 'expression'
       ? rewardState.value.equippedExpressionId === item.id
       : rewardState.value.equippedAccessoryId === item.id;
   }
 
   function canUseReward(item: any) {
+    if (item.type === 'sticker') return isOwned(item);
     return isOwned(item) || (isScoreReward(item) && totalScore.value >= item.requiredScore);
   }
 
   function rewardStatus(item: any) {
+    if (item.type === 'sticker') return stickerStatus(item);
     if (isEquipped(item)) return '\u5df2\u88c5\u5907';
     if (isOwned(item)) return '\u5df2\u62e5\u6709';
     return getRewardSourceText(item);
   }
 
   function rewardActionText(item: any) {
+    if (item.type === 'sticker') return isOwned(item) ? '\u67e5\u770b' : '\u672a\u83b7\u5f97';
     if (isEquipped(item)) return '\u5378\u4e0b';
     if (isOwned(item)) return '\u88c5\u5907';
     if (isScoreReward(item) && totalScore.value >= item.requiredScore) return '\u5151\u6362';
@@ -756,6 +829,10 @@
 
   function onRewardAction(item: any) {
     if (!canUseReward(item)) return;
+    if (item.type === 'sticker') {
+      selectedStickerId.value = item.id;
+      return;
+    }
 
     if (isEquipped(item)) {
       const unequipped =
@@ -874,6 +951,229 @@
       time: Date.now() / 1000,
     });
     ctx.restore();
+  }
+
+  function scheduleStickerShareRender() {
+    if (!showScoreModal.value || activeRewardTab.value !== 'sticker' || !selectedSticker.value) return;
+    nextTick(() => {
+      renderStickerShareCanvas();
+    });
+  }
+
+  function renderStickerShareCanvas() {
+    if (!selectedSticker.value) return;
+
+    // #ifdef H5
+    const canvas = document.getElementById(
+      'stickerShareCanvas',
+    ) as HTMLCanvasElement | null;
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        drawStickerShareCanvas(canvas, ctx, rect.width || 260, rect.height || 306);
+      }
+    }
+    // #endif
+
+    // #ifdef MP-WEIXIN
+    const query = uni.createSelectorQuery().in(instance);
+    query
+      .select('#stickerShareCanvas')
+      .fields({ node: true, size: true })
+      .exec((res: any[]) => {
+        const target = res && res[0];
+        if (!target || !target.node) return;
+        const canvasNode = target.node;
+        const ctx = canvasNode.getContext('2d');
+        if (!ctx) return;
+        drawStickerShareCanvas(
+          canvasNode,
+          ctx,
+          target.width || 260,
+          target.height || 306,
+        );
+      });
+    // #endif
+  }
+
+  function drawStickerShareCanvas(
+    canvas: any,
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+  ) {
+    const sticker: any = selectedSticker.value;
+    if (!sticker) return;
+    const snapshot =
+      rewardState.value.stickerSnapshots &&
+      rewardState.value.stickerSnapshots[sticker.id];
+    const dpr =
+      typeof window !== 'undefined' && window.devicePixelRatio
+        ? window.devicePixelRatio
+        : 1;
+    canvas.width = Math.max(1, Math.floor(width * dpr));
+    canvas.height = Math.max(1, Math.floor(height * dpr));
+    if (typeof ctx.setTransform === 'function') {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    } else {
+      ctx.scale(dpr, dpr);
+    }
+    ctx.clearRect(0, 0, width, height);
+    drawStickerShareCard(ctx, sticker, snapshot, 0, 0, width, height);
+  }
+
+  function stickerStatus(item: any) {
+    if (isOwned(item)) return '\u5df2\u83b7\u5f97';
+    const completed = getWorldCompletedCount(item.worldId);
+    return `${Math.min(completed, item.requiredCompleted)}/${item.requiredCompleted} \u5173`;
+  }
+
+  function getWorldCompletedCount(worldId: string) {
+    const world = levelWorlds.find((item) => item.id === worldId);
+    const worldLevels = world && Array.isArray(world.levels) ? world.levels : [];
+    return worldLevels.reduce((total: number, level: any) => {
+      return total + (completedLevels.value.includes(level.id) ? 1 : 0);
+    }, 0);
+  }
+
+  function stickerPalette(sticker: any) {
+    const palettes: Record<string, string[]> = {
+      peach: ['#fff0d8', '#ffd2b8', '#ff8ca6'],
+      mint: ['#e8fff5', '#bcebd2', '#5cb68f'],
+      sky: ['#e8f6ff', '#b9ddff', '#4aa3ff'],
+      lemon: ['#fff8cc', '#ffe28a', '#f3b545'],
+      rose: ['#ffe8ef', '#ffc1d1', '#e84b5f'],
+      violet: ['#f0ecff', '#d6c8ff', '#8f7aff'],
+    };
+    return palettes[sticker && sticker.palette] || palettes.peach;
+  }
+
+  function drawStickerShareCard(
+    ctx: CanvasRenderingContext2D,
+    sticker: any,
+    snapshot: any,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ) {
+    const colors = stickerPalette(sticker);
+    const bg = ctx.createLinearGradient(x, y, x, y + height);
+    bg.addColorStop(0, colors[0]);
+    bg.addColorStop(1, colors[1]);
+    ctx.fillStyle = bg;
+    drawCanvasRoundRect(ctx, x, y, width, height, 14);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.save();
+    ctx.beginPath();
+    drawCanvasRoundRect(ctx, x, y, width, height, 14);
+    ctx.clip();
+    drawStickerTheme(ctx, sticker, x, y, width, height);
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(x + width / 2, y + height * 0.48);
+    renderCubAvatar(ctx, Math.min(84, width * 0.31), {
+      accessoryId: snapshot && snapshot.accessoryId ? snapshot.accessoryId : '',
+      expressionId: snapshot && snapshot.expressionId ? snapshot.expressionId : 'joy',
+      isHovered: true,
+      lookOffset: { x: 0, y: 0 },
+      time: Date.now() / 1000,
+    });
+    ctx.restore();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = colors[2];
+    ctx.lineWidth = 5;
+    ctx.font = 'bold 18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeText(sticker.name, x + width / 2, y + 28);
+    ctx.fillText(sticker.name, x + width / 2, y + 28);
+    ctx.fillStyle = '#5f3713';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillText(`${sticker.worldName} ${sticker.requiredCompleted}\u5173\u7eaa\u5ff5`, x + width / 2, y + height - 25);
+  }
+
+  function drawStickerTheme(
+    ctx: CanvasRenderingContext2D,
+    sticker: any,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ) {
+    const accent = stickerPalette(sticker)[2];
+    ctx.fillStyle = 'rgba(255,255,255,0.42)';
+    ctx.beginPath();
+    ctx.ellipse(x + width * 0.5, y + height * 0.72, width * 0.29, height * 0.07, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (sticker.theme === 'scratch') {
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 3; i += 1) {
+        ctx.beginPath();
+        ctx.moveTo(x + width * (0.2 + i * 0.17), y + height * 0.2);
+        ctx.quadraticCurveTo(x + width * (0.3 + i * 0.15), y + height * 0.46, x + width * (0.22 + i * 0.18), y + height * 0.72);
+        ctx.stroke();
+      }
+    } else if (sticker.theme === 'yarn') {
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(x + width * 0.24, y + height * 0.27, width * 0.1, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x + width * 0.3, y + height * 0.3);
+      ctx.bezierCurveTo(x + width * 0.52, y + height * 0.1, x + width * 0.73, y + height * 0.55, x + width * 0.86, y + height * 0.34);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = accent;
+      drawCanvasRoundRect(ctx, x + width * 0.15, y + height * 0.2, width * 0.25, height * 0.18, 8);
+      ctx.fill();
+      drawCanvasRoundRect(ctx, x + width * 0.63, y + height * 0.62, width * 0.23, height * 0.16, 8);
+      ctx.fill();
+    }
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    drawCanvasSpark(ctx, x + width * 0.8, y + height * 0.22, 8);
+    drawCanvasSpark(ctx, x + width * 0.2, y + height * 0.76, 7);
+  }
+
+  function drawCanvasRoundRect(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number,
+  ) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.arcTo(x + width, y, x + width, y + radius, radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+    ctx.lineTo(x + radius, y + height);
+    ctx.arcTo(x, y + height, x, y + height - radius, radius);
+    ctx.lineTo(x, y + radius);
+    ctx.arcTo(x, y, x + radius, y, radius);
+    ctx.closePath();
+  }
+
+  function drawCanvasSpark(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+    ctx.beginPath();
+    ctx.moveTo(x, y - size);
+    ctx.lineTo(x, y + size);
+    ctx.moveTo(x - size, y);
+    ctx.lineTo(x + size, y);
+    ctx.stroke();
   }
 
   function getTaskContext() {
@@ -1283,7 +1583,7 @@
     background: #2f2f50;
     border: 0;
     border-radius: 13px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 800;
     box-sizing: border-box;
   }
@@ -1353,6 +1653,45 @@
   }
   .task-panel {
     min-height: 250px;
+  }
+  .sticker-panel {
+    min-height: 250px;
+  }
+  .sticker-detail {
+    min-height: 250px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .sticker-back {
+    align-self: flex-start;
+    min-width: 62px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #5f3713;
+    background: linear-gradient(180deg, #ffe1a2 0%, #f2b653 100%);
+    border: 2px solid #98621f;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 900;
+    box-sizing: border-box;
+  }
+  .sticker-share-canvas {
+    width: 260px;
+    height: 306px;
+    max-width: 100%;
+    border-radius: 14px;
+    background: #fff0d8;
+    flex-shrink: 0;
+  }
+  .sticker-share-note {
+    color: #aeb0c8;
+    font-size: 11px;
+    line-height: 1.2;
+    text-align: center;
   }
   .task-hint {
     min-height: 28px;
@@ -1575,6 +1914,9 @@
     background: #3d3f51;
     border-color: #7dc88a;
   }
+  .reward-row.locked {
+    border-color: #565873;
+  }
   .task-row {
     min-height: 62px;
   }
@@ -1592,6 +1934,83 @@
     width: 24px;
     height: 24px;
     position: relative;
+  }
+  .sticker-question {
+    color: #8589a1;
+    font-size: 22px;
+    font-weight: 900;
+    line-height: 1;
+  }
+  .preview-mark.sticker {
+    width: 30px;
+    height: 30px;
+    overflow: hidden;
+    border: 2px solid #ffffff;
+    border-radius: 8px;
+    box-sizing: border-box;
+  }
+  .preview-mark.sticker.peach {
+    background: linear-gradient(180deg, #fff0d8 0%, #ffd2b8 100%);
+  }
+  .preview-mark.sticker.mint {
+    background: linear-gradient(180deg, #e8fff5 0%, #bcebd2 100%);
+  }
+  .preview-mark.sticker.sky {
+    background: linear-gradient(180deg, #e8f6ff 0%, #b9ddff 100%);
+  }
+  .preview-mark.sticker.lemon {
+    background: linear-gradient(180deg, #fff8cc 0%, #ffe28a 100%);
+  }
+  .preview-mark.sticker.rose {
+    background: linear-gradient(180deg, #ffe8ef 0%, #ffc1d1 100%);
+  }
+  .preview-mark.sticker.violet {
+    background: linear-gradient(180deg, #f0ecff 0%, #d6c8ff 100%);
+  }
+  .preview-mark.sticker::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 9px;
+    width: 11px;
+    height: 11px;
+    background: #1b1b1b;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    box-shadow: 0 8px 0 2px rgba(255, 255, 255, 0.46);
+  }
+  .preview-mark.sticker.box::after {
+    content: '';
+    position: absolute;
+    left: 3px;
+    bottom: 3px;
+    width: 10px;
+    height: 7px;
+    background: #ff8ca6;
+    border-radius: 3px;
+    box-shadow: 14px -15px 0 -2px #ffffff;
+  }
+  .preview-mark.sticker.scratch::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 4px;
+    width: 18px;
+    height: 20px;
+    border-left: 3px solid #e84b5f;
+    border-right: 3px solid #e84b5f;
+    transform: skewX(-12deg);
+  }
+  .preview-mark.sticker.yarn::after {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 5px;
+    width: 20px;
+    height: 14px;
+    border: 3px solid #5cb68f;
+    border-radius: 50%;
+    transform: rotate(-24deg);
   }
   .preview-mark.accessory.red-bow {
     width: 30px;
