@@ -27,6 +27,8 @@ function getConfig() {
     owner: requireEnv('GITHUB_OWNER'),
     repo: requireEnv('GITHUB_REPO'),
     token: requireEnv('GITHUB_TOKEN'),
+    uploadBranch: process.env.KID_IDEA_UPLOAD_BRANCH || 'main',
+    uploadPath: process.env.KID_IDEA_UPLOAD_PATH || 'kid-idea-uploads',
     labels: (process.env.KID_IDEA_LABELS || DEFAULT_LABELS.join(','))
       .split(',')
       .map(label => label.trim())
@@ -115,15 +117,60 @@ function validImageDataUrl(value) {
   return image
 }
 
-function issueBody(childName, idea, playtest, imageDataUrl) {
+function imageInfoFromDataUrl(imageDataUrl) {
+  const match = String(imageDataUrl || '').match(/^data:image\/(png|jpe?g|webp);base64,([A-Za-z0-9+/=]+)$/i)
+  if (!match) return null
+  const format = match[1].toLowerCase().replace('jpeg', 'jpg')
+  return {
+    extension: format === 'jpg' ? 'jpg' : format,
+    base64: match[2],
+  }
+}
+
+function encodePathForUrl(path) {
+  return path.split('/').map(segment => encodeURIComponent(segment)).join('/')
+}
+
+function compactSlug(value) {
+  return String(value || '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-zA-Z0-9\u4e00-\u9fa5_-]/g, '')
+    .slice(0, 24) || 'kid'
+}
+
+async function uploadIdeaImage(childName, imageDataUrl) {
+  const image = imageInfoFromDataUrl(validImageDataUrl(imageDataUrl))
+  if (!image) return ''
+
+  const config = getConfig()
+  const now = new Date()
+  const datePath = now.toISOString().slice(0, 10)
+  const stamp = now.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)
+  const random = Math.random().toString(36).slice(2, 8)
+  const filename = `${stamp}-${compactSlug(childName)}-${random}.${image.extension}`
+  const path = `${config.uploadPath.replace(/^\/+|\/+$/g, '')}/${datePath}/${filename}`
+
+  await github(`/contents/${encodePathForUrl(path)}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      message: `Add kid idea image ${filename}`,
+      content: image.base64,
+      branch: config.uploadBranch,
+    }),
+  })
+
+  return `https://github.com/${config.owner}/${config.repo}/raw/${encodeURIComponent(config.uploadBranch)}/${encodePathForUrl(path)}`
+}
+
+function issueBody(childName, idea, playtest, imageUrl) {
   const type = classifyIdea(idea)
   const safeChildName = cleanMarkdownText(childName)
-  const image = validImageDataUrl(imageDataUrl)
-  const drawingSection = image
+  const drawingSection = imageUrl
     ? [
         '## Picture',
         '',
-        '<img alt="Kid idea drawing" src="' + image + '" />',
+        `![Kid idea drawing](${imageUrl})`,
         '',
       ]
     : []
@@ -212,11 +259,12 @@ async function createIssue(req, res) {
   const { labels } = getConfig()
   await ensureLabels(READY_LABELS)
   const usableLabels = await ensureLabels(labels)
+  const imageUrl = await uploadIdeaImage(childName, imageDataUrl)
   const issue = await github('/issues', {
     method: 'POST',
     body: JSON.stringify({
       title: titleFromIdea(idea, childName),
-      body: issueBody(childName, idea, playtest, imageDataUrl),
+      body: issueBody(childName, idea, playtest, imageUrl),
       labels: usableLabels,
     }),
   })
