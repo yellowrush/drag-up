@@ -1625,7 +1625,7 @@ export const YARN_TIME_LEVELS = [
     id: 'yarn-time-challenge-10',
     label: '毛线球 10：下层机关',
     blurb: 'yarn-time',
-    instruction: '主路和下层支路互相牵制，先让地形变得可以返回。',
+    instruction: '主路新增开合洞口，先走下层开门，再抓住安全窗口冲回终点。',
     roomStyle: 'isometric-grid',
     grid: {
       tileWidth: 44,
@@ -1685,12 +1685,16 @@ export const YARN_TIME_LEVELS = [
       },
       {
         id: 'after-door',
-        label: '门后',
+        label: '门后洞口',
         x: 4,
         y: 2,
         z: 0,
-        kind: 'safe',
-        stable: true,
+        kind: 'crumble',
+        initialIntegrity: 0.72,
+        safeAt: 0.6,
+        damageDuration: 5400,
+        recoverDuration: 1300,
+        bridge: true,
       },
       {
         id: 'spike-exit',
