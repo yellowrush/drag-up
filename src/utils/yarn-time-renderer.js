@@ -388,7 +388,7 @@ function drawIsometricRoom(ctx, state, layout) {
         ? getRotatingBridgeNodeRole(node, bridgeState)
         : '';
       if (bridgeRole) {
-        drawRotatingBridgeGridCell(ctx, center, tile, bridgeRole, bridgeState.orientation);
+        drawRotatingBridgeGridCell(ctx, center, tile, bridgeRole, bridgeState.orientation, bridgeState);
         return;
       }
       drawRotatingBridgeSocketTile(ctx, center, tile, bridgeState && bridgeState.animating ? { active: false } : stateInfo);
@@ -847,27 +847,28 @@ function drawSwitchTileMark(ctx, center, tile, stateInfo) {
   var baseH = tile.h * 0.24;
   var capW = tile.w * 0.3;
   var capH = tile.h * 0.24;
+  var colors = getMechanismControlColors(pressed ? 'active' : 'idle');
 
   ctx.save();
   ctx.translate(center.x, center.y - tile.h * 0.02);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
-  ctx.fillStyle = 'rgba(72,48,36,0.2)';
+  ctx.fillStyle = colors.shadow;
   ctx.beginPath();
   ctx.ellipse(0, tile.h * 0.22, baseW * 0.62, baseH * 0.48, 0, 0, TAU);
   ctx.fill();
 
-  ctx.fillStyle = pressed ? 'rgba(137,101,63,0.92)' : 'rgba(156,103,51,0.94)';
-  ctx.strokeStyle = 'rgba(92,62,35,0.72)';
+  ctx.fillStyle = colors.base;
+  ctx.strokeStyle = colors.stroke;
   ctx.lineWidth = Math.max(1.4, tile.w * 0.025);
   ctx.beginPath();
   ctx.ellipse(0, tile.h * 0.08, baseW * 0.52, baseH * 0.56, 0, 0, TAU);
   ctx.fill();
   ctx.stroke();
 
-  ctx.fillStyle = pressed ? 'rgba(88,184,112,0.96)' : 'rgba(245,183,66,0.98)';
-  ctx.strokeStyle = pressed ? 'rgba(39,113,72,0.88)' : 'rgba(140,86,31,0.88)';
+  ctx.fillStyle = colors.top;
+  ctx.strokeStyle = colors.darkStroke;
   ctx.lineWidth = Math.max(1.8, tile.w * 0.032);
   ctx.beginPath();
   ctx.ellipse(0, lift, capW * 0.5, capH * 0.62, 0, 0, TAU);
@@ -875,18 +876,32 @@ function drawSwitchTileMark(ctx, center, tile, stateInfo) {
   ctx.stroke();
 
   if (!pressed) {
-    ctx.fillStyle = 'rgba(126,75,35,0.58)';
+    ctx.fillStyle = colors.under;
     ctx.beginPath();
     ctx.ellipse(0, lift + capH * 0.5, capW * 0.46, capH * 0.22, 0, 0, Math.PI);
     ctx.fill();
   }
 
-  ctx.fillStyle = pressed ? 'rgba(232,255,222,0.58)' : 'rgba(255,244,180,0.7)';
+  ctx.fillStyle = colors.highlight;
   ctx.beginPath();
   ctx.ellipse(-capW * 0.14, lift - capH * 0.15, capW * 0.17, capH * 0.16, -0.4, 0, TAU);
   ctx.fill();
 
   ctx.restore();
+}
+
+function getMechanismControlColors(state) {
+  var active = state === 'active';
+  return {
+    shadow: 'rgba(44, 38, 76, 0.24)',
+    base: active ? 'rgba(84, 75, 139, 0.94)' : 'rgba(73, 67, 127, 0.94)',
+    stroke: 'rgba(48, 42, 91, 0.76)',
+    darkStroke: active ? 'rgba(78, 65, 160, 0.9)' : 'rgba(64, 54, 138, 0.9)',
+    top: active ? 'rgba(178, 164, 255, 0.98)' : 'rgba(145, 132, 235, 0.98)',
+    under: 'rgba(61, 52, 124, 0.58)',
+    line: 'rgba(230, 226, 255, 0.7)',
+    highlight: active ? 'rgba(249, 247, 255, 0.66)' : 'rgba(242, 239, 255, 0.68)',
+  };
 }
 
 function drawStairTile(ctx, node, center, tile) {
@@ -1129,38 +1144,10 @@ function drawFloatingTileMark(ctx, center, tile, stateInfo, t) {
 
 function drawRotatingBridgeTileMark(ctx, node, center, tile, stateInfo, t) {
   if (!node.bridgeCenter) return;
-  var pulse = 0.5 + Math.sin(t * 4.8) * 0.5;
-  var r = tile.w * (0.12 + pulse * 0.012);
-  ctx.save();
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-  ctx.fillStyle = 'rgba(255,246,212,0.96)';
-  ctx.strokeStyle = 'rgba(121,85,49,0.88)';
-  ctx.lineWidth = Math.max(1.4, tile.w * 0.026);
-  ctx.beginPath();
-  ctx.ellipse(center.x, center.y - tile.h * 0.08, r, r * 0.72, 0, 0, TAU);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.strokeStyle = 'rgba(120,79,39,0.9)';
-  ctx.lineWidth = Math.max(1.5, tile.w * 0.026);
-  ctx.beginPath();
-  ctx.moveTo(center.x, center.y - tile.h * 0.08);
-  ctx.lineTo(center.x + r * 0.82, center.y - tile.h * 0.26);
-  ctx.stroke();
-  ctx.fillStyle = 'rgba(249,188,86,0.98)';
-  ctx.strokeStyle = 'rgba(120,79,39,0.86)';
-  ctx.lineWidth = Math.max(1.1, tile.w * 0.018);
-  ctx.beginPath();
-  ctx.ellipse(center.x + r * 0.92, center.y - tile.h * 0.28, r * 0.28, r * 0.2, -0.2, 0, TAU);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = 'rgba(255,255,255,0.48)';
-  ctx.beginPath();
-  ctx.ellipse(center.x - r * 0.18, center.y - tile.h * 0.2, r * 0.26, r * 0.12, -0.35, 0, TAU);
-  ctx.fill();
-  ctx.restore();
+  drawBridgeControlButton(ctx, center, tile, {
+    phase: 0.25 + Math.sin(t * 3.2) * 0.02,
+    active: true,
+  });
 }
 
 function drawRotatingBridgeSocketTile(ctx, center, tile, stateInfo) {
@@ -1226,11 +1213,12 @@ function drawRotatingBridgeMovingState(ctx, bridge, bridgeState, layout, tile) {
     tile,
     angle,
     bridge.length || 3,
-    bridgeState.toOrientation || bridgeState.orientation
+    bridgeState.toOrientation || bridgeState.orientation,
+    bridgeState
   );
 }
 
-function drawRotatingBridgeRigidCells(ctx, center, tile, angle, length, orientation) {
+function drawRotatingBridgeRigidCells(ctx, center, tile, angle, length, orientation, bridgeState) {
   var count = Math.max(1, Number(length) || 3);
   var arm = Math.floor(count / 2);
   var step = Math.sqrt(tile.w * tile.w + tile.h * tile.h) * 0.5;
@@ -1253,7 +1241,7 @@ function drawRotatingBridgeRigidCells(ctx, center, tile, angle, length, orientat
     return a.order === b.order ? a.center.x - b.center.x : a.order - b.order;
   });
   cells.forEach(function (cell) {
-    drawRotatingBridgeGridCell(ctx, cell.center, tile, cell.role, orientation);
+    drawRotatingBridgeGridCell(ctx, cell.center, tile, cell.role, orientation, bridgeState);
   });
 }
 
@@ -1277,7 +1265,7 @@ function normalizeAngle(angle) {
   return result;
 }
 
-function drawRotatingBridgeGridCell(ctx, center, tile, role, orientation) {
+function drawRotatingBridgeGridCell(ctx, center, tile, role, orientation, bridgeState) {
   var top = getIsoTopPoints(center, tile.w, tile.h);
   var wallDepth = tile.depth;
   var bottom = top.map(function (point) {
@@ -1300,14 +1288,14 @@ function drawRotatingBridgeGridCell(ctx, center, tile, role, orientation) {
   tracePoly(ctx, rightFace);
   ctx.fill();
   if (role === 'hole') {
-    drawIsoBridgeArch(ctx, rightFace, tile);
+    drawIsoBridgeArch(ctx, rightFace, tile, palette);
   }
 
   ctx.fillStyle = palette.left;
   tracePoly(ctx, leftFace);
   ctx.fill();
   if (role === 'hole') {
-    drawIsoBridgeArch(ctx, leftFace, tile);
+    drawIsoBridgeArch(ctx, leftFace, tile, palette);
   }
 
   ctx.fillStyle = palette.top;
@@ -1315,24 +1303,24 @@ function drawRotatingBridgeGridCell(ctx, center, tile, role, orientation) {
   ctx.fill();
 
   if (role === 'hole') {
-    drawRotatingBridgeCenterButton(ctx, center, tile, orientation);
+    drawRotatingBridgeCenterButton(ctx, center, tile, bridgeState || { orientation: orientation });
   }
 
   ctx.restore();
 }
 
-function drawIsoBridgeArch(ctx, face, tile) {
+function drawIsoBridgeArch(ctx, face, tile, palette) {
   var leftBase = getFacePoint(face, 0.14, 1);
   var leftShoulder = getFacePoint(face, 0.14, 0.52);
   var peak = getFacePoint(face, 0.5, 0.12);
   var rightShoulder = getFacePoint(face, 0.86, 0.52);
   var rightBase = getFacePoint(face, 0.86, 1);
-  var leftInner = getFacePoint(face, 0.24, 0.96);
-  var rightInner = getFacePoint(face, 0.76, 0.96);
+  var holeFill = shadeHexColor(palette && palette.stroke, 0.52) || 'rgba(45,39,76,0.94)';
+  var holeStroke = shadeHexColor(palette && palette.stroke, 0.76) || 'rgba(78,68,128,0.78)';
 
   ctx.save();
-  ctx.fillStyle = 'rgba(4,27,43,0.92)';
-  ctx.strokeStyle = 'rgba(220,253,247,0.48)';
+  ctx.fillStyle = holeFill;
+  ctx.strokeStyle = holeStroke;
   ctx.lineWidth = Math.max(1.4, tile.w * 0.026);
   ctx.beginPath();
   ctx.moveTo(leftBase.x, leftBase.y);
@@ -1353,83 +1341,127 @@ function drawIsoBridgeArch(ctx, face, tile) {
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
-
-  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
-  ctx.lineWidth = Math.max(1, tile.w * 0.014);
-  ctx.beginPath();
-  ctx.moveTo(leftInner.x, leftInner.y);
-  ctx.quadraticCurveTo(
-    getFacePoint(face, 0.34, 0.34).x,
-    getFacePoint(face, 0.34, 0.34).y,
-    peak.x,
-    peak.y + tile.h * 0.08
-  );
-  ctx.quadraticCurveTo(
-    getFacePoint(face, 0.66, 0.34).x,
-    getFacePoint(face, 0.66, 0.34).y,
-    rightInner.x,
-    rightInner.y
-  );
-  ctx.stroke();
   ctx.restore();
 }
 
-function drawRotatingBridgeCenterButton(ctx, center, tile, orientation) {
-  var isHorizontal = orientation === 'horizontal';
-  var r = tile.w * 0.14;
-  var baseX = center.x;
-  var baseY = center.y - tile.h * 0.08;
-  var lever = isHorizontal
-    ? { x: tile.w * 0.12, y: -tile.h * 0.09 }
-    : { x: -tile.w * 0.12, y: -tile.h * 0.09 };
-  var knob = {
-    x: baseX + lever.x,
-    y: baseY + lever.y,
-  };
+function drawRotatingBridgeCenterButton(ctx, center, tile, bridgeState) {
+  bridgeState = bridgeState || {};
+  var spinProgress = bridgeState.animating ? easeInOutCubic(bridgeState.progress) : 0;
+  drawBridgeControlButton(ctx, center, tile, {
+    active: true,
+    spinDirection: bridgeState.controlSpinDirection,
+    spinProgress: spinProgress,
+  });
+}
+
+function drawBridgeControlButton(ctx, center, tile, options) {
+  options = options || {};
+  var colors = getMechanismControlColors(options.active ? 'active' : 'idle');
+  var baseY = center.y - tile.h * 0.02;
+  var baseW = tile.w * 0.42;
+  var baseH = tile.h * 0.24;
+  var stemTopY = baseY - tile.h * 0.48;
+  var handleHalf = tile.w * 0.18;
+  var spinDirection = Number(options.spinDirection) < 0 ? -1 : 1;
+  var spinProgress = clamp01(Number(options.spinProgress) || 0);
+  var axes = getIsoPlaneHandleAxes(tile, spinDirection * spinProgress * TAU);
+
   ctx.save();
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
-  ctx.fillStyle = 'rgba(35,56,78,0.24)';
+  ctx.fillStyle = colors.shadow;
   ctx.beginPath();
-  ctx.ellipse(baseX, baseY + tile.h * 0.06, r * 1.18, r * 0.54, 0, 0, TAU);
+  ctx.ellipse(center.x, baseY + tile.h * 0.22, baseW * 0.62, baseH * 0.48, 0, 0, TAU);
   ctx.fill();
 
-  ctx.fillStyle = isHorizontal ? 'rgba(128,214,255,0.96)' : 'rgba(255,223,141,0.96)';
-  ctx.strokeStyle = isHorizontal ? 'rgba(52,112,148,0.9)' : 'rgba(128,87,44,0.9)';
-  ctx.lineWidth = Math.max(1.5, tile.w * 0.028);
+  ctx.fillStyle = colors.base;
+  ctx.strokeStyle = colors.stroke;
+  ctx.lineWidth = Math.max(1.4, tile.w * 0.026);
   ctx.beginPath();
-  ctx.ellipse(baseX, baseY, r, r * 0.7, 0, 0, TAU);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.strokeStyle = isHorizontal ? 'rgba(31,86,122,0.92)' : 'rgba(120,79,39,0.92)';
-  ctx.lineWidth = Math.max(1.8, tile.w * 0.03);
-  ctx.beginPath();
-  ctx.moveTo(baseX, baseY);
-  ctx.lineTo(knob.x, knob.y);
-  ctx.stroke();
-
-  ctx.fillStyle = isHorizontal ? 'rgba(244,255,255,0.98)' : 'rgba(255,248,225,0.98)';
-  ctx.strokeStyle = isHorizontal ? 'rgba(43,99,132,0.86)' : 'rgba(120,79,39,0.86)';
-  ctx.lineWidth = Math.max(1.1, tile.w * 0.018);
-  ctx.beginPath();
-  ctx.ellipse(knob.x, knob.y, r * 0.3, r * 0.22, -0.2, 0, TAU);
+  ctx.ellipse(center.x, baseY + tile.h * 0.08, baseW * 0.52, baseH * 0.56, 0, 0, TAU);
   ctx.fill();
   ctx.stroke();
 
-  ctx.fillStyle = isHorizontal ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.45)';
+  ctx.strokeStyle = colors.darkStroke;
+  ctx.lineWidth = Math.max(2.4, tile.w * 0.046);
   ctx.beginPath();
-  ctx.ellipse(baseX - r * 0.18, baseY - r * 0.36, r * 0.26, r * 0.12, -0.35, 0, TAU);
-  ctx.fill();
+  ctx.moveTo(center.x, baseY + tile.h * 0.02);
+  ctx.lineTo(center.x, stemTopY);
+  ctx.stroke();
 
-  ctx.strokeStyle = isHorizontal ? 'rgba(19,78,116,0.42)' : 'rgba(117,81,44,0.42)';
+  ctx.strokeStyle = colors.line;
+  ctx.lineWidth = Math.max(1, tile.w * 0.015);
+  ctx.beginPath();
+  ctx.moveTo(center.x + tile.w * 0.035, baseY - tile.h * 0.04);
+  ctx.lineTo(center.x + tile.w * 0.035, stemTopY + tile.h * 0.04);
+  ctx.stroke();
+
+  ctx.fillStyle = colors.highlight;
+  ctx.strokeStyle = colors.darkStroke;
+  ctx.lineWidth = Math.max(1.2, tile.w * 0.02);
+  ctx.beginPath();
+  ctx.ellipse(center.x, stemTopY, tile.w * 0.07, tile.w * 0.05, 0, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.save();
+  ctx.translate(center.x, stemTopY - tile.h * 0.02);
+  ctx.strokeStyle = colors.darkStroke;
+  ctx.lineWidth = Math.max(2, tile.w * 0.038);
+  ctx.beginPath();
+  ctx.moveTo(-axes.major.x * handleHalf, -axes.major.y * handleHalf);
+  ctx.lineTo(axes.major.x * handleHalf, axes.major.y * handleHalf);
+  ctx.moveTo(-axes.minor.x * handleHalf, -axes.minor.y * handleHalf);
+  ctx.lineTo(axes.minor.x * handleHalf, axes.minor.y * handleHalf);
+  ctx.stroke();
+
+  ctx.strokeStyle = colors.line;
   ctx.lineWidth = Math.max(1, tile.w * 0.014);
   ctx.beginPath();
-  ctx.moveTo(baseX - r * 0.44, baseY + r * 0.26);
-  ctx.lineTo(baseX + r * 0.44, baseY + r * 0.26);
+  ctx.moveTo(-axes.major.x * handleHalf * 0.72, -axes.major.y * handleHalf * 0.72 - tile.h * 0.03);
+  ctx.lineTo(axes.major.x * handleHalf * 0.72, axes.major.y * handleHalf * 0.72 - tile.h * 0.03);
   ctx.stroke();
   ctx.restore();
+
+  ctx.fillStyle = colors.highlight;
+  ctx.beginPath();
+  ctx.ellipse(center.x - tile.w * 0.04, stemTopY - tile.h * 0.13, tile.w * 0.035, tile.h * 0.035, -0.35, 0, TAU);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function getIsoPlaneHandleAxes(tile, angle) {
+  var basisX = normalizeVector({
+    x: tile.w * 0.5,
+    y: tile.h * 0.5,
+  });
+  var basisY = normalizeVector({
+    x: -tile.w * 0.5,
+    y: tile.h * 0.5,
+  });
+  var cos = Math.cos(Number(angle) || 0);
+  var sin = Math.sin(Number(angle) || 0);
+  return {
+    major: rotateScreenVector(basisX, cos, sin),
+    minor: rotateScreenVector(basisY, cos, sin),
+  };
+}
+
+function rotateScreenVector(vector, cos, sin) {
+  return normalizeVector({
+    x: vector.x * cos - vector.y * sin,
+    y: vector.x * sin + vector.y * cos,
+  });
+}
+
+function normalizeVector(vector) {
+  var length = Math.sqrt(vector.x * vector.x + vector.y * vector.y) || 1;
+  return {
+    x: vector.x / length,
+    y: vector.y / length,
+  };
 }
 
 function getRotatingBridgeCells(bridge, orientation) {
@@ -1466,6 +1498,7 @@ function getNodeRotatingBridgeState(node, state) {
     fromOrientation: raw.fromOrientation || raw.orientation || bridge.initialOrientation || bridge.orientation || 'vertical',
     toOrientation: raw.toOrientation || raw.orientation || bridge.initialOrientation || bridge.orientation || 'vertical',
     progress: raw.progress == null ? 1 : raw.progress,
+    controlSpinDirection: raw.controlSpinDirection || 1,
     animating: !!raw.animating,
   };
 }
@@ -1499,13 +1532,13 @@ function drawLiftingBridgeDashedSocket(ctx, center, tile) {
   ctx.save();
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  ctx.strokeStyle = 'rgba(249,209,127,0.54)';
+  ctx.strokeStyle = 'rgba(151,142,218,0.54)';
   ctx.lineWidth = Math.max(1.2, tile.w * 0.022);
   ctx.setLineDash([tile.w * 0.08, tile.w * 0.06]);
   tracePoly(ctx, top);
   ctx.stroke();
 
-  ctx.strokeStyle = 'rgba(186,142,83,0.28)';
+  ctx.strokeStyle = 'rgba(91,78,148,0.28)';
   ctx.lineWidth = Math.max(1, tile.w * 0.016);
   [
     [top[1], bottom[1], bottom[2], top[2]],
@@ -1573,14 +1606,14 @@ function drawLiftingBridgeGridCell(ctx, center, tile, role, liftState) {
   tracePoly(ctx, rightFace);
   ctx.fill();
   if (role === 'hole') {
-    drawIsoBridgeArch(ctx, rightFace, tile);
+    drawIsoBridgeArch(ctx, rightFace, tile, palette);
   }
 
   ctx.fillStyle = palette.left;
   tracePoly(ctx, leftFace);
   ctx.fill();
   if (role === 'hole') {
-    drawIsoBridgeArch(ctx, leftFace, tile);
+    drawIsoBridgeArch(ctx, leftFace, tile, palette);
   }
 
   ctx.fillStyle = palette.top;
@@ -1599,47 +1632,12 @@ function drawLiftingBridgeLever(ctx, center, tile, liftState) {
   var upperZ = liftState && liftState.upperZ != null ? Number(liftState.upperZ) : lowerZ + 2;
   var displayZ = liftState && liftState.displayZ != null ? Number(liftState.displayZ) : lowerZ;
   var ratio = upperZ === lowerZ ? 0 : clamp01((displayZ - lowerZ) / (upperZ - lowerZ));
-  var slotH = tile.h * 1.1;
-  var baseY = center.y - tile.h * 0.02;
-  var knobY = baseY + slotH * 0.24 - slotH * 0.72 * ratio;
-  var r = tile.w * 0.12;
-
-  ctx.save();
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-
-  ctx.fillStyle = 'rgba(49,42,51,0.22)';
-  ctx.beginPath();
-  ctx.ellipse(center.x, baseY + tile.h * 0.2, tile.w * 0.18, tile.h * 0.12, 0, 0, TAU);
-  ctx.fill();
-
-  ctx.strokeStyle = 'rgba(102,72,38,0.82)';
-  ctx.lineWidth = Math.max(2, tile.w * 0.035);
-  ctx.beginPath();
-  ctx.moveTo(center.x, baseY + slotH * 0.28);
-  ctx.lineTo(center.x, baseY - slotH * 0.52);
-  ctx.stroke();
-
-  ctx.strokeStyle = 'rgba(255,247,210,0.62)';
-  ctx.lineWidth = Math.max(1, tile.w * 0.014);
-  ctx.beginPath();
-  ctx.moveTo(center.x + tile.w * 0.04, baseY + slotH * 0.2);
-  ctx.lineTo(center.x + tile.w * 0.04, baseY - slotH * 0.44);
-  ctx.stroke();
-
-  ctx.fillStyle = ratio > 0.5 ? 'rgba(110,214,146,0.96)' : 'rgba(255,207,98,0.98)';
-  ctx.strokeStyle = ratio > 0.5 ? 'rgba(42,116,78,0.88)' : 'rgba(128,82,35,0.88)';
-  ctx.lineWidth = Math.max(1.6, tile.w * 0.028);
-  ctx.beginPath();
-  ctx.ellipse(center.x, knobY, r, r * 0.72, 0, 0, TAU);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  ctx.beginPath();
-  ctx.ellipse(center.x - r * 0.22, knobY - r * 0.22, r * 0.24, r * 0.12, -0.4, 0, TAU);
-  ctx.fill();
-  ctx.restore();
+  var spinProgress = liftState && liftState.animating ? easeInOutCubic(liftState.progress) : 0;
+  drawBridgeControlButton(ctx, center, tile, {
+    active: ratio > 0.5,
+    spinDirection: liftState && liftState.controlSpinDirection,
+    spinProgress: spinProgress,
+  });
 }
 
 function getLiftingBridgeCells(bridge, liftZ) {
@@ -1708,6 +1706,23 @@ function getFacePoint(face, u, v) {
   var top = lerpPoint(face[0], face[3], u);
   var bottom = lerpPoint(face[1], face[2], u);
   return lerpPoint(top, bottom, v);
+}
+
+function shadeHexColor(hex, ratio) {
+  if (!hex || typeof hex !== 'string') return '';
+  var value = hex.trim();
+  if (value[0] === '#') value = value.slice(1);
+  if (value.length === 3) {
+    value = value.split('').map(function (part) {
+      return part + part;
+    }).join('');
+  }
+  if (value.length !== 6) return '';
+  var amount = Math.max(0, Math.min(1, Number(ratio) || 0));
+  var r = Math.round(parseInt(value.slice(0, 2), 16) * amount);
+  var g = Math.round(parseInt(value.slice(2, 4), 16) * amount);
+  var b = Math.round(parseInt(value.slice(4, 6), 16) * amount);
+  return 'rgb(' + r + ',' + g + ',' + b + ')';
 }
 
 function lerpPoint(a, b, t) {
@@ -1791,19 +1806,19 @@ function getRotatingBridgeSocketPalette(active) {
 function getLiftingBridgeCellPalette(role) {
   if (role === 'hole') {
     return {
-      top: '#ffe0a3',
-      left: '#c89259',
-      right: '#b57d4e',
-      stroke: '#845832',
-      highlight: 'rgba(255,249,219,0.86)',
+      top: '#c9c1ff',
+      left: '#8174d0',
+      right: '#6a5ab6',
+      stroke: '#4f438d',
+      highlight: 'rgba(244,242,255,0.88)',
     };
   }
   return {
-    top: '#fff0bd',
-    left: '#d8aa68',
-    right: '#c39157',
-    stroke: '#916239',
-    highlight: 'rgba(255,251,230,0.86)',
+    top: '#d8d1ff',
+    left: '#9184d8',
+    right: '#7869c0',
+    stroke: '#584c97',
+    highlight: 'rgba(246,244,255,0.86)',
   };
 }
 
@@ -1901,11 +1916,11 @@ function getTilePalette(node, stateInfo) {
   }
   if (node.kind === 'switch') {
     return {
-      top: stateInfo && stateInfo.pressed ? '#d9f3cf' : '#ffe2aa',
-      left: stateInfo && stateInfo.pressed ? '#8fc17d' : '#d7a25c',
-      right: stateInfo && stateInfo.pressed ? '#76a96e' : '#bd8c4e',
-      stroke: stateInfo && stateInfo.pressed ? '#5f8955' : '#906537',
-      highlight: 'rgba(255,252,225,0.84)',
+      top: stateInfo && stateInfo.pressed ? '#dcd6ff' : '#cfe8ff',
+      left: stateInfo && stateInfo.pressed ? '#9691d6' : '#80a9d5',
+      right: stateInfo && stateInfo.pressed ? '#7774bf' : '#678bbf',
+      stroke: stateInfo && stateInfo.pressed ? '#55528d' : '#4c6793',
+      highlight: stateInfo && stateInfo.pressed ? 'rgba(244,242,255,0.86)' : 'rgba(244,251,255,0.86)',
     };
   }
   if (node.kind === 'clock-door') {

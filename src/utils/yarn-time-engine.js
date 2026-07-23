@@ -474,9 +474,8 @@ export class YarnTimeEngine {
       return;
     }
 
-    var liftBridge = this.findLiftBridgeAt(point);
-    if (liftBridge && this.beginLiftBridgeDrag(liftBridge, point)) {
-      this.pointer = { type: 'lifting-bridge', bridgeId: liftBridge.id };
+    if (this.toggleLiftBridgeAt(point)) {
+      this.pointer = { type: 'lifting-bridge-click' };
       return;
     }
 
@@ -487,10 +486,6 @@ export class YarnTimeEngine {
   }
 
   handlePointerMove(pointer) {
-    if (this.pointer && this.pointer.type === 'lifting-bridge') {
-      this.updateLiftBridgeDrag(this.getCanvasPoint(pointer));
-      return;
-    }
     if (!this.pointer || this.pointer.type !== 'yarn' || !this.yarn.isHeld) {
       return;
     }
@@ -501,11 +496,6 @@ export class YarnTimeEngine {
 
   handlePointerUp(pointer) {
     if (!this.pointer) return;
-    if (this.pointer.type === 'lifting-bridge') {
-      this.finishLiftBridgeDrag(pointer ? this.getCanvasPoint(pointer) : null);
-      this.pointer = null;
-      return;
-    }
     if (this.pointer.type === 'yarn' && this.yarn.isHeld) {
       var point = pointer ? this.getCanvasPoint(pointer) : null;
       if (point) {
@@ -552,6 +542,7 @@ export class YarnTimeEngine {
         toOrientation: orientation,
         progress: 1,
         animating: false,
+        controlSpinDirection: 1,
         duration: Number(bridge.duration) || 360,
       };
     });
@@ -579,6 +570,7 @@ export class YarnTimeEngine {
         progress: 1,
         animating: false,
         dragging: false,
+        controlSpinDirection: 1,
         dragStartY: 0,
         dragStartZ: initialZ,
         duration: Number(bridge.duration) || 440,
@@ -710,6 +702,7 @@ export class YarnTimeEngine {
     state.toOrientation = targetOrientation;
     state.progress = 0;
     state.animating = true;
+    state.controlSpinDirection = state.orientation === 'horizontal' ? -1 : 1;
     state.duration = Number(bridge.duration) || 360;
     this.levelStats.rotateCount += 1;
     return true;
@@ -784,6 +777,33 @@ export class YarnTimeEngine {
     return null;
   }
 
+  toggleLiftBridgeAt(point) {
+    var bridge = this.findLiftBridgeAt(point);
+    if (!bridge) return false;
+    var state = this.liftBridgeStates[bridge.id];
+    if (!state || state.animating || state.dragging) return false;
+    var currentZ = state.z;
+    var targetZ = Math.abs(currentZ - state.lowerZ) <= Math.abs(currentZ - state.upperZ)
+      ? state.upperZ
+      : state.lowerZ;
+    if (targetZ !== currentZ && !this.canLiftingBridgeOccupy(bridge, targetZ)) return false;
+    state.dragging = false;
+    state.fromZ = currentZ;
+    state.toZ = targetZ;
+    state.progress = 0;
+    state.animating = Math.abs(currentZ - targetZ) > 0.001;
+    state.controlSpinDirection = targetZ > currentZ ? 1 : -1;
+    state.duration = Number(bridge.duration) || 440;
+    if (!state.animating) {
+      state.displayZ = currentZ;
+      state.progress = 1;
+    } else {
+      this.levelStats.rotateCount += 1;
+    }
+    this.updateTileStates(0);
+    return true;
+  }
+
   beginLiftBridgeDrag(bridge, point) {
     if (!bridge || !point) return false;
     var state = this.liftBridgeStates[bridge.id];
@@ -835,6 +855,7 @@ export class YarnTimeEngine {
     state.toZ = targetZ;
     state.progress = 0;
     state.animating = Math.abs(state.fromZ - targetZ) > 0.001;
+    state.controlSpinDirection = targetZ > state.z ? 1 : -1;
     state.duration = Number(bridge.duration) || 440;
     if (!state.animating) {
       state.z = targetZ;
