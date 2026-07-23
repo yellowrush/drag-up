@@ -1690,7 +1690,7 @@ export const YARN_TIME_LEVELS = [
         y: 2,
         z: 0,
         kind: 'crumble',
-        initialIntegrity: 0.72,
+        initialIntegrity: 0.6,
         safeAt: 0.6,
         damageDuration: 5400,
         recoverDuration: 1300,
