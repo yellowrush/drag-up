@@ -119,6 +119,13 @@
           </view>
           <view
             class="reward-tab"
+            :class="{ active: activeRewardTab === 'sticker' }"
+            @tap="onRewardTabTap('sticker')"
+          >
+            &#36148;&#32440;
+          </view>
+          <view
+            class="reward-tab"
             :class="{ active: activeRewardTab === 'task' }"
             @tap="onRewardTabTap('task')"
           >
@@ -151,9 +158,12 @@
         </view>
 
         <scroll-view
-          v-if="activeRewardTab === 'accessory' || activeRewardTab === 'expression'"
+          v-if="activeRewardTab === 'accessory' || activeRewardTab === 'expression' || activeRewardTab === 'sticker'"
           scroll-y
-          class="reward-scroll reward-scroll-with-tryon"
+          :class="[
+            'reward-scroll',
+            isRewardTryOnTab ? 'reward-scroll-with-tryon' : '',
+          ]"
         >
           <view
             v-for="item in rewardItems"
@@ -172,6 +182,9 @@
                 >
                   <view class="preview-anger-arch"></view>
                 </view>
+                <text v-if="item.type === 'sticker'" class="sticker-icon">
+                  {{ item.icon || '🐱' }}
+                </text>
               </view>
             </view>
             <view class="reward-info">
@@ -179,11 +192,15 @@
               <text class="reward-desc">{{ rewardStatus(item) }}</text>
             </view>
             <view
+              v-if="item.type !== 'sticker'"
               class="reward-action"
               :class="{ disabled: !canUseReward(item) }"
               @tap.stop="onRewardAction(item)"
             >
               {{ rewardActionText(item) }}
+            </view>
+            <view v-else class="reward-action disabled sticker-locked-tag">
+              {{ isOwned(item) ? '&#24050;&#25910;&#34255;' : '&#26410;&#35299;&#38145;' }}
             </view>
           </view>
         </scroll-view>
@@ -329,6 +346,7 @@
   import {
     ACCESSORIES,
     EXPRESSIONS,
+    STICKERS,
     RewardStorage,
     getRewardSourceText,
     isScoreReward,
@@ -401,7 +419,12 @@
     leaderboardProfile.value ? leaderboardProfile.value.avatarUrl || '' : '',
   );
   const rewardItems = computed(() => {
-    const source = activeRewardTab.value === 'expression' ? EXPRESSIONS : ACCESSORIES;
+    const source =
+      activeRewardTab.value === 'expression'
+        ? EXPRESSIONS
+        : activeRewardTab.value === 'sticker'
+          ? STICKERS
+          : ACCESSORIES;
     return source.map((item: any) => ({
       ...item,
       type: activeRewardTab.value,
@@ -468,8 +491,12 @@
     eng.onLevelComplete = (stats: any) => {
       showNext.value = true;
       GameStorage.markLevelCompleted(eng.maze.id);
-      const result = RewardStorage.recordLevelResult(eng.maze.id, stats);
       completedLevels.value = GameStorage.getCompletedLevels();
+      const result = RewardStorage.recordLevelResult(eng.maze.id, stats, {
+        completedLevels: completedLevels.value,
+        levelWorlds,
+        canShareMinigame: isShareMinigameSupported(),
+      });
       refreshRewards();
       if (result.isNewBest) {
         syncLeaderboardInBackground();
@@ -725,22 +752,31 @@
   }
 
   function isOwned(item: any) {
-    return item.type === 'expression'
-      ? rewardState.value.ownedExpressionIds.includes(item.id)
-      : rewardState.value.ownedAccessoryIds.includes(item.id);
+    if (item.type === 'expression') {
+      return rewardState.value.ownedExpressionIds.includes(item.id);
+    }
+    if (item.type === 'sticker') {
+      return (rewardState.value.ownedStickerIds || []).includes(item.id);
+    }
+    return rewardState.value.ownedAccessoryIds.includes(item.id);
   }
 
   function isEquipped(item: any) {
+    if (item.type === 'sticker') return false;
     return item.type === 'expression'
       ? rewardState.value.equippedExpressionId === item.id
       : rewardState.value.equippedAccessoryId === item.id;
   }
 
   function canUseReward(item: any) {
+    if (item.type === 'sticker') return false;
     return isOwned(item) || (isScoreReward(item) && totalScore.value >= item.requiredScore);
   }
 
   function rewardStatus(item: any) {
+    if (item.type === 'sticker') {
+      return isOwned(item) ? '\u5df2\u6536\u85cf' : getRewardSourceText(item);
+    }
     if (isEquipped(item)) return '\u5df2\u88c5\u5907';
     if (isOwned(item)) return '\u5df2\u62e5\u6709';
     return getRewardSourceText(item);
@@ -755,6 +791,7 @@
   }
 
   function onRewardAction(item: any) {
+    if (item.type === 'sticker') return;
     if (!canUseReward(item)) return;
 
     if (isEquipped(item)) {
@@ -913,7 +950,10 @@
   }
 
   function levelTitle(_level: any, index: number) {
-    return `\u7b2c ${index + 1} \u5173`;
+    const number = index + 1;
+    return number % 10 === 0
+      ? `\u7b2c ${number} \u5173 \u00b7 \u5f69\u86cb`
+      : `\u7b2c ${number} \u5173`;
   }
 
   function playerName(row: any) {
@@ -1593,6 +1633,20 @@
     height: 24px;
     position: relative;
   }
+  .preview-mark.sticker {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    background: linear-gradient(180deg, #3f4267 0%, #2b2d49 100%);
+    border: 1px solid #7e80a7;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .sticker-icon {
+    font-size: 18px;
+    line-height: 1;
+  }
   .preview-mark.accessory.red-bow {
     width: 30px;
     height: 20px;
@@ -2093,6 +2147,9 @@
     color: #82869d;
     background: #3a3b50;
     border-color: #565873;
+  }
+  .sticker-locked-tag {
+    min-width: 76px;
   }
   .next-btn {
     position: fixed;

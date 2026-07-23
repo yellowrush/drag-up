@@ -153,6 +153,89 @@ export const EXPRESSIONS = [
   },
 ];
 
+export const STICKERS = [
+  {
+    id: 'cat-box-10',
+    name: '奶牛猫贴纸',
+    icon: '🐄',
+    description: '猫箱子第 10 关彩蛋',
+    unlockType: 'task',
+    unlockTaskId: 'milestone-cat-box-10',
+  },
+  {
+    id: 'cat-box-20',
+    name: '橘猫贴纸',
+    icon: '🍊',
+    description: '猫箱子第 20 关彩蛋',
+    unlockType: 'task',
+    unlockTaskId: 'milestone-cat-box-20',
+  },
+  {
+    id: 'cat-box-30',
+    name: '黑猫贴纸',
+    icon: '🌙',
+    description: '猫箱子第 30 关彩蛋',
+    unlockType: 'task',
+    unlockTaskId: 'milestone-cat-box-30',
+  },
+  {
+    id: 'cat-box-40',
+    name: '三花猫贴纸',
+    icon: '🎨',
+    description: '猫箱子第 40 关彩蛋',
+    unlockType: 'task',
+    unlockTaskId: 'milestone-cat-box-40',
+  },
+  {
+    id: 'cat-box-50',
+    name: '虎斑猫贴纸',
+    icon: '🐯',
+    description: '猫箱子第 50 关彩蛋',
+    unlockType: 'task',
+    unlockTaskId: 'milestone-cat-box-50',
+  },
+  {
+    id: 'cat-box-60',
+    name: '布偶猫贴纸',
+    icon: '🧶',
+    description: '猫箱子第 60 关彩蛋',
+    unlockType: 'task',
+    unlockTaskId: 'milestone-cat-box-60',
+  },
+  {
+    id: 'cat-scratcher-10',
+    name: '机械猫贴纸',
+    icon: '🤖',
+    description: '猫抓板第 10 关彩蛋',
+    unlockType: 'task',
+    unlockTaskId: 'milestone-cat-scratcher-10',
+  },
+  {
+    id: 'cat-scratcher-20',
+    name: '魔法猫贴纸',
+    icon: '✨',
+    description: '猫抓板第 20 关彩蛋',
+    unlockType: 'task',
+    unlockTaskId: 'milestone-cat-scratcher-20',
+  },
+  {
+    id: 'cat-scratcher-30',
+    name: '宇航猫贴纸',
+    icon: '🚀',
+    description: '猫抓板第 30 关彩蛋',
+    unlockType: 'task',
+    unlockTaskId: 'milestone-cat-scratcher-30',
+  },
+  {
+    id: 'yarn-ball-10',
+    name: '云朵猫贴纸',
+    icon: '☁️',
+    description: '毛线球第 10 关彩蛋',
+    unlockType: 'task',
+    unlockTaskId: 'milestone-yarn-ball-10',
+  },
+];
+
 export const REWARD_TASKS = [
   {
     id: 'daily-checkin',
@@ -215,6 +298,116 @@ export const REWARD_TASKS = [
     rewardId: 'yarn-pompom',
   },
   {
+    id: 'milestone-cat-box-10',
+    type: 'level-milestone',
+    name: '猫箱子第 10 关彩蛋',
+    description: '通关自动获得奶牛猫贴纸',
+    rewardText: '奶牛猫贴纸',
+    worldId: 'cat-box',
+    levelNumber: 10,
+    rewardType: 'sticker',
+    rewardId: 'cat-box-10',
+  },
+  {
+    id: 'milestone-cat-box-20',
+    type: 'level-milestone',
+    name: '猫箱子第 20 关彩蛋',
+    description: '通关自动获得橘猫贴纸',
+    rewardText: '橘猫贴纸',
+    worldId: 'cat-box',
+    levelNumber: 20,
+    rewardType: 'sticker',
+    rewardId: 'cat-box-20',
+  },
+  {
+    id: 'milestone-cat-box-30',
+    type: 'level-milestone',
+    name: '猫箱子第 30 关彩蛋',
+    description: '通关自动获得黑猫贴纸',
+    rewardText: '黑猫贴纸',
+    worldId: 'cat-box',
+    levelNumber: 30,
+    rewardType: 'sticker',
+    rewardId: 'cat-box-30',
+  },
+  {
+    id: 'milestone-cat-box-40',
+    type: 'level-milestone',
+    name: '猫箱子第 40 关彩蛋',
+    description: '通关自动获得三花猫贴纸',
+    rewardText: '三花猫贴纸',
+    worldId: 'cat-box',
+    levelNumber: 40,
+    rewardType: 'sticker',
+    rewardId: 'cat-box-40',
+  },
+  {
+    id: 'milestone-cat-box-50',
+    type: 'level-milestone',
+    name: '猫箱子第 50 关彩蛋',
+    description: '通关自动获得虎斑猫贴纸',
+    rewardText: '虎斑猫贴纸',
+    worldId: 'cat-box',
+    levelNumber: 50,
+    rewardType: 'sticker',
+    rewardId: 'cat-box-50',
+  },
+  {
+    id: 'milestone-cat-box-60',
+    type: 'level-milestone',
+    name: '猫箱子第 60 关彩蛋',
+    description: '通关自动获得布偶猫贴纸',
+    rewardText: '布偶猫贴纸',
+    worldId: 'cat-box',
+    levelNumber: 60,
+    rewardType: 'sticker',
+    rewardId: 'cat-box-60',
+  },
+  {
+    id: 'milestone-cat-scratcher-10',
+    type: 'level-milestone',
+    name: '猫抓板第 10 关彩蛋',
+    description: '通关自动获得机械猫贴纸',
+    rewardText: '机械猫贴纸',
+    worldId: 'cat-scratcher',
+    levelNumber: 10,
+    rewardType: 'sticker',
+    rewardId: 'cat-scratcher-10',
+  },
+  {
+    id: 'milestone-cat-scratcher-20',
+    type: 'level-milestone',
+    name: '猫抓板第 20 关彩蛋',
+    description: '通关自动获得魔法猫贴纸',
+    rewardText: '魔法猫贴纸',
+    worldId: 'cat-scratcher',
+    levelNumber: 20,
+    rewardType: 'sticker',
+    rewardId: 'cat-scratcher-20',
+  },
+  {
+    id: 'milestone-cat-scratcher-30',
+    type: 'level-milestone',
+    name: '猫抓板第 30 关彩蛋',
+    description: '通关自动获得宇航猫贴纸',
+    rewardText: '宇航猫贴纸',
+    worldId: 'cat-scratcher',
+    levelNumber: 30,
+    rewardType: 'sticker',
+    rewardId: 'cat-scratcher-30',
+  },
+  {
+    id: 'milestone-yarn-ball-10',
+    type: 'level-milestone',
+    name: '毛线球第 10 关彩蛋',
+    description: '通关自动获得云朵猫贴纸',
+    rewardText: '云朵猫贴纸',
+    worldId: 'yarn-ball',
+    levelNumber: 10,
+    rewardType: 'sticker',
+    rewardId: 'yarn-ball-10',
+  },
+  {
     id: 'share-minigame',
     type: 'share',
     name: '\u5206\u4eab\u5c0f\u6e38\u620f',
@@ -226,7 +419,7 @@ export const REWARD_TASKS = [
 ];
 
 const REWARD_STATE_KEY = 'rewardStateV1';
-const CURRENT_REWARD_VERSION = 4;
+const CURRENT_REWARD_VERSION = 5;
 const MAX_LEVEL_SCORE = 10;
 const MIN_LEVEL_SCORE = 1;
 const FREE_ACTIONS = 1;
@@ -243,6 +436,17 @@ function normalizeLevelScore(score) {
 
 function normalizeLevelId(levelId) {
   return String(levelId || '').trim().slice(0, 48);
+}
+
+function applyAutoMilestoneRewards(state, context) {
+  REWARD_TASKS.forEach(function (task) {
+    if (!task || task.type !== 'level-milestone') return;
+    if (isTaskClaimed(state, task.id)) return;
+    var taskState = getTaskState(task, state, context || {});
+    if (!taskState.ready) return;
+    grantTaskReward(state, task);
+    addUnique(state.claimedTaskIds, task.id);
+  });
 }
 
 function normalizeScoreMap(levelScores, rawVersion) {
@@ -302,6 +506,12 @@ export function getExpressionById(id) {
   });
 }
 
+export function getStickerById(id) {
+  return STICKERS.find(function (item) {
+    return item.id === id;
+  });
+}
+
 export function getRewardTaskById(id) {
   return REWARD_TASKS.find(function (task) {
     return task.id === id;
@@ -335,6 +545,7 @@ function createDefaultState() {
     equippedAccessoryId: '',
     ownedExpressionIds: [],
     equippedExpressionId: '',
+    ownedStickerIds: [],
     checkin: {
       lastDate: '',
       streak: 0,
@@ -398,6 +609,14 @@ function normalizeState(raw) {
     });
   }
 
+  if (Array.isArray(raw.ownedStickerIds)) {
+    raw.ownedStickerIds.forEach(function (id) {
+      if (getStickerById(id) && state.ownedStickerIds.indexOf(id) === -1) {
+        state.ownedStickerIds.push(id);
+      }
+    });
+  }
+
   if (
     raw.equippedAccessoryId &&
     state.ownedAccessoryIds.indexOf(raw.equippedAccessoryId) !== -1
@@ -427,6 +646,7 @@ function cloneState(state) {
     equippedAccessoryId: state.equippedAccessoryId || '',
     ownedExpressionIds: state.ownedExpressionIds.slice(),
     equippedExpressionId: state.equippedExpressionId || '',
+    ownedStickerIds: state.ownedStickerIds.slice(),
     checkin: {
       lastDate: state.checkin && state.checkin.lastDate ? state.checkin.lastDate : '',
       streak: state.checkin ? Number(state.checkin.streak) || 0 : 0,
@@ -486,6 +706,9 @@ function grantTaskReward(state, task) {
     }
     return true;
   }
+  if (task.rewardType === 'sticker' && getStickerById(task.rewardId)) {
+    return addUnique(state.ownedStickerIds, task.rewardId);
+  }
   return false;
 }
 
@@ -503,6 +726,25 @@ function getWorldProgress(task, context) {
     completed: completedCount,
     total: levels.length,
     ready: levels.length > 0 && completedCount >= levels.length,
+  };
+}
+
+function getLevelMilestoneProgress(task, context) {
+  var worlds = (context && context.levelWorlds) || [];
+  var completedLevels = (context && context.completedLevels) || [];
+  var world = worlds.find(function (item) {
+    return item.id === task.worldId;
+  });
+  var levels = world && Array.isArray(world.levels) ? world.levels : [];
+  var levelNumber = Math.max(1, Math.round(Number(task.levelNumber) || 0));
+  var targetLevel = levels[levelNumber - 1];
+  var completed =
+    !!targetLevel && completedLevels.indexOf(targetLevel.id) !== -1;
+  return {
+    completed: completed ? 1 : 0,
+    total: targetLevel ? 1 : 0,
+    ready: !!targetLevel && completed,
+    targetLabel: '第 ' + levelNumber + ' 关',
   };
 }
 
@@ -546,6 +788,12 @@ function getTaskState(task, state, context) {
       : ready
         ? '\u5206\u4eab\u540e\u9886\u53d6'
         : '\u8bf7\u5728\u5fae\u4fe1\u5c0f\u6e38\u620f\u4e2d\u5206\u4eab';
+  } else if (task.type === 'level-milestone') {
+    var milestone = getLevelMilestoneProgress(task, context);
+    ready = milestone.ready;
+    action = '';
+    actionText = claimed ? '\u5df2\u9886\u53d6' : '\u901a\u5173\u81ea\u52a8\u9886\u53d6';
+    statusText = milestone.ready ? '\u5df2\u901a\u5173' : milestone.targetLabel;
   }
 
   return {
@@ -576,21 +824,32 @@ export const RewardStorage = {
     return cloneState(normalized);
   },
 
-  recordLevelResult(levelId, stats) {
+  recordLevelResult(levelId, stats, context) {
     var state = this.getState();
     var score = normalizeLevelScore(
       Number(stats && stats.score) || calculateLevelScore(stats),
     );
     var previousBest = Number(state.levelScores[levelId]) || 0;
+    var claimedBefore = state.claimedTaskIds.length;
+    var stickersBefore = state.ownedStickerIds.length;
 
     if (score > previousBest) {
       state.levelScores[levelId] = score;
+    }
+
+    applyAutoMilestoneRewards(state, context || {});
+    var milestoneChanged =
+      claimedBefore !== state.claimedTaskIds.length ||
+      stickersBefore !== state.ownedStickerIds.length;
+    var isNewBest = score > previousBest;
+
+    if (isNewBest || milestoneChanged) {
       return {
         state: this.saveState(state),
         score: score,
         previousBest: previousBest,
-        addedScore: score - previousBest,
-        isNewBest: true,
+        addedScore: isNewBest ? score - previousBest : 0,
+        isNewBest: isNewBest,
       };
     }
 
