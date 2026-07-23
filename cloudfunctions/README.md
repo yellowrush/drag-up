@@ -5,6 +5,7 @@ deploy both functions:
 
 - `syncLeaderboardScore`
 - `getLeaderboard` (returns the top 10)
+- `kidIdeaIssues` (creates and lists kid idea GitHub issues)
 
 Deploy command:
 
@@ -57,3 +58,13 @@ live build. For the `wx.cloud` client path this must be a WeChat Cloud
 environment that belongs to the same Mini Game appid used by `upload.js`;
 standalone Tencent CloudBase/qcloud environments are not visible to
 `wx.cloud.callFunction` and will report `INVALID_ENV`.
+
+For `kidIdeaIssues`, configure these CloudBase function environment variables:
+
+- `GITHUB_OWNER`
+- `GITHUB_REPO`
+- `GITHUB_TOKEN`
+- `KID_IDEA_LABELS` (optional)
+
+The kid idea web page must point `kid-idea-box/config.js` at the HTTP access URL
+for this function when it is hosted on CloudBase static hosting.

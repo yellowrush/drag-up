@@ -18,6 +18,14 @@
       "timeout": 10,
       "memorySize": 256,
       "description": "Read top leaderboard rows and current player rank"
+    },
+    {
+      "name": "kidIdeaIssues",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout": 10,
+      "memorySize": 256,
+      "description": "Create and list kid idea GitHub issues"
     }
   ]
 }

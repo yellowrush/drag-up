@@ -5,6 +5,17 @@ const submitButton = document.querySelector('#submit-button')
 const refreshButton = document.querySelector('#refresh-button')
 const formStatus = document.querySelector('#form-status')
 const issueList = document.querySelector('#issue-list')
+const configuredApiUrl = String(window.KID_IDEA_API_URL || '').trim()
+const issueApiUrl = configuredApiUrl || '/api/issues'
+
+async function readJsonResponse(response) {
+  const text = await response.text()
+  try {
+    return text ? JSON.parse(text) : {}
+  } catch (_) {
+    throw new Error(`API returned a non-JSON response (${response.status}). Check KID_IDEA_API_URL.`)
+  }
+}
 
 function setStatus(message, isError) {
   formStatus.textContent = message
@@ -65,8 +76,8 @@ function renderIssues(issues) {
 async function loadIssues() {
   issueList.innerHTML = '<p class="empty">正在读取任务列表...</p>'
   try {
-    const response = await fetch('/api/issues')
-    const data = await response.json()
+    const response = await fetch(issueApiUrl)
+    const data = await readJsonResponse(response)
     if (!response.ok) {
       throw new Error(data.error || '读取任务失败')
     }
@@ -91,12 +102,12 @@ form.addEventListener('submit', async event => {
   setStatus('正在发送...', false)
 
   try {
-    const response = await fetch('/api/issues', {
+    const response = await fetch(issueApiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idea, playtest }),
     })
-    const data = await response.json()
+    const data = await readJsonResponse(response)
     if (!response.ok) {
       throw new Error(data.error || '发送失败')
     }

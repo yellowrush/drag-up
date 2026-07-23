@@ -266,14 +266,11 @@ async function listIssues(event) {
 
 async function createIssue(event) {
   const payload = parseBody(event)
-  const childName = String(payload.childName || '').trim()
+  const childName = String(payload.childName || '小朋友').trim()
   const idea = String(payload.idea || '').trim()
   const playtest = String(payload.playtest || '').trim()
   const imageDataUrl = validImageDataUrl(payload.imageDataUrl)
 
-  if (childName.length < 1) {
-    return response(400, { error: 'Please write a name.' })
-  }
   if (idea.length < 6) {
     return response(400, { error: 'Please write at least 6 characters.' })
   }

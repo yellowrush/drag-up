@@ -25,6 +25,33 @@ start kid-idea-box/index.html
 3. 在 GitHub 仓库里提前创建这些 label，或者首次提交时让 API 使用已有 label。
 4. 把部署后的网页链接发给小朋友，并在微信里置顶。
 
+## CloudBase 部署
+
+如果把 `kid-idea-box` 发布到 CloudBase 静态网站，不会自动拥有
+Vercel 的 `/api/issues` 路由，需要改用 `kidIdeaIssues` 云函数：
+
+1. 部署云函数：
+
+```powershell
+npm.cmd run build:minigame
+npm.cmd run deploy:cloudfunctions
+```
+
+2. 在 CloudBase 控制台给 `kidIdeaIssues` 配置环境变量：
+   - `GITHUB_OWNER`：仓库 owner，例如 `yellowrush`
+   - `GITHUB_REPO`：仓库名，例如 `drag-up`
+   - `GITHUB_TOKEN`：GitHub fine-grained token，只给目标仓库 Issues 读写权限
+   - `KID_IDEA_LABELS`：可选，默认 `kid-idea,needs-parent-review,from-idea-box`
+
+3. 为 `kidIdeaIssues` 开启 HTTP 访问或 HTTP 触发器，复制访问地址。
+4. 发布静态网站前，把 `config.js` 里的地址改成这个 HTTP 函数地址：
+
+```js
+window.KID_IDEA_API_URL = 'https://your-cloudbase-function-url'
+```
+
+保留空字符串时，页面会继续使用 Vercel 路径 `/api/issues`。
+
 ## 避免无关 PR 反复部署 Preview
 
 Vercel 默认会给每个 PR 创建 Preview Deployment。这个仓库里大多数 PR 只改游戏代码，不会改想法箱，所以建议在 Vercel 项目里配置 Ignored Build Step：
