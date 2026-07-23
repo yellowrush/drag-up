@@ -470,7 +470,10 @@
     if (!selectedStickerId.value) return null;
     const ownedIds = rewardState.value.ownedStickerIds || [];
     if (!ownedIds.includes(selectedStickerId.value)) return null;
-    return STICKERS.find((sticker: any) => sticker.id === selectedStickerId.value) || null;
+    return (
+      STICKERS.find((sticker: { id: string }) => sticker.id === selectedStickerId.value) ||
+      null
+    );
   });
   const tryOnAccessoryId = computed(() =>
     rewardState.value.equippedAccessoryId || '',
@@ -893,7 +896,9 @@
   function ensureStickerSelection() {
     const ownedIds = rewardState.value.ownedStickerIds || [];
     if (ownedIds.includes(selectedStickerId.value)) return;
-    const firstOwned = STICKERS.find((sticker: any) => ownedIds.includes(sticker.id));
+    const firstOwned = STICKERS.find((sticker: { id: string }) =>
+      ownedIds.includes(sticker.id),
+    );
     selectedStickerId.value = firstOwned ? firstOwned.id : '';
   }
 
