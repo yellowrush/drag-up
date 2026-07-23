@@ -1,0 +1,15 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "envId": "cloudbase-d9gr8r6jkb1656853",
+  "functionRoot": "cloudfunctions",
+  "functions": [
+    {
+      "name": "kidIdeaIssues",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout": 10,
+      "memorySize": 256,
+      "description": "Create and list GitHub Issues for Drag Up kid idea box"
+    }
+  ]
+}
