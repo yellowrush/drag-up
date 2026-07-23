@@ -212,7 +212,7 @@ jobs:
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: ${{ steps.prepare.outputs.prompt_path }}
-          model: gpt-5.5
+          model: o4-mini
           sandbox: workspace-write
           output-file: codex-output.md
 
