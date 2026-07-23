@@ -178,7 +178,7 @@
           scroll-y
           :class="[
             'reward-scroll',
-            isRewardTryOnTab || isStickerShowcaseTab
+            hasRewardTopPanel
               ? 'reward-scroll-with-tryon'
               : '',
           ]"
@@ -460,6 +460,9 @@
     () => activeRewardTab.value === 'accessory' || activeRewardTab.value === 'expression',
   );
   const isStickerShowcaseTab = computed(() => activeRewardTab.value === 'sticker');
+  const hasRewardTopPanel = computed(
+    () => isRewardTryOnTab.value || isStickerShowcaseTab.value,
+  );
   const isRewardItemTab = computed(() =>
     ['accessory', 'expression', 'sticker'].includes(activeRewardTab.value),
   );
@@ -467,7 +470,7 @@
     if (!selectedStickerId.value) return null;
     const ownedIds = rewardState.value.ownedStickerIds || [];
     if (!ownedIds.includes(selectedStickerId.value)) return null;
-    return STICKERS.find((item: any) => item.id === selectedStickerId.value) || null;
+    return STICKERS.find((sticker: any) => sticker.id === selectedStickerId.value) || null;
   });
   const tryOnAccessoryId = computed(() =>
     rewardState.value.equippedAccessoryId || '',
@@ -890,7 +893,7 @@
   function ensureStickerSelection() {
     const ownedIds = rewardState.value.ownedStickerIds || [];
     if (ownedIds.includes(selectedStickerId.value)) return;
-    const firstOwned = STICKERS.find((item: any) => ownedIds.includes(item.id));
+    const firstOwned = STICKERS.find((sticker: any) => ownedIds.includes(sticker.id));
     selectedStickerId.value = firstOwned ? firstOwned.id : '';
   }
 
