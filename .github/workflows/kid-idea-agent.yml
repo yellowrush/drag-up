@@ -96,21 +96,52 @@ jobs:
               .addRaw(`Target: ${owner}/${repo}@develop`)
               .write()
 
-  reserve-codex:
-    name: Reserve Codex routing hook
+  run-codex:
+    name: Run Codex coding agent
     if: >-
       ${{
         (github.event_name == 'issues' && github.event.label.name == 'codex-ready') ||
         (github.event_name == 'workflow_dispatch' && inputs.agent == 'codex')
       }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     steps:
-      - name: Capture issue for future Codex agent
+      - name: Check OpenAI API key
+        if: env.OPENAI_API_KEY == ''
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          echo "Missing OPENAI_API_KEY." >> "$GITHUB_STEP_SUMMARY"
+          echo "Create a repository secret named OPENAI_API_KEY so Codex Action can run." >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+      - name: Checkout develop
+        uses: actions/checkout@v5
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare Codex issue prompt
+        id: prepare
         uses: actions/github-script@v7
         env:
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
         with:
           script: |
+            const fs = require('fs')
+            const path = require('path')
             const owner = context.repo.owner
             const repo = context.repo.repo
             const issue_number = Number(process.env.ISSUE_NUMBER)
@@ -120,6 +151,13 @@ jobs:
               issue_number
             })
 
+            const slug = issue.title
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '-')
+              .replace(/^-+|-+$/g, '')
+              .slice(0, 40) || `issue-${issue.number}`
+            const branch = `codex/kid-idea-${issue.number}-${slug}`
+            const promptPath = '.github/codex/generated/kid-idea-prompt.md'
             const prompt = [
               `Repository: ${owner}/${repo}`,
               `Base branch: develop`,
@@ -132,25 +170,120 @@ jobs:
               '- Follow docs/kid-idea-agent-output.md for PR evidence.',
               '- For modification tasks, include a side-by-side Before / After comparison in the PR description.',
               '- For new level tasks, include a Markdown table with one row per added level.',
-              '- Create a focused branch and PR for this issue.',
+              `- Make focused code and documentation changes for this issue in the current checkout.`,
+              `- Do not create the branch or PR yourself; this GitHub Actions workflow will push branch ${branch} and open the PR after Codex finishes.`,
               '- Run npm run build:minigame before finishing.',
-              '- Do not publish a production release or edit secrets.'
+              '- Do not publish a production release or edit secrets, account settings, cloud-function deployment settings, or private keys.',
+              '- Leave a concise final summary that the workflow can use as PR context.'
             ].join('\n')
+
+            fs.mkdirSync(path.dirname(promptPath), { recursive: true })
+            fs.writeFileSync(promptPath, prompt)
 
             await github.rest.issues.createComment({
               owner,
               repo,
               issue_number,
               body: [
-                'Codex routing hook captured this issue.',
+                'Codex Action flow started for this issue.',
                 '',
-                'This label is reserved for a future Codex runner. For now, use `copilot-ready` to start automatic development, or paste this issue into Codex manually.'
+                `Target branch: \`${branch}\``,
+                '',
+                'If Codex produces changes, this workflow will open a pull request from `develop`.'
               ].join('\n')
             })
 
+            core.setOutput('branch', branch)
+            core.setOutput('issue_number', String(issue.number))
+            core.setOutput('prompt_path', promptPath)
+            core.setOutput('pr_title', `Kid idea #${issue.number}: ${issue.title}`)
             core.summary
-              .addHeading('Codex routing hook')
-              .addRaw('The issue was converted into the standard future Codex prompt.')
+              .addHeading('Codex Action flow')
+              .addRaw(`Issue #${issue.number}`)
+              .addBreak()
+              .addRaw(`Target branch: ${branch}`)
               .addBreak()
               .addCodeBlock(prompt, 'text')
               .write()
+
+      - name: Run Codex
+        id: run_codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ steps.prepare.outputs.prompt_path }}
+          sandbox: workspace-write
+          output-file: codex-output.md
+
+      - name: Remove generated prompt
+        if: always()
+        run: rm -f .github/codex/generated/kid-idea-prompt.md codex-output.md
+
+      - name: Detect Codex changes
+        id: diff
+        run: |
+          if git diff --quiet --exit-code; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stop when Codex produced no changes
+        if: steps.diff.outputs.has_changes == 'false'
+        uses: actions/github-script@v7
+        env:
+          ISSUE_NUMBER: ${{ steps.prepare.outputs.issue_number }}
+          CODEX_FINAL_MESSAGE: ${{ steps.run_codex.outputs.final-message }}
+        with:
+          script: |
+            const body = [
+              'Codex Action finished without producing repository changes.',
+              '',
+              process.env.CODEX_FINAL_MESSAGE || 'No final message was returned.'
+            ].join('\n')
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(process.env.ISSUE_NUMBER),
+              body
+            })
+
+      - name: Commit Codex changes
+        if: steps.diff.outputs.has_changes == 'true'
+        env:
+          BRANCH_NAME: ${{ steps.prepare.outputs.branch }}
+        run: |
+          git switch -c "$BRANCH_NAME"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Implement kid idea #${{ steps.prepare.outputs.issue_number }}"
+          git push --set-upstream origin "$BRANCH_NAME"
+
+      - name: Open pull request
+        if: steps.diff.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH_NAME: ${{ steps.prepare.outputs.branch }}
+          PR_TITLE: ${{ steps.prepare.outputs.pr_title }}
+          ISSUE_NUMBER: ${{ steps.prepare.outputs.issue_number }}
+          CODEX_FINAL_MESSAGE: ${{ steps.run_codex.outputs.final-message }}
+        run: |
+          {
+            echo "Closes #$ISSUE_NUMBER"
+            echo
+            echo "## Codex Summary"
+            echo
+            if [ -n "$CODEX_FINAL_MESSAGE" ]; then
+              echo "$CODEX_FINAL_MESSAGE"
+            else
+              echo "Codex completed and produced repository changes."
+            fi
+            echo
+            echo "## Review Notes"
+            echo
+            echo "- Base branch: develop"
+            echo "- Source branch: $BRANCH_NAME"
+            echo "- Follow docs/kid-idea-agent-output.md before merging; add any missing screenshots or playtest notes during review."
+          } > pr-body.md
+          gh pr create --base develop --head "$BRANCH_NAME" --title "$PR_TITLE" --body-file pr-body.md
