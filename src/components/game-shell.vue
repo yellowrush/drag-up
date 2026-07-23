@@ -1378,8 +1378,9 @@
     font-weight: 900;
   }
   .reward-tabs {
+    --reward-tab-min-width: 52px;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(52px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(var(--reward-tab-min-width), 1fr));
     gap: 6px;
     padding-bottom: 4px;
     margin-bottom: 12px;
