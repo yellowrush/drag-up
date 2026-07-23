@@ -59,7 +59,7 @@ node vercel-ignore-build.js
 5. 可选在画布里画一张图，或用手机拍照/从相册选择图片。
 6. 点击发送。
 7. 网页刷新任务列表，显示自动生成的 GitHub Issue 链接和状态。
-8. 你审核 Issue 后，加 `copilot-ready` 标签让 Copilot 开 PR；未来也可以加 `codex-ready` 走 Codex 入口。
+8. 你审核 Issue 后，加 `copilot-ready` 标签让 Copilot 开 PR，或加 `codex-ready` 标签让 Codex 开 PR。
 
 ## 图片说明
 
@@ -70,7 +70,7 @@ node vercel-ignore-build.js
 仓库里有 GitHub Actions 路由：
 
 - `copilot-ready`：把 Issue 分配给 GitHub Copilot coding agent。
-- `codex-ready`：捕获 Issue 并生成标准 Codex prompt，作为后续 Codex 自动执行入口。
+- `codex-ready`：把 Issue 分配给 Codex coding agent。
 
 要启用 `copilot-ready`，在 GitHub Actions Secrets 里添加：
 

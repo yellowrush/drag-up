@@ -68,8 +68,8 @@ PR 描述固定包含：
 默认 Issue 只会进入任务箱，不会自动派给 Agent。
 
 - 加 `copilot-ready`：GitHub Actions 会把 Issue 分配给 GitHub Copilot coding agent。
-- 加 `codex-ready`：GitHub Actions 会捕获 Issue 并生成标准 Codex prompt；这是给后续 Codex 自动执行预留的入口。
-- 不要同时加两个 ready 标签。先用 `copilot-ready` 跑通自动 PR 流程。
+- 加 `codex-ready`：GitHub Actions 会把 Issue 分配给 Codex coding agent。
+- 不要同时加两个 ready 标签。选择 `copilot-ready` 或 `codex-ready` 其中一个自动 PR 流程。
 
 Copilot 需要仓库 Secret `COPILOT_AGENT_TOKEN`。这个 token 需要只授权本仓库，并具备 Issues、Actions、Contents、Pull requests 的读写权限。
 
