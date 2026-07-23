@@ -178,39 +178,37 @@
           scroll-y
           :class="[
             'reward-scroll',
-            hasRewardTopPanel
-              ? 'reward-scroll-with-tryon'
-              : '',
+            hasRewardTopPanel ? 'reward-scroll-with-tryon' : '',
           ]"
         >
           <view
-          v-for="item in rewardItems"
-          :key="`${item.type}-${item.id}`"
-          class="reward-row"
-          :class="{
-            owned: isOwned(item),
-            equipped: isEquipped(item),
-            selected: isSelectedSticker(item),
-          }"
-          @tap="onRewardRowTap(item)"
+            v-for="item in rewardItems"
+            :key="`${item.type}-${item.id}`"
+            class="reward-row"
+            :class="{
+              owned: isOwned(item),
+              equipped: isEquipped(item),
+              selected: isSelectedSticker(item),
+            }"
+            @tap="onRewardRowTap(item)"
           >
-          <view class="reward-preview">
-            <view
-              :class="[
-                'preview-mark',
-                item.type,
-                item.id,
-                item.type === 'sticker' ? 'sticker-art mini' : '',
-              ]"
-            >
+            <view class="reward-preview">
               <view
-                v-if="item.type === 'expression' && item.id === 'angry'"
-                class="preview-anger-icon"
+                :class="[
+                  'preview-mark',
+                  item.type,
+                  item.id,
+                  item.type === 'sticker' ? 'sticker-art mini' : '',
+                ]"
               >
-                <view class="preview-anger-arch"></view>
+                <view
+                  v-if="item.type === 'expression' && item.id === 'angry'"
+                  class="preview-anger-icon"
+                >
+                  <view class="preview-anger-arch"></view>
+                </view>
               </view>
             </view>
-          </view>
             <view class="reward-info">
               <text class="reward-name">{{ item.name }}</text>
               <text class="reward-desc">{{ rewardStatus(item) }}</text>
@@ -224,7 +222,7 @@
               {{ rewardActionText(item) }}
             </view>
             <view v-else class="reward-action disabled sticker-locked-tag">
-              {{ isOwned(item) ? (isSelectedSticker(item) ? '展示中' : '点击查看') : '未解锁' }}
+              {{ stickerActionLabel(item) }}
             </view>
           </view>
         </scroll-view>
@@ -893,6 +891,11 @@
     return isStickerRewardItem(item) && selectedStickerId.value === item.id;
   }
 
+  function stickerActionLabel(item: any) {
+    if (!isOwned(item)) return '未解锁';
+    return isSelectedSticker(item) ? '展示中' : '点击查看';
+  }
+
   function ensureStickerSelection() {
     const ownedIds = rewardState.value.ownedStickerIds || [];
     if (ownedIds.includes(selectedStickerId.value)) return;
@@ -1376,7 +1379,7 @@
   }
   .reward-tabs {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(52px, 1fr));
     gap: 6px;
     padding-bottom: 4px;
     margin-bottom: 12px;
