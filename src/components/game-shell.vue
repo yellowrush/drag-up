@@ -122,7 +122,7 @@
             :class="{ active: activeRewardTab === 'sticker' }"
             @tap="onRewardTabTap('sticker')"
           >
-            &#36148;&#32440;
+            贴纸
           </view>
           <view
             class="reward-tab"
@@ -158,7 +158,7 @@
         </view>
 
         <scroll-view
-          v-if="activeRewardTab === 'accessory' || activeRewardTab === 'expression' || activeRewardTab === 'sticker'"
+          v-if="isRewardItemTab"
           scroll-y
           :class="[
             'reward-scroll',
@@ -183,7 +183,7 @@
                   <view class="preview-anger-arch"></view>
                 </view>
                 <text v-if="item.type === 'sticker'" class="sticker-icon">
-                  {{ item.icon || '🐱' }}
+                  {{ item.icon }}
                 </text>
               </view>
             </view>
@@ -200,7 +200,7 @@
               {{ rewardActionText(item) }}
             </view>
             <view v-else class="reward-action disabled sticker-locked-tag">
-              {{ isOwned(item) ? '&#24050;&#25910;&#34255;' : '&#26410;&#35299;&#38145;' }}
+              {{ isOwned(item) ? '已收藏' : '未解锁' }}
             </view>
           </view>
         </scroll-view>
@@ -418,13 +418,14 @@
   const leaderboardProfileAvatar = computed(() =>
     leaderboardProfile.value ? leaderboardProfile.value.avatarUrl || '' : '',
   );
+  function getRewardSourceItems() {
+    if (activeRewardTab.value === 'expression') return EXPRESSIONS;
+    if (activeRewardTab.value === 'sticker') return STICKERS;
+    if (activeRewardTab.value === 'accessory') return ACCESSORIES;
+    return [];
+  }
   const rewardItems = computed(() => {
-    const source =
-      activeRewardTab.value === 'expression'
-        ? EXPRESSIONS
-        : activeRewardTab.value === 'sticker'
-          ? STICKERS
-          : ACCESSORIES;
+    const source = getRewardSourceItems();
     return source.map((item: any) => ({
       ...item,
       type: activeRewardTab.value,
@@ -432,6 +433,9 @@
   });
   const isRewardTryOnTab = computed(
     () => activeRewardTab.value === 'accessory' || activeRewardTab.value === 'expression',
+  );
+  const isRewardItemTab = computed(() =>
+    ['accessory', 'expression', 'sticker'].includes(activeRewardTab.value),
   );
   const tryOnAccessoryId = computed(() =>
     rewardState.value.equippedAccessoryId || '',
@@ -752,29 +756,29 @@
   }
 
   function isOwned(item: any) {
+    if (isStickerRewardItem(item)) {
+      return rewardState.value.ownedStickerIds.includes(item.id);
+    }
     if (item.type === 'expression') {
       return rewardState.value.ownedExpressionIds.includes(item.id);
-    }
-    if (item.type === 'sticker') {
-      return (rewardState.value.ownedStickerIds || []).includes(item.id);
     }
     return rewardState.value.ownedAccessoryIds.includes(item.id);
   }
 
   function isEquipped(item: any) {
-    if (item.type === 'sticker') return false;
+    if (isStickerRewardItem(item)) return false;
     return item.type === 'expression'
       ? rewardState.value.equippedExpressionId === item.id
       : rewardState.value.equippedAccessoryId === item.id;
   }
 
   function canUseReward(item: any) {
-    if (item.type === 'sticker') return false;
+    if (isStickerRewardItem(item)) return false;
     return isOwned(item) || (isScoreReward(item) && totalScore.value >= item.requiredScore);
   }
 
   function rewardStatus(item: any) {
-    if (item.type === 'sticker') {
+    if (isStickerRewardItem(item)) {
       return isOwned(item) ? '\u5df2\u6536\u85cf' : getRewardSourceText(item);
     }
     if (isEquipped(item)) return '\u5df2\u88c5\u5907';
@@ -791,7 +795,7 @@
   }
 
   function onRewardAction(item: any) {
-    if (item.type === 'sticker') return;
+    if (isStickerRewardItem(item)) return;
     if (!canUseReward(item)) return;
 
     if (isEquipped(item)) {
@@ -832,6 +836,10 @@
     const id = rewardState.value.equippedExpressionId || '';
     const expression = EXPRESSIONS.find((item: any) => item.id === id);
     return expression ? expression.name : '\u9ed8\u8ba4\u8868\u60c5';
+  }
+
+  function isStickerRewardItem(item: any) {
+    return !!item && item.type === 'sticker';
   }
 
   function scheduleRewardPreviewRender() {
@@ -952,8 +960,8 @@
   function levelTitle(_level: any, index: number) {
     const number = index + 1;
     return number % 10 === 0
-      ? `\u7b2c ${number} \u5173 \u00b7 \u5f69\u86cb`
-      : `\u7b2c ${number} \u5173`;
+      ? `第 ${number} 关 · 彩蛋`
+      : `第 ${number} 关`;
   }
 
   function playerName(row: any) {

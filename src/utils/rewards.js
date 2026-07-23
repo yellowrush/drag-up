@@ -418,6 +418,10 @@ export const REWARD_TASKS = [
   },
 ];
 
+const AUTO_MILESTONE_TASKS = REWARD_TASKS.filter(function (task) {
+  return task && task.type === 'level-milestone';
+});
+
 const REWARD_STATE_KEY = 'rewardStateV1';
 const CURRENT_REWARD_VERSION = 5;
 const MAX_LEVEL_SCORE = 10;
@@ -439,8 +443,7 @@ function normalizeLevelId(levelId) {
 }
 
 function applyAutoMilestoneRewards(state, context) {
-  REWARD_TASKS.forEach(function (task) {
-    if (!task || task.type !== 'level-milestone') return;
+  AUTO_MILESTONE_TASKS.forEach(function (task) {
     if (isTaskClaimed(state, task.id)) return;
     var taskState = getTaskState(task, state, context || {});
     if (!taskState.ready) return;
@@ -615,6 +618,8 @@ function normalizeState(raw) {
         state.ownedStickerIds.push(id);
       }
     });
+  } else if (rawVersion < 5) {
+    state.ownedStickerIds = [];
   }
 
   if (
@@ -736,7 +741,7 @@ function getLevelMilestoneProgress(task, context) {
     return item.id === task.worldId;
   });
   var levels = world && Array.isArray(world.levels) ? world.levels : [];
-  var levelNumber = Math.max(1, Math.round(Number(task.levelNumber) || 0));
+  var levelNumber = Number(task.levelNumber) || 0;
   var targetLevel = levels[levelNumber - 1];
   var completed =
     !!targetLevel && completedLevels.indexOf(targetLevel.id) !== -1;
