@@ -24,10 +24,12 @@ export class PlayEngine {
     this.engine = null;
     this.equippedAccessoryId = '';
     this.equippedExpressionId = '';
+    this.stickerCameras = [];
 
     this.onLevelComplete = null;
     this.onLevelLoad = null;
     this.onInstructionChange = null;
+    this.onStickerCameraCapture = null;
   }
 
   get maze() {
@@ -125,6 +127,9 @@ export class PlayEngine {
     this.engine.setupCanvas(this.canvasSize.width, this.canvasSize.height);
     this.engine.setEquippedAccessory(this.equippedAccessoryId);
     this.engine.setEquippedExpression(this.equippedExpressionId);
+    if (this.engine.setStickerCameras) {
+      this.engine.setStickerCameras(this.stickerCameras);
+    }
   }
 
   syncEngineCallbacks() {
@@ -142,6 +147,11 @@ export class PlayEngine {
     this.engine.onInstructionChange = function (text) {
       if (self.onInstructionChange) {
         self.onInstructionChange(text);
+      }
+    };
+    this.engine.onStickerCameraCapture = function (payload) {
+      if (self.onStickerCameraCapture) {
+        self.onStickerCameraCapture(payload);
       }
     };
   }
@@ -196,6 +206,13 @@ export class PlayEngine {
     this.equippedExpressionId = expressionId || '';
     if (this.engine && this.engine.setEquippedExpression) {
       this.engine.setEquippedExpression(this.equippedExpressionId);
+    }
+  }
+
+  setStickerCameras(cameras) {
+    this.stickerCameras = Array.isArray(cameras) ? cameras.slice() : [];
+    if (this.engine && this.engine.setStickerCameras) {
+      this.engine.setStickerCameras(this.stickerCameras);
     }
   }
 

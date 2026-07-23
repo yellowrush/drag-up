@@ -345,6 +345,22 @@
       </view>
     </view>
 
+    <view v-if="stickerCaptureModal" class="modal-mask sticker-capture-mask" @tap.stop>
+      <view class="modal-box sticker-capture-modal">
+        <view class="capture-title">&#25293;&#21040;&#21862;&#65281;&#33719;&#24471;&#36148;&#22270;</view>
+        <view class="capture-name">{{ capturedStickerName }}</view>
+        <canvas
+          id="stickerCaptureCanvas"
+          canvas-id="stickerCaptureCanvas"
+          type="2d"
+          class="sticker-capture-canvas"
+        />
+        <view class="capture-action" @tap="openCapturedSticker">
+          &#26597;&#30475;&#36148;&#22270;
+        </view>
+      </view>
+    </view>
+
     <view v-show="showNext" class="next-btn" @tap="onNextLevel">
       &#19979;&#19968;&#20851;
     </view>
@@ -414,6 +430,7 @@
   const rewardState = ref(RewardStorage.getState());
   const activeRewardTab = ref('accessory');
   const selectedStickerId = ref('');
+  const stickerCaptureModal = ref<any>(null);
   const activeLeaderboardScope = ref('friend');
   const taskHint = ref('');
   const leaderboardStatus = ref('idle');
@@ -466,6 +483,12 @@
   const selectedSticker = computed(() =>
     STICKERS.find((item: any) => item.id === selectedStickerId.value) || null,
   );
+  const capturedSticker = computed(() =>
+    STICKERS.find((item: any) => item.id === (stickerCaptureModal.value && stickerCaptureModal.value.stickerId)) || null,
+  );
+  const capturedStickerName = computed(() =>
+    capturedSticker.value ? capturedSticker.value.name : '',
+  );
   const isRewardTryOnTab = computed(
     () => activeRewardTab.value === 'accessory' || activeRewardTab.value === 'expression',
   );
@@ -509,10 +532,12 @@
       rewardState.value.equippedExpressionId,
       selectedStickerId.value,
       rewardState.value.ownedStickerIds.length,
+      stickerCaptureModal.value && stickerCaptureModal.value.stickerId,
     ],
     () => {
       scheduleRewardPreviewRender();
       scheduleStickerShareRender();
+      scheduleStickerCaptureRender();
     },
     { immediate: true },
   );
@@ -526,6 +551,7 @@
     instruction.value = eng.maze.instruction || '';
     syncActiveWorldForLevel(currentLevelId);
     applyEquippedRewards();
+    syncStickerCamerasForCurrentLevel();
 
     eng.onLevelComplete = (stats: any) => {
       showNext.value = true;
@@ -541,6 +567,8 @@
     eng.onInstructionChange = (text: string) => {
       instruction.value = text;
     };
+
+    eng.onStickerCameraCapture = onStickerCameraCapture;
   }
 
   function onInstruction(text: string) {
@@ -571,6 +599,7 @@
     showLevelSelect.value = false;
     showNext.value = false;
     instruction.value = engine.value.maze.instruction || '';
+    syncStickerCamerasForCurrentLevel();
   }
 
   function onNextLevel() {
@@ -581,6 +610,7 @@
       currentLevelId = next;
       syncActiveWorldForLevel(next);
       instruction.value = engine.value.maze.instruction || '';
+      syncStickerCamerasForCurrentLevel();
     } else {
       completedLevels.value = GameStorage.getCompletedLevels();
       syncActiveWorldForLevel(engine.value.maze.id);
@@ -596,6 +626,7 @@
     syncActiveWorldForLevel(currentLevelId);
     showNext.value = false;
     instruction.value = engine.value.maze.instruction || '';
+    syncStickerCamerasForCurrentLevel();
   }
 
   function onLevelWorldTap(id: string) {
@@ -644,11 +675,9 @@
   }
 
   function refreshRewards() {
-    const autoSticker = RewardStorage.getStateWithAutoStickers
-      ? RewardStorage.getStateWithAutoStickers(getTaskContext())
-      : null;
-    rewardState.value = autoSticker ? autoSticker.state : RewardStorage.getState();
+    rewardState.value = RewardStorage.getState();
     applyEquippedRewards();
+    syncStickerCamerasForCurrentLevel();
   }
 
   function applySyncedRewardScores(result: any) {
@@ -790,6 +819,15 @@
     }
   }
 
+  function syncStickerCamerasForCurrentLevel() {
+    if (!engine.value || !engine.value.setStickerCameras) return;
+    const levelId = currentLevelId || (engine.value.maze && engine.value.maze.id) || '';
+    const cameras = RewardStorage.getActiveStickerCameras
+      ? RewardStorage.getActiveStickerCameras(getTaskContext(), levelId)
+      : [];
+    engine.value.setStickerCameras(cameras);
+  }
+
   function isOwned(item: any) {
     if (item.type === 'sticker') {
       return rewardState.value.ownedStickerIds.includes(item.id);
@@ -807,7 +845,7 @@
   }
 
   function canUseReward(item: any) {
-    if (item.type === 'sticker') return isOwned(item);
+    if (item.type === 'sticker') return isOwned(item) || isStickerReadyToFind(item);
     return isOwned(item) || (isScoreReward(item) && totalScore.value >= item.requiredScore);
   }
 
@@ -819,7 +857,10 @@
   }
 
   function rewardActionText(item: any) {
-    if (item.type === 'sticker') return isOwned(item) ? '\u67e5\u770b' : '\u672a\u83b7\u5f97';
+    if (item.type === 'sticker') {
+      if (isOwned(item)) return '\u67e5\u770b';
+      return isStickerReadyToFind(item) ? '\u53bb\u5bfb\u627e' : '\u672a\u89e3\u9501';
+    }
     if (isEquipped(item)) return '\u5378\u4e0b';
     if (isOwned(item)) return '\u88c5\u5907';
     if (isScoreReward(item) && totalScore.value >= item.requiredScore) return '\u5151\u6362';
@@ -830,7 +871,11 @@
   function onRewardAction(item: any) {
     if (!canUseReward(item)) return;
     if (item.type === 'sticker') {
-      selectedStickerId.value = item.id;
+      if (isOwned(item)) {
+        selectedStickerId.value = item.id;
+      } else if (isStickerReadyToFind(item)) {
+        goFindStickerCamera(item);
+      }
       return;
     }
 
@@ -997,6 +1042,52 @@
     // #endif
   }
 
+  function scheduleStickerCaptureRender() {
+    if (!stickerCaptureModal.value) return;
+    nextTick(() => {
+      renderStickerCaptureCanvas();
+    });
+  }
+
+  function renderStickerCaptureCanvas() {
+    const sticker: any = capturedSticker.value;
+    if (!sticker) return;
+
+    // #ifdef H5
+    const canvas = document.getElementById(
+      'stickerCaptureCanvas',
+    ) as HTMLCanvasElement | null;
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        drawStickerCardCanvas(canvas, ctx, sticker, rect.width || 230, rect.height || 270);
+      }
+    }
+    // #endif
+
+    // #ifdef MP-WEIXIN
+    const query = uni.createSelectorQuery().in(instance);
+    query
+      .select('#stickerCaptureCanvas')
+      .fields({ node: true, size: true })
+      .exec((res: any[]) => {
+        const target = res && res[0];
+        if (!target || !target.node) return;
+        const canvasNode = target.node;
+        const ctx = canvasNode.getContext('2d');
+        if (!ctx) return;
+        drawStickerCardCanvas(
+          canvasNode,
+          ctx,
+          sticker,
+          target.width || 230,
+          target.height || 270,
+        );
+      });
+    // #endif
+  }
+
   function drawStickerShareCanvas(
     canvas: any,
     ctx: CanvasRenderingContext2D,
@@ -1023,10 +1114,47 @@
     drawStickerShareCard(ctx, sticker, snapshot, 0, 0, width, height);
   }
 
+  function drawStickerCardCanvas(
+    canvas: any,
+    ctx: CanvasRenderingContext2D,
+    sticker: any,
+    width: number,
+    height: number,
+  ) {
+    const snapshot =
+      rewardState.value.stickerSnapshots &&
+      rewardState.value.stickerSnapshots[sticker.id];
+    const dpr =
+      typeof window !== 'undefined' && window.devicePixelRatio
+        ? window.devicePixelRatio
+        : 1;
+    canvas.width = Math.max(1, Math.floor(width * dpr));
+    canvas.height = Math.max(1, Math.floor(height * dpr));
+    if (typeof ctx.setTransform === 'function') {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    } else {
+      ctx.scale(dpr, dpr);
+    }
+    ctx.clearRect(0, 0, width, height);
+    drawStickerShareCard(ctx, sticker, snapshot, 0, 0, width, height);
+  }
+
   function stickerStatus(item: any) {
     if (isOwned(item)) return '\u5df2\u83b7\u5f97';
+    if (isStickerReadyToFind(item)) {
+      return item.cameraHint || `\u7b2c ${item.requiredCompleted} \u5173\u6709\u6f02\u6d6e\u76f8\u673a`;
+    }
     const completed = getWorldCompletedCount(item.worldId);
     return `${Math.min(completed, item.requiredCompleted)}/${item.requiredCompleted} \u5173`;
+  }
+
+  function isStickerReadyToFind(item: any) {
+    return !!(
+      item &&
+      item.cameraLevelId &&
+      !rewardState.value.ownedStickerIds.includes(item.id) &&
+      getWorldCompletedCount(item.worldId) >= item.requiredCompleted
+    );
   }
 
   function getWorldCompletedCount(worldId: string) {
@@ -1184,6 +1312,48 @@
     };
   }
 
+  function goFindStickerCamera(sticker: any) {
+    if (!sticker || !sticker.cameraLevelId || !engine.value) return;
+    selectedStickerId.value = '';
+    showScoreModal.value = false;
+    showLevelSelect.value = false;
+    showNext.value = false;
+    engine.value.loadLevel(sticker.cameraLevelId);
+    currentLevelId = engine.value.maze.id;
+    syncActiveWorldForLevel(currentLevelId);
+    instruction.value = engine.value.maze.instruction || '';
+    syncStickerCamerasForCurrentLevel();
+  }
+
+  function onStickerCameraCapture(payload: any) {
+    if (!payload || !payload.stickerId) return;
+    const result = RewardStorage.captureStickerCamera(
+      payload.stickerId,
+      {
+        accessoryId: rewardState.value.equippedAccessoryId || '',
+        expressionId: rewardState.value.equippedExpressionId || '',
+      },
+      getTaskContext(),
+    );
+    rewardState.value = result.state;
+    refreshRewards();
+    if (!result.ok || result.reason === 'owned') return;
+    setTimeout(() => {
+      stickerCaptureModal.value = { stickerId: payload.stickerId };
+      scheduleStickerCaptureRender();
+    }, 920);
+  }
+
+  function openCapturedSticker() {
+    const stickerId = stickerCaptureModal.value && stickerCaptureModal.value.stickerId;
+    stickerCaptureModal.value = null;
+    selectedStickerId.value = stickerId || '';
+    activeRewardTab.value = 'sticker';
+    showLevelSelect.value = false;
+    showScoreModal.value = true;
+    scheduleStickerShareRender();
+  }
+
   function onTaskAction(task: any) {
     if (!task || !task.canTap) return;
     taskHint.value = '';
@@ -1209,6 +1379,10 @@
           taskHint.value = shareMinigameOnlyText;
         },
       });
+    }
+    if (task.action === 'camera') {
+      const sticker = STICKERS.find((item: any) => item.id === task.rewardId);
+      if (sticker) goFindStickerCamera(sticker);
     }
   }
 
@@ -1692,6 +1866,60 @@
     font-size: 11px;
     line-height: 1.2;
     text-align: center;
+  }
+  .sticker-capture-mask {
+    z-index: 1100;
+  }
+  .sticker-capture-modal {
+    width: 320px;
+    max-width: 88vw;
+    max-height: 86vh;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+  }
+  .capture-title {
+    color: #fff;
+    font-size: 19px;
+    font-weight: 900;
+    line-height: 24px;
+    text-align: center;
+  }
+  .capture-name {
+    color: #d9daec;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 16px;
+    text-align: center;
+    max-width: 100%;
+  }
+  .sticker-capture-canvas {
+    width: 230px;
+    height: 270px;
+    max-width: 100%;
+    max-height: calc(86vh - 140px);
+    border-radius: 14px;
+    background: #fff0d8;
+    flex-shrink: 1;
+  }
+  .capture-action {
+    width: 100%;
+    height: 42px;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #5f3713;
+    background: linear-gradient(180deg, #ffe1a2 0%, #f2b653 100%);
+    border: 2px solid #98621f;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 900;
+    box-sizing: border-box;
+    flex-shrink: 0;
   }
   .task-hint {
     min-height: 28px;

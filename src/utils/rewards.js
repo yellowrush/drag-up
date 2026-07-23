@@ -160,7 +160,10 @@ export const STICKERS = [
     worldId: 'cat-box',
     worldName: '\u732b\u7bb1\u5b50',
     requiredCompleted: 10,
-    description: '\u732b\u7bb1\u5b50\u5b8c\u6210 10 \u5173',
+    cameraLevelId: 'm4x4-4',
+    cameraTarget: { x: 1, y: 1 },
+    cameraHint: '\u5728\u7b2c 10 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
+    description: '\u5728\u732b\u7bb1\u5b50\u7b2c 10 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
     theme: 'box',
     palette: 'peach',
   },
@@ -170,7 +173,10 @@ export const STICKERS = [
     worldId: 'cat-box',
     worldName: '\u732b\u7bb1\u5b50',
     requiredCompleted: 20,
-    description: '\u732b\u7bb1\u5b50\u5b8c\u6210 20 \u5173',
+    cameraLevelId: 'm5x5-4',
+    cameraTarget: { x: 4, y: -4 },
+    cameraHint: '\u5728\u7b2c 20 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
+    description: '\u5728\u732b\u7bb1\u5b50\u7b2c 20 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
     theme: 'box',
     palette: 'mint',
   },
@@ -180,7 +186,10 @@ export const STICKERS = [
     worldId: 'cat-box',
     worldName: '\u732b\u7bb1\u5b50',
     requiredCompleted: 30,
-    description: '\u732b\u7bb1\u5b50\u5b8c\u6210 30 \u5173',
+    cameraLevelId: 'm6x6-2',
+    cameraTarget: { x: -1, y: -5 },
+    cameraHint: '\u5728\u7b2c 30 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
+    description: '\u5728\u732b\u7bb1\u5b50\u7b2c 30 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
     theme: 'box',
     palette: 'sky',
   },
@@ -190,7 +199,10 @@ export const STICKERS = [
     worldId: 'cat-box',
     worldName: '\u732b\u7bb1\u5b50',
     requiredCompleted: 40,
-    description: '\u732b\u7bb1\u5b50\u5b8c\u6210 40 \u5173',
+    cameraLevelId: 'pivot-5x5-7',
+    cameraTarget: { x: -4, y: -2 },
+    cameraHint: '\u5728\u7b2c 40 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
+    description: '\u5728\u732b\u7bb1\u5b50\u7b2c 40 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
     theme: 'box',
     palette: 'lemon',
   },
@@ -200,7 +212,10 @@ export const STICKERS = [
     worldId: 'cat-box',
     worldName: '\u732b\u7bb1\u5b50',
     requiredCompleted: 50,
-    description: '\u732b\u7bb1\u5b50\u5b8c\u6210 50 \u5173',
+    cameraLevelId: 'm50',
+    cameraTarget: { x: -1, y: -3 },
+    cameraHint: '\u5728\u7b2c 50 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
+    description: '\u5728\u732b\u7bb1\u5b50\u7b2c 50 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
     theme: 'box',
     palette: 'rose',
   },
@@ -210,7 +225,10 @@ export const STICKERS = [
     worldId: 'cat-box',
     worldName: '\u732b\u7bb1\u5b50',
     requiredCompleted: 60,
-    description: '\u732b\u7bb1\u5b50\u5b8c\u6210 60 \u5173',
+    cameraLevelId: 'rotate-6x6-2',
+    cameraTarget: { x: 1, y: -5 },
+    cameraHint: '\u5728\u7b2c 60 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
+    description: '\u5728\u732b\u7bb1\u5b50\u7b2c 60 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
     theme: 'box',
     palette: 'violet',
   },
@@ -220,7 +238,10 @@ export const STICKERS = [
     worldId: 'cat-scratcher',
     worldName: '\u732b\u6293\u677f',
     requiredCompleted: 10,
-    description: '\u732b\u6293\u677f\u5b8c\u6210 10 \u5173',
+    cameraLevelId: 'scratch-rubik-3x3-10',
+    cameraTarget: { position: { x: 2, y: 0, z: 2 }, normal: { x: 0, y: 0, z: 1 } },
+    cameraHint: '\u5728\u7b2c 10 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
+    description: '\u5728\u732b\u6293\u677f\u7b2c 10 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
     theme: 'scratch',
     palette: 'lemon',
   },
@@ -230,7 +251,10 @@ export const STICKERS = [
     worldId: 'cat-scratcher',
     worldName: '\u732b\u6293\u677f',
     requiredCompleted: 20,
-    description: '\u732b\u6293\u677f\u5b8c\u6210 20 \u5173',
+    cameraLevelId: 'scratch-rubik-paw-20',
+    cameraTarget: { position: { x: 2, y: 0, z: 2 }, normal: { x: 1, y: 0, z: 0 } },
+    cameraHint: '\u5728\u7b2c 20 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
+    description: '\u5728\u732b\u6293\u677f\u7b2c 20 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
     theme: 'scratch',
     palette: 'sky',
   },
@@ -240,7 +264,10 @@ export const STICKERS = [
     worldId: 'cat-scratcher',
     worldName: '\u732b\u6293\u677f',
     requiredCompleted: 30,
-    description: '\u732b\u6293\u677f\u5b8c\u6210 30 \u5173',
+    cameraLevelId: 'scratch-rubik-paw-30',
+    cameraTarget: { position: { x: -3, y: -3, z: 3 }, normal: { x: 0, y: -1, z: 0 } },
+    cameraHint: '\u5728\u7b2c 30 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
+    description: '\u5728\u732b\u6293\u677f\u7b2c 30 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
     theme: 'scratch',
     palette: 'rose',
   },
@@ -250,7 +277,10 @@ export const STICKERS = [
     worldId: 'yarn-ball',
     worldName: '\u6bdb\u7ebf\u7403',
     requiredCompleted: 10,
-    description: '\u6bdb\u7ebf\u7403\u5b8c\u6210 10 \u5173',
+    cameraLevelId: 'yarn-time-challenge-10',
+    cameraTarget: { nodeId: 'switch' },
+    cameraHint: '\u5728\u7b2c 10 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
+    description: '\u5728\u6bdb\u7ebf\u7403\u7b2c 10 \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a',
     theme: 'yarn',
     palette: 'mint',
   },
@@ -692,17 +722,53 @@ function getStickerProgress(sticker, context) {
   };
 }
 
-function grantAvailableStickersToState(state, context) {
-  var grantedIds = [];
+function createStickerCameraConfig(sticker) {
+  if (!sticker || !sticker.cameraLevelId || !sticker.cameraTarget) return null;
+  return {
+    stickerId: sticker.id,
+    levelId: sticker.cameraLevelId,
+    worldId: sticker.worldId,
+    target: cloneCameraTarget(sticker.cameraTarget),
+    theme: sticker.theme,
+    palette: sticker.palette,
+    name: sticker.name,
+  };
+}
+
+function cloneCameraTarget(target) {
+  if (!target || typeof target !== 'object') return null;
+  if (target.nodeId) return { nodeId: String(target.nodeId) };
+  if (target.position && target.normal) {
+    return {
+      position: {
+        x: Number(target.position.x) || 0,
+        y: Number(target.position.y) || 0,
+        z: Number(target.position.z) || 0,
+      },
+      normal: {
+        x: Number(target.normal.x) || 0,
+        y: Number(target.normal.y) || 0,
+        z: Number(target.normal.z) || 0,
+      },
+    };
+  }
+  return {
+    x: Number(target.x) || 0,
+    y: Number(target.y) || 0,
+  };
+}
+
+function getActiveStickerCamerasForState(state, context, levelId) {
+  var cameras = [];
   STICKERS.forEach(function (sticker) {
+    if (levelId && sticker.cameraLevelId !== levelId) return;
     if (state.ownedStickerIds.indexOf(sticker.id) !== -1) return;
     var progress = getStickerProgress(sticker, context || {});
     if (!progress.ready) return;
-    state.ownedStickerIds.push(sticker.id);
-    state.stickerSnapshots[sticker.id] = createStickerSnapshot(state, sticker);
-    grantedIds.push(sticker.id);
+    var camera = createStickerCameraConfig(sticker);
+    if (camera) cameras.push(camera);
   });
-  return grantedIds;
+  return cameras;
 }
 
 function isTaskClaimed(state, taskId) {
@@ -767,6 +833,7 @@ function getTaskState(task, state, context) {
 function getStickerTaskState(sticker, state, context) {
   var progress = getStickerProgress(sticker, context || {});
   var owned = state.ownedStickerIds.indexOf(sticker.id) !== -1;
+  var readyToFind = progress.ready && !owned;
   return {
     id: 'sticker-' + sticker.id,
     type: 'sticker',
@@ -777,12 +844,15 @@ function getStickerTaskState(sticker, state, context) {
     rewardId: sticker.id,
     statusText: owned
       ? '\u5df2\u83b7\u5f97'
-      : Math.min(progress.completed, sticker.requiredCompleted) + '/' + sticker.requiredCompleted + ' \u5173',
-    action: '',
-    actionText: owned ? '\u5df2\u83b7\u5f97' : '\u81ea\u52a8\u83b7\u53d6',
+      : readyToFind
+        ? (sticker.cameraHint || ('\u5728\u7b2c ' + sticker.requiredCompleted + ' \u5173\u627e\u5230\u6f02\u6d6e\u76f8\u673a'))
+        : Math.min(progress.completed, sticker.requiredCompleted) + '/' + sticker.requiredCompleted + ' \u5173',
+    action: readyToFind ? 'camera' : '',
+    actionText: owned ? '\u5df2\u83b7\u5f97' : readyToFind ? '\u53bb\u5bfb\u627e' : '\u672a\u89e3\u9501',
     ready: progress.ready,
     claimed: owned,
-    canTap: false,
+    canTap: readyToFind,
+    cameraLevelId: sticker.cameraLevelId || '',
   };
 }
 
@@ -793,15 +863,39 @@ export const RewardStorage = {
 
   getStateWithAutoStickers(context) {
     var state = this.getState();
-    var grantedIds = grantAvailableStickersToState(state, context || {});
-    if (!grantedIds.length) {
-      return { changed: false, grantedIds: [], state: cloneState(state) };
+    return { changed: false, grantedIds: [], state: cloneState(state) };
+  },
+
+  getActiveStickerCameras(context, levelId) {
+    return getActiveStickerCamerasForState(this.getState(), context || {}, levelId || '');
+  },
+
+  captureStickerCamera(stickerId, snapshotContext, context) {
+    var sticker = getStickerById(stickerId);
+    var state = this.getState();
+    if (!sticker) {
+      return { ok: false, state: cloneState(state), reason: 'missing' };
     }
-    return {
-      changed: true,
-      grantedIds: grantedIds,
-      state: this.saveState(state),
-    };
+    if (state.ownedStickerIds.indexOf(sticker.id) !== -1) {
+      return { ok: true, state: cloneState(state), reason: 'owned' };
+    }
+    var progress = getStickerProgress(sticker, context || {});
+    if (!progress.ready) {
+      return { ok: false, state: cloneState(state), reason: 'locked' };
+    }
+    state.ownedStickerIds.push(sticker.id);
+    state.stickerSnapshots[sticker.id] = createStickerSnapshot(
+      {
+        equippedAccessoryId: snapshotContext && snapshotContext.accessoryId != null
+          ? snapshotContext.accessoryId
+          : state.equippedAccessoryId,
+        equippedExpressionId: snapshotContext && snapshotContext.expressionId != null
+          ? snapshotContext.expressionId
+          : state.equippedExpressionId,
+      },
+      sticker,
+    );
+    return { ok: true, state: this.saveState(state), reason: 'captured' };
   },
 
   saveState(state) {

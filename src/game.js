@@ -61,6 +61,8 @@ var scoreTaskHint = ''
 var activeWorldIndex = 0
 var activeRewardTab = 'accessory'
 var selectedStickerId = ''
+var stickerCaptureModal = null
+var stickerCaptureTimer = null
 var leaderboardState = {
   status: 'idle',
   rows: [],
@@ -252,16 +254,14 @@ function getModalLevelAt(x, y, mx, my) {
 }
 
 function refreshRewards() {
-  var autoSticker = RewardStorage.getStateWithAutoStickers
-    ? RewardStorage.getStateWithAutoStickers(getRewardTaskContext())
-    : null
-  rewardState = autoSticker ? autoSticker.state : RewardStorage.getState()
+  rewardState = RewardStorage.getState()
   if (engine && engine.setEquippedAccessory) {
     engine.setEquippedAccessory(rewardState.equippedAccessoryId || '')
   }
   if (engine && engine.setEquippedExpression) {
     engine.setEquippedExpression(rewardState.equippedExpressionId || '')
   }
+  syncStickerCamerasForCurrentLevel()
 }
 
 function applySyncedRewardScores(result) {
@@ -282,6 +282,9 @@ function getActiveRewards() {
         worldId: item.worldId,
         worldName: item.worldName,
         requiredCompleted: item.requiredCompleted,
+        cameraLevelId: item.cameraLevelId,
+        cameraTarget: item.cameraTarget,
+        cameraHint: item.cameraHint,
         description: item.description,
         theme: item.theme,
         palette: item.palette,
@@ -324,12 +327,15 @@ function isRewardEquipped(item) {
 }
 
 function canUseReward(item) {
-  if (item.type === 'sticker') return isRewardOwned(item)
+  if (item.type === 'sticker') return isRewardOwned(item) || isStickerReadyToFind(item)
   return isRewardOwned(item) || (isScoreReward(item) && rewardState.totalScore >= item.requiredScore)
 }
 
 function rewardActionText(item) {
-  if (item.type === 'sticker') return isRewardOwned(item) ? '\u67e5\u770b' : '\u672a\u83b7\u5f97'
+  if (item.type === 'sticker') {
+    if (isRewardOwned(item)) return '\u67e5\u770b'
+    return isStickerReadyToFind(item) ? '\u53bb\u5bfb\u627e' : '\u672a\u89e3\u9501'
+  }
   if (isRewardEquipped(item)) return '\u5378\u4e0b'
   if (isRewardOwned(item)) return '\u88c5\u5907'
   if (isScoreReward(item) && rewardState.totalScore >= item.requiredScore) return '\u5151\u6362'
@@ -363,8 +369,12 @@ function getEquippedExpressionName() {
 function useReward(item) {
   if (!canUseReward(item)) return
   if (item.type === 'sticker') {
-    selectedStickerId = item.id
-    scoreScrollY = 0
+    if (isRewardOwned(item)) {
+      selectedStickerId = item.id
+      scoreScrollY = 0
+    } else if (isStickerReadyToFind(item)) {
+      goFindStickerCamera(item)
+    }
     return
   }
   if (isRewardEquipped(item)) {
@@ -409,7 +419,37 @@ function getWorldCompletedCount(worldId) {
 
 function getStickerStatusText(sticker) {
   if (isRewardOwned(sticker)) return '\u5df2\u83b7\u5f97'
+  if (isStickerReadyToFind(sticker)) {
+    return sticker.cameraHint || ('\u7b2c ' + sticker.requiredCompleted + ' \u5173\u6709\u6f02\u6d6e\u76f8\u673a')
+  }
   return Math.min(getWorldCompletedCount(sticker.worldId), sticker.requiredCompleted) + '/' + sticker.requiredCompleted + ' \u5173'
+}
+
+function isStickerReadyToFind(sticker) {
+  return !!(
+    sticker &&
+    sticker.cameraLevelId &&
+    rewardState.ownedStickerIds.indexOf(sticker.id) === -1 &&
+    getWorldCompletedCount(sticker.worldId) >= sticker.requiredCompleted
+  )
+}
+
+function goFindStickerCamera(sticker) {
+  if (!sticker || !sticker.cameraLevelId) return
+  selectedStickerId = ''
+  showScoreModal = false
+  showLevelSelect = false
+  showNext = false
+  loadLevel(sticker.cameraLevelId)
+}
+
+function syncStickerCamerasForCurrentLevel() {
+  if (!engine || !engine.setStickerCameras) return
+  var levelId = currentLevelId || (engine.maze && engine.maze.id) || ''
+  var cameras = RewardStorage.getActiveStickerCameras
+    ? RewardStorage.getActiveStickerCameras(getRewardTaskContext(), levelId)
+    : []
+  engine.setStickerCameras(cameras)
 }
 
 function getRewardTasks() {
@@ -441,6 +481,10 @@ function useRewardTask(task) {
         scoreTaskHint = '\u8bf7\u5728\u5fae\u4fe1\u5c0f\u6e38\u620f\u4e2d\u5206\u4eab'
       },
     })
+  }
+  if (task.action === 'camera') {
+    var sticker = getStickerById(task.rewardId)
+    if (sticker) goFindStickerCamera(sticker)
   }
 }
 
@@ -715,6 +759,8 @@ function init() {
   engine.onInstructionChange = function (text) {
     instruction = text
   }
+  engine.onStickerCameraCapture = handleStickerCameraCapture
+  syncStickerCamerasForCurrentLevel()
 }
 
 function loadLevel(id) {
@@ -726,12 +772,38 @@ function loadLevel(id) {
   showScoreModal = false
   hideFriendLeaderboard()
   showNext = false
+  syncStickerCamerasForCurrentLevel()
+}
+
+function handleStickerCameraCapture(payload) {
+  if (!payload || !payload.stickerId) return
+  var result = RewardStorage.captureStickerCamera(payload.stickerId, {
+    accessoryId: rewardState.equippedAccessoryId || '',
+    expressionId: rewardState.equippedExpressionId || '',
+  }, getRewardTaskContext())
+  rewardState = result.state
+  refreshRewards()
+  if (!result.ok || result.reason === 'owned') return
+  if (stickerCaptureTimer) clearTimeout(stickerCaptureTimer)
+  stickerCaptureTimer = setTimeout(function () {
+    stickerCaptureTimer = null
+    stickerCaptureModal = {
+      stickerId: payload.stickerId,
+    }
+  }, 920)
 }
 
 function handleTouchStart(e) {
   var t = e.touches[0]
   var x = t.clientX
   var y = t.clientY
+
+  if (stickerCaptureModal) {
+    if (isInsideRect(x, y, getStickerCaptureActionRect())) {
+      openCapturedSticker(stickerCaptureModal.stickerId)
+    }
+    return
+  }
 
   if (showScoreModal) {
     var smx = (W - SCORE_MODAL_W) / 2
@@ -804,6 +876,7 @@ function handleTouchStart(e) {
         syncActiveWorldForLevel(currentLevelId)
         showNext = false
         instruction = engine.maze.instruction || ''
+        syncStickerCamerasForCurrentLevel()
       }
       return
     }
@@ -847,6 +920,7 @@ function findTouch(list, id) {
 }
 
 wx.onTouchMove(function (e) {
+  if (stickerCaptureModal) return
   if (showScoreModal) {
     var scoreTouch = findTouch(e.touches, modalTouchId)
     if (scoreTouch && modalTouchMode === 'score-list') {
@@ -883,6 +957,12 @@ wx.onTouchMove(function (e) {
 })
 
 wx.onTouchEnd(function (e) {
+  if (stickerCaptureModal) {
+    activePointer = null
+    modalTouchId = null
+    modalTouchMode = ''
+    return
+  }
   if (showScoreModal) {
     var st = findTouch(e.changedTouches, modalTouchId)
     if (st && Math.abs(st.clientX - modalTouchStartX) < 8 && Math.abs(st.clientY - modalTouchStartY) < 8) {
@@ -1086,6 +1166,9 @@ function drawModernUI() {
   }
   if (showScoreModal) {
     drawScoreModal()
+  }
+  if (stickerCaptureModal) {
+    drawStickerCaptureModal()
   }
 }
 
@@ -1688,6 +1771,86 @@ function drawStickerDetailPanel(r, mx, my) {
   r.textAlign = 'center'
   r.textBaseline = 'middle'
   r.fillText('\u5df2\u751f\u6210\u9002\u5408\u5206\u4eab\u7684\u8d34\u56fe\u753b\u9762', content.x + content.w / 2, cardY + cardH + 17)
+}
+
+function getStickerCaptureModalRect() {
+  var w = Math.min(310, W - 36)
+  var h = Math.min(470, H - 90)
+  return {
+    x: (W - w) / 2,
+    y: (H - h) / 2,
+    w: w,
+    h: h,
+  }
+}
+
+function getStickerCaptureActionRect() {
+  var modal = getStickerCaptureModalRect()
+  return {
+    x: modal.x + 28,
+    y: modal.y + modal.h - 64,
+    w: modal.w - 56,
+    h: 42,
+  }
+}
+
+function drawStickerCaptureModal() {
+  var modal = getStickerCaptureModalRect()
+  var sticker = stickerCaptureModal ? getStickerById(stickerCaptureModal.stickerId) : null
+  if (!sticker) {
+    stickerCaptureModal = null
+    return
+  }
+  var snapshot = rewardState.stickerSnapshots && rewardState.stickerSnapshots[sticker.id]
+    ? rewardState.stickerSnapshots[sticker.id]
+    : null
+  ctx.fillStyle = 'rgba(0,0,0,0.58)'
+  ctx.fillRect(0, 0, W, H)
+  ctx.fillStyle = '#2f2f50'
+  drawRoundRect(ctx, modal.x, modal.y, modal.w, modal.h, 10)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)'
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+
+  ctx.fillStyle = '#ffffff'
+  ctx.font = 'bold 19px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('\u62cd\u5230\u5566\uff01\u83b7\u5f97\u8d34\u56fe', modal.x + modal.w / 2, modal.y + 30)
+
+  ctx.fillStyle = '#d9daec'
+  ctx.font = '12px sans-serif'
+  ctx.fillText(truncateText(sticker.name, 16), modal.x + modal.w / 2, modal.y + 54)
+
+  var cardW = modal.w - 66
+  var cardH = Math.min(modal.h - 150, Math.floor(cardW * 1.15))
+  var cardX = modal.x + (modal.w - cardW) / 2
+  var cardY = modal.y + 74
+  drawStickerShareCard(ctx, sticker, snapshot, cardX, cardY, cardW, cardH, false)
+
+  var action = getStickerCaptureActionRect()
+  var grd = ctx.createLinearGradient(action.x, action.y, action.x, action.y + action.h)
+  grd.addColorStop(0, '#ffe1a2')
+  grd.addColorStop(1, '#f2b653')
+  ctx.fillStyle = grd
+  ctx.strokeStyle = '#98621f'
+  ctx.lineWidth = 2
+  drawRoundRect(ctx, action.x, action.y, action.w, action.h, 8)
+  ctx.fill()
+  ctx.stroke()
+  ctx.fillStyle = '#5f3713'
+  ctx.font = 'bold 15px sans-serif'
+  ctx.fillText('\u67e5\u770b\u8d34\u56fe', action.x + action.w / 2, action.y + action.h / 2 + 1)
+}
+
+function openCapturedSticker(stickerId) {
+  stickerCaptureModal = null
+  selectedStickerId = stickerId || ''
+  activeRewardTab = 'sticker'
+  scoreScrollY = 0
+  showLevelSelect = false
+  showScoreModal = true
 }
 
 function drawRewardTaskPanel(r, mx, my) {

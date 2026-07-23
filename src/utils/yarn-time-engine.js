@@ -15,6 +15,7 @@ import {
 
 var YARN_HIT_RADIUS = 30;
 var NODE_DROP_RADIUS = 34;
+var STICKER_CAMERA_CAPTURE_DURATION = 980;
 
 export class YarnTimeEngine {
   constructor(canvas, ctx) {
@@ -49,10 +50,14 @@ export class YarnTimeEngine {
     this.lastUpdateAt = Date.now();
     this.equippedAccessoryId = '';
     this.equippedExpressionId = '';
+    this.stickerCameras = [];
+    this.cameraCaptureAnim = null;
+    this.capturedStickerCameraIds = {};
 
     this.onLevelComplete = null;
     this.onLevelLoad = null;
     this.onInstructionChange = null;
+    this.onStickerCameraCapture = null;
   }
 
   setupCanvas(width, height) {
@@ -125,6 +130,8 @@ export class YarnTimeEngine {
     this.pointer = null;
     this.completed = false;
     this.winAnim = null;
+    this.cameraCaptureAnim = null;
+    this.capturedStickerCameraIds = {};
     this.now = Date.now();
     this.lastUpdateAt = this.now;
     this.resetLevelStats(this.level.id);
@@ -170,6 +177,13 @@ export class YarnTimeEngine {
     this.equippedExpressionId = expressionId || '';
   }
 
+  setStickerCameras(cameras) {
+    var currentLevelId = this.maze && this.maze.id ? this.maze.id : '';
+    this.stickerCameras = (Array.isArray(cameras) ? cameras : []).filter(function (camera) {
+      return camera && (!currentLevelId || camera.levelId === currentLevelId);
+    });
+  }
+
   update() {
     if (!this.level || !this.cat || !this.yarn || !this.time) return;
     var now = Date.now();
@@ -193,6 +207,13 @@ export class YarnTimeEngine {
     if (this.winAnim) {
       this.winAnim.update();
     }
+    if (
+      this.cameraCaptureAnim &&
+      Date.now() - this.cameraCaptureAnim.startedAt >= this.cameraCaptureAnim.duration
+    ) {
+      this.cameraCaptureAnim = null;
+    }
+    this.checkStickerCameraCapture();
     this.checkLevelComplete();
   }
 
@@ -449,10 +470,14 @@ export class YarnTimeEngine {
       expressionId: this.equippedExpressionId,
       successAnimation: this.winAnim,
     });
+    if (!this.completed && !this.winAnim) {
+      this.renderStickerCameras();
+    }
+    this.renderStickerCameraFlash();
   }
 
   handlePointerDown(pointer) {
-    if (!this.level || this.completed) return;
+    if (!this.level || this.completed || this.cameraCaptureAnim) return;
     var point = this.getCanvasPoint(pointer);
     var clockAction = getYarnClockAction(point, this.canvasSize);
     if (clockAction && this.isClockActionAllowed(clockAction)) {
@@ -1284,6 +1309,95 @@ export class YarnTimeEngine {
     return !!edge && this.isEdgeSafe(edge.id);
   }
 
+  checkStickerCameraCapture() {
+    if (!this.level || !this.cat || this.completed || this.cameraCaptureAnim) return false;
+    if (this.cat.move || this.cat.mode !== 'playing') return false;
+    for (var i = 0; i < this.stickerCameras.length; i++) {
+      var camera = this.stickerCameras[i];
+      if (!camera || !camera.target || this.capturedStickerCameraIds[camera.stickerId]) continue;
+      if (camera.target.nodeId === this.cat.nodeId) {
+        this.captureStickerCamera(camera);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  captureStickerCamera(camera) {
+    this.capturedStickerCameraIds[camera.stickerId] = true;
+    var point = this.getStickerCameraScreenPoint(camera);
+    this.cameraCaptureAnim = {
+      stickerId: camera.stickerId,
+      startedAt: Date.now(),
+      duration: STICKER_CAMERA_CAPTURE_DURATION,
+      x: point.x,
+      y: point.y,
+      unit: point.unit || 42,
+    };
+    this.pointer = null;
+    if (this.onStickerCameraCapture) {
+      this.onStickerCameraCapture({
+        stickerId: camera.stickerId,
+        levelId: this.maze.id,
+        worldId: camera.worldId || 'yarn-ball',
+        target: camera.target,
+      });
+    }
+  }
+
+  getStickerCameraScreenPoint(camera) {
+    var nodeId = camera && camera.target ? camera.target.nodeId : '';
+    var node = this.nodeMap[nodeId] || this.nodeMap[this.cat && this.cat.nodeId];
+    var layout = getYarnTimeLayout(this.canvasSize, this.level);
+    var center = node
+      ? yarnWorldToScreen(node, layout)
+      : { x: this.canvasSize.width / 2, y: this.canvasSize.height / 2 };
+    var unit = layout.grid && layout.grid.tileW ? layout.grid.tileW * 0.72 : 42;
+    return {
+      x: center.x,
+      y: center.y,
+      unit: unit,
+    };
+  }
+
+  renderStickerCameras() {
+    if (!this.stickerCameras.length) return;
+    for (var i = 0; i < this.stickerCameras.length; i++) {
+      var camera = this.stickerCameras[i];
+      if (!camera || !camera.target || this.capturedStickerCameraIds[camera.stickerId]) continue;
+      var point = this.getStickerCameraScreenPoint(camera);
+      drawFloatingStickerCamera(this.ctx, point.x, point.y, point.unit || 42, Date.now(), 0.95);
+    }
+  }
+
+  renderStickerCameraFlash() {
+    if (!this.cameraCaptureAnim) return;
+    var elapsed = Date.now() - this.cameraCaptureAnim.startedAt;
+    var t = Math.max(0, Math.min(1, elapsed / this.cameraCaptureAnim.duration));
+    var alpha = Math.max(0, 1 - t * 1.35);
+    var unit = this.cameraCaptureAnim.unit || 42;
+    var burst = easeOutCubic(Math.min(1, t * 1.4));
+    drawFloatingStickerCamera(
+      this.ctx,
+      this.cameraCaptureAnim.x,
+      this.cameraCaptureAnim.y - burst * unit * 0.48,
+      unit,
+      Date.now(),
+      1 - t * 0.25,
+    );
+    this.ctx.save();
+    this.ctx.globalAlpha = alpha * 0.42;
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillRect(0, 0, this.canvasSize.width, this.canvasSize.height);
+    this.ctx.globalAlpha = alpha;
+    this.ctx.strokeStyle = '#ffffff';
+    this.ctx.lineWidth = Math.max(2, unit * 0.08);
+    this.ctx.beginPath();
+    this.ctx.arc(this.cameraCaptureAnim.x, this.cameraCaptureAnim.y, unit * (0.8 + burst * 1.8), 0, Math.PI * 2);
+    this.ctx.stroke();
+    this.ctx.restore();
+  }
+
   findEdgeBetween(a, b) {
     var edges = this.level.edges || [];
     for (var i = 0; i < edges.length; i++) {
@@ -1586,6 +1700,65 @@ function easeInOutCubic(t) {
   return v < 0.5
     ? 4 * v * v * v
     : 1 - Math.pow(-2 * v + 2, 3) / 2;
+}
+
+function easeOutCubic(t) {
+  var v = clamp01(t);
+  return 1 - Math.pow(1 - v, 3);
+}
+
+function drawFloatingStickerCamera(ctx, x, y, unit, now, alpha) {
+  if (!ctx) return;
+  var bob = Math.sin((now || Date.now()) / 320) * unit * 0.08;
+  var w = unit * 0.72;
+  var h = unit * 0.48;
+  ctx.save();
+  ctx.globalAlpha = alpha == null ? 1 : Math.max(0, alpha);
+  ctx.translate(x, y - unit * 0.92 + bob);
+  ctx.fillStyle = 'rgba(255,255,255,0.28)';
+  ctx.beginPath();
+  ctx.arc(0, 0, unit * 0.62, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = Math.max(1.5, unit * 0.05);
+  ctx.stroke();
+  ctx.fillStyle = '#f7c65d';
+  drawCameraRoundRect(ctx, -w / 2, -h / 2, w, h, unit * 0.12);
+  ctx.fill();
+  ctx.strokeStyle = '#7b4f20';
+  ctx.lineWidth = Math.max(1.4, unit * 0.045);
+  ctx.stroke();
+  ctx.fillStyle = '#fff3c7';
+  drawCameraRoundRect(ctx, -w * 0.28, -h * 0.68, w * 0.3, h * 0.28, unit * 0.06);
+  ctx.fill();
+  ctx.fillStyle = '#3a4461';
+  ctx.beginPath();
+  ctx.arc(w * 0.1, 0, h * 0.26, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#dff5ff';
+  ctx.beginPath();
+  ctx.arc(w * 0.1, 0, h * 0.13, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(w * 0.28, -h * 0.16, h * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawCameraRoundRect(ctx, x, y, w, h, radius) {
+  var r = Math.min(radius || 0, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
 }
 
 function clampRange(value, min, max) {
