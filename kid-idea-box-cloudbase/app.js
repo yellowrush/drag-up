@@ -12,6 +12,8 @@ const formStatus = document.querySelector('#form-status')
 const issueList = document.querySelector('#issue-list')
 const nameStorageKey = 'drag-up-kid-idea-name'
 const maxImageDataLength = 45000
+const apiBase = String(window.KID_IDEA_API_BASE || '').replace(/\/$/, '')
+const issuesApiUrl = String(window.KID_IDEA_API_URL || '') || `${apiBase}/api/issues`
 
 const drawingContext = drawingCanvas.getContext('2d')
 let isDrawing = false
@@ -144,6 +146,25 @@ async function getPictureDataUrl() {
   return compressDataUrl(drawingCanvas.toDataURL('image/png'))
 }
 
+async function readJsonResponse(response) {
+  const text = await response.text()
+  const contentType = response.headers.get('content-type') || ''
+
+  if (!contentType.includes('application/json')) {
+    const preview = text.trim().slice(0, 40)
+    if (preview.startsWith('<')) {
+      throw new Error('API 路径返回了网页，请检查 CloudBase 是否把 /api/issues 绑定到 kidIdeaIssues 云函数。')
+    }
+    throw new Error('API 没有返回 JSON，请检查 CloudBase 函数访问地址。')
+  }
+
+  try {
+    return text ? JSON.parse(text) : {}
+  } catch (_) {
+    throw new Error('API 返回内容不是有效 JSON。')
+  }
+}
+
 function renderIssues(issues) {
   if (!issues.length) {
     issueList.innerHTML = '<p class="empty">还没有任务。发送第一个想法试试看。</p>'
@@ -179,8 +200,8 @@ function renderIssues(issues) {
 async function loadIssues() {
   issueList.innerHTML = '<p class="empty">正在读取任务列表...</p>'
   try {
-    const response = await fetch('/api/issues')
-    const data = await response.json()
+    const response = await fetch(issuesApiUrl)
+    const data = await readJsonResponse(response)
     if (!response.ok) {
       throw new Error(data.error || '读取任务失败')
     }
@@ -214,12 +235,12 @@ form.addEventListener('submit', async event => {
   try {
     const imageDataUrl = await getPictureDataUrl()
     localStorage.setItem(nameStorageKey, childName)
-    const response = await fetch('/api/issues', {
+    const response = await fetch(issuesApiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ childName, idea, playtest, imageDataUrl }),
     })
-    const data = await response.json()
+    const data = await readJsonResponse(response)
     if (!response.ok) {
       throw new Error(data.error || '发送失败')
     }

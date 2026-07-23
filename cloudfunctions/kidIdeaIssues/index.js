@@ -12,6 +12,9 @@ function response(statusCode, payload, extraHeaders = {}) {
   return {
     statusCode,
     headers: {
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Origin': '*',
       'Cache-Control': 'no-store',
       'Content-Type': 'application/json; charset=utf-8',
       ...extraHeaders,

@@ -63,14 +63,27 @@ In the CloudBase console:
 4. Test:
 
 ```powershell
-curl https://YOUR_DOMAIN/api/issues
+curl https://drag-meow-d8ggfohez51d8d1d7.service.tcloudbase.com/api/issues
 ```
 
 It should return JSON with an `issues` array.
 
+If the page shows `Unexpected token '<'`, the frontend received HTML instead of JSON. This usually means `/api/issues` is still served by static hosting instead of the `kidIdeaIssues` function.
+
+There are two valid fixes:
+
+1. Preferred: bind the same static hosting domain to the function path `/api/issues`.
+2. Fallback: edit `kid-idea-box-cloudbase/config.js` and set the full API URL:
+
+```js
+window.KID_IDEA_API_URL = 'https://drag-meow-d8ggfohez51d8d1d7.service.tcloudbase.com/api/issues'
+```
+
+Use an empty API URL only when the static page and `/api/issues` function share the same domain. The older `window.KID_IDEA_API_BASE = 'https://YOUR_FUNCTION_DOMAIN'` style is still supported.
+
 ## Static Hosting
 
-Upload the contents of `kid-idea-box-cloudbase/` to CloudBase static website hosting. The frontend can stay unchanged if the static site and function share the same domain and `/api/issues` path.
+Upload the contents of `kid-idea-box-cloudbase/` to CloudBase static website hosting. The frontend can stay unchanged if the static site and function share the same domain and `/api/issues` path. If they do not share a domain, set `window.KID_IDEA_API_URL` in `kid-idea-box-cloudbase/config.js`.
 
 For a first private test, use the CloudBase default domain. For a stable mainland China public URL, use a custom domain with ICP filing.
 
