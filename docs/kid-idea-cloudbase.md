@@ -40,7 +40,7 @@ Set these on the `kidIdeaIssues` cloud function:
 - `GITHUB_REPO`: repository name, for example `drag-up`
 - `GITHUB_TOKEN`: fine-grained GitHub token with Issues read/write, Contents read/write, and Metadata read-only
 - `KID_IDEA_LABELS`: optional, defaults to `kid-idea,needs-parent-review,from-idea-box`
-- `KID_IDEA_UPLOAD_BRANCH`: optional, defaults to `main`
+- `KID_IDEA_UPLOAD_BRANCH`: optional, defaults to `develop`
 - `KID_IDEA_UPLOAD_PATH`: optional, defaults to `kid-idea-uploads`
 
 Do not put the GitHub token in any frontend file. The Contents permission is needed because GitHub Issues do not render inline `data:image/...` URLs; the function stores each submitted picture under `kid-idea-uploads/` and links to that file from the issue.

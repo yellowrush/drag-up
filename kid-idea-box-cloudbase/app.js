@@ -159,7 +159,11 @@ async function readJsonResponse(response) {
   }
 
   try {
-    return text ? JSON.parse(text) : {}
+    const data = text ? JSON.parse(text) : {}
+    if (!response.ok && !data.error && (data.message || data.code)) {
+      data.error = data.message || data.code
+    }
+    return data
   } catch (_) {
     throw new Error('API 返回内容不是有效 JSON。')
   }
@@ -203,7 +207,7 @@ async function loadIssues() {
     const response = await fetch(issuesApiUrl)
     const data = await readJsonResponse(response)
     if (!response.ok) {
-      throw new Error(data.error || '读取任务失败')
+      throw new Error(data.error || data.message || '读取任务失败')
     }
     renderIssues(data.issues || [])
   } catch (error) {
@@ -242,7 +246,7 @@ form.addEventListener('submit', async event => {
     })
     const data = await readJsonResponse(response)
     if (!response.ok) {
-      throw new Error(data.error || '发送失败')
+      throw new Error(data.error || data.message || '发送失败')
     }
 
     ideaInput.value = ''

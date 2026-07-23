@@ -36,7 +36,7 @@ function getConfig() {
     owner: requireEnv('GITHUB_OWNER'),
     repo: requireEnv('GITHUB_REPO'),
     token: requireEnv('GITHUB_TOKEN'),
-    uploadBranch: process.env.KID_IDEA_UPLOAD_BRANCH || 'main',
+    uploadBranch: process.env.KID_IDEA_UPLOAD_BRANCH || 'develop',
     uploadPath: process.env.KID_IDEA_UPLOAD_PATH || 'kid-idea-uploads',
     labels: (process.env.KID_IDEA_LABELS || DEFAULT_LABELS.join(','))
       .split(',')
@@ -172,7 +172,7 @@ async function uploadIdeaImage(childName, imageDataUrl) {
   return `https://github.com/${config.owner}/${config.repo}/raw/${encodeURIComponent(config.uploadBranch)}/${encodePathForUrl(path)}`
 }
 
-function issueBody(childName, idea, playtest, imageUrl) {
+function issueBody(childName, idea, playtest, imageUrl, imageUploadWarning) {
   const type = classifyIdea(idea)
   const drawingSection = imageUrl
     ? [
@@ -181,7 +181,14 @@ function issueBody(childName, idea, playtest, imageUrl) {
         `![Kid idea drawing](${imageUrl})`,
         '',
       ]
-    : []
+    : imageUploadWarning
+      ? [
+          '## Picture',
+          '',
+          `Picture upload failed: ${cleanMarkdownText(imageUploadWarning)}`,
+          '',
+        ]
+      : []
   return [
     '## Kid',
     '',
@@ -278,12 +285,19 @@ async function createIssue(event) {
   const { labels } = getConfig()
   await ensureLabels(READY_LABELS)
   const usableLabels = await ensureLabels(labels)
-  const imageUrl = await uploadIdeaImage(childName, imageDataUrl)
+  let imageUrl = ''
+  let imageUploadWarning = ''
+  try {
+    imageUrl = await uploadIdeaImage(childName, imageDataUrl)
+  } catch (error) {
+    imageUploadWarning = error.message || 'Unknown image upload error'
+    console.error('Kid idea image upload failed:', error)
+  }
   const issue = await github('/issues', {
     method: 'POST',
     body: JSON.stringify({
       title: titleFromIdea(idea, childName),
-      body: issueBody(childName, idea, playtest, imageUrl),
+      body: issueBody(childName, idea, playtest, imageUrl, imageUploadWarning),
       labels: usableLabels,
     }),
   })

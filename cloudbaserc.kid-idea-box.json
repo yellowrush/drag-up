@@ -7,7 +7,7 @@
       "name": "kidIdeaIssues",
       "runtime": "Nodejs20.19",
       "handler": "index.main",
-      "timeout": 10,
+      "timeout": 30,
       "memorySize": 256,
       "description": "Create and list GitHub Issues for Drag Up kid idea box"
     }
