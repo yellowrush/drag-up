@@ -156,37 +156,61 @@
             <text class="tryon-status">{{ tryOnStatus }}</text>
           </view>
         </view>
+        <view v-else-if="isStickerShowcaseTab" class="sticker-showcase">
+          <view
+            v-if="activeSticker"
+            :class="['sticker-art', 'large', activeSticker.id]"
+          ></view>
+          <view v-else class="sticker-showcase-empty">解锁贴纸后，点击贴纸来展示</view>
+          <view class="sticker-showcase-copy">
+            <text class="tryon-label">当前展示</text>
+            <text class="tryon-name">
+              {{ activeSticker ? activeSticker.name : '未选择贴纸' }}
+            </text>
+            <text class="tryon-status">
+              {{ activeSticker ? activeSticker.description : '继续闯关收集彩蛋贴纸' }}
+            </text>
+          </view>
+        </view>
 
         <scroll-view
           v-if="isRewardItemTab"
           scroll-y
           :class="[
             'reward-scroll',
-            isRewardTryOnTab ? 'reward-scroll-with-tryon' : '',
+            isRewardTryOnTab || isStickerShowcaseTab
+              ? 'reward-scroll-with-tryon'
+              : '',
           ]"
         >
           <view
-            v-for="item in rewardItems"
-            :key="`${item.type}-${item.id}`"
-            class="reward-row"
-            :class="{
-              owned: isOwned(item),
-              equipped: isEquipped(item),
-            }"
+          v-for="item in rewardItems"
+          :key="`${item.type}-${item.id}`"
+          class="reward-row"
+          :class="{
+            owned: isOwned(item),
+            equipped: isEquipped(item),
+            selected: isSelectedSticker(item),
+          }"
+          @tap="onRewardRowTap(item)"
           >
-            <view class="reward-preview">
-              <view :class="['preview-mark', item.type, item.id]">
-                <view
-                  v-if="item.type === 'expression' && item.id === 'angry'"
-                  class="preview-anger-icon"
-                >
-                  <view class="preview-anger-arch"></view>
-                </view>
-                <text v-if="item.type === 'sticker'" class="sticker-icon">
-                  {{ item.icon }}
-                </text>
+          <view class="reward-preview">
+            <view
+              :class="[
+                'preview-mark',
+                item.type,
+                item.id,
+                item.type === 'sticker' ? 'sticker-art mini' : '',
+              ]"
+            >
+              <view
+                v-if="item.type === 'expression' && item.id === 'angry'"
+                class="preview-anger-icon"
+              >
+                <view class="preview-anger-arch"></view>
               </view>
             </view>
+          </view>
             <view class="reward-info">
               <text class="reward-name">{{ item.name }}</text>
               <text class="reward-desc">{{ rewardStatus(item) }}</text>
@@ -200,7 +224,7 @@
               {{ rewardActionText(item) }}
             </view>
             <view v-else class="reward-action disabled sticker-locked-tag">
-              {{ isOwned(item) ? '已收藏' : '未解锁' }}
+              {{ isOwned(item) ? (isSelectedSticker(item) ? '展示中' : '点击查看') : '未解锁' }}
             </view>
           </view>
         </scroll-view>
@@ -381,6 +405,7 @@
   const completedLevels = ref<string[]>([]);
   const rewardState = ref(RewardStorage.getState());
   const activeRewardTab = ref('accessory');
+  const selectedStickerId = ref('');
   const activeLeaderboardScope = ref('friend');
   const taskHint = ref('');
   const leaderboardStatus = ref('idle');
@@ -434,9 +459,16 @@
   const isRewardTryOnTab = computed(
     () => activeRewardTab.value === 'accessory' || activeRewardTab.value === 'expression',
   );
+  const isStickerShowcaseTab = computed(() => activeRewardTab.value === 'sticker');
   const isRewardItemTab = computed(() =>
     ['accessory', 'expression', 'sticker'].includes(activeRewardTab.value),
   );
+  const activeSticker = computed(() => {
+    if (!selectedStickerId.value) return null;
+    const ownedIds = rewardState.value.ownedStickerIds || [];
+    if (!ownedIds.includes(selectedStickerId.value)) return null;
+    return STICKERS.find((item: any) => item.id === selectedStickerId.value) || null;
+  });
   const tryOnAccessoryId = computed(() =>
     rewardState.value.equippedAccessoryId || '',
   );
@@ -614,6 +646,7 @@
 
   function refreshRewards() {
     rewardState.value = RewardStorage.getState();
+    ensureStickerSelection();
     applyEquippedRewards();
   }
 
@@ -629,6 +662,9 @@
   function onRewardTabTap(tab: string) {
     activeRewardTab.value = tab;
     taskHint.value = '';
+    if (tab === 'sticker') {
+      ensureStickerSelection();
+    }
     if (tab === 'leaderboard') {
       if (activeLeaderboardScope.value === 'server') {
         loadLeaderboard();
@@ -826,6 +862,11 @@
     applyEquippedRewards();
   }
 
+  function onRewardRowTap(item: any) {
+    if (!isStickerRewardItem(item) || !isOwned(item)) return;
+    selectedStickerId.value = item.id;
+  }
+
   function getEquippedAccessoryName() {
     const id = rewardState.value.equippedAccessoryId || '';
     const accessory = ACCESSORIES.find((item: any) => item.id === id);
@@ -840,6 +881,17 @@
 
   function isStickerRewardItem(item: any) {
     return !!item && item.type === 'sticker';
+  }
+
+  function isSelectedSticker(item: any) {
+    return isStickerRewardItem(item) && selectedStickerId.value === item.id;
+  }
+
+  function ensureStickerSelection() {
+    const ownedIds = rewardState.value.ownedStickerIds || [];
+    if (ownedIds.includes(selectedStickerId.value)) return;
+    const firstOwned = STICKERS.find((item: any) => ownedIds.includes(item.id));
+    selectedStickerId.value = firstOwned ? firstOwned.id : '';
   }
 
   function scheduleRewardPreviewRender() {
@@ -1315,15 +1367,16 @@
     font-weight: 900;
   }
   .reward-tabs {
-    display: flex;
-    gap: 8px;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
     padding-bottom: 4px;
     margin-bottom: 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.16);
   }
   .reward-tab {
-    flex: 1;
     height: 38px;
+    padding: 0 4px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1350,6 +1403,41 @@
     border: 1px solid #565873;
     border-radius: 8px;
     box-sizing: border-box;
+  }
+  .sticker-showcase {
+    min-height: 96px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    padding: 10px;
+    background: #23233a;
+    border: 1px solid #565873;
+    border-radius: 8px;
+    box-sizing: border-box;
+  }
+  .sticker-showcase-empty {
+    width: 96px;
+    height: 76px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    border: 1px dashed #6a6d89;
+    color: #aeb0c8;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+  .sticker-showcase-copy {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
   }
   .tryon-canvas {
     width: 96px;
@@ -1527,7 +1615,18 @@
       margin-bottom: 8px;
       padding: 8px;
     }
+    .sticker-showcase {
+      min-height: 86px;
+      gap: 10px;
+      margin-bottom: 8px;
+      padding: 8px;
+    }
     .tryon-canvas {
+      width: 88px;
+      height: 68px;
+    }
+    .sticker-art.large,
+    .sticker-showcase-empty {
       width: 88px;
       height: 68px;
     }
@@ -1623,6 +1722,10 @@
     background: #3d3f51;
     border-color: #7dc88a;
   }
+  .reward-row.selected {
+    border-color: #9db6ff;
+    box-shadow: inset 0 0 0 1px rgba(157, 182, 255, 0.4);
+  }
   .task-row {
     min-height: 62px;
   }
@@ -1641,19 +1744,83 @@
     height: 24px;
     position: relative;
   }
-  .preview-mark.sticker {
+  .sticker-art {
+    position: relative;
+    overflow: hidden;
+    border-radius: 7px;
+    border: 1px solid #7e80a7;
+    background:
+      radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.35) 0 16%, transparent 17%),
+      linear-gradient(180deg, #3f4267 0%, #2b2d49 100%);
+  }
+  .sticker-art::before,
+  .sticker-art::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.84);
+  }
+  .sticker-art::before {
+    left: 7px;
+  }
+  .sticker-art::after {
+    right: 7px;
+  }
+  .sticker-art.mini {
     width: 28px;
     height: 28px;
-    border-radius: 7px;
-    background: linear-gradient(180deg, #3f4267 0%, #2b2d49 100%);
-    border: 1px solid #7e80a7;
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
-  .sticker-icon {
-    font-size: 18px;
-    line-height: 1;
+  .sticker-art.large {
+    width: 96px;
+    height: 76px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    border-width: 2px;
+  }
+  .sticker-art.cat-box-10 {
+    background-color: #47528a;
+    background-image:
+      radial-gradient(circle at 70% 32%, rgba(255, 255, 255, 0.25) 0 18%, transparent 19%),
+      linear-gradient(180deg, #7ea1ff 0%, #4a67cc 100%);
+  }
+  .sticker-art.cat-box-20 {
+    background-color: #7b4b32;
+    background-image: linear-gradient(180deg, #ffbb70 0%, #e9823b 100%);
+  }
+  .sticker-art.cat-box-30 {
+    background-color: #2f3346;
+    background-image: linear-gradient(180deg, #62667f 0%, #2c2f44 100%);
+  }
+  .sticker-art.cat-box-40 {
+    background-color: #6b5179;
+    background-image: linear-gradient(180deg, #f3c3ff 0%, #be8be0 100%);
+  }
+  .sticker-art.cat-box-50 {
+    background-color: #5a4a2f;
+    background-image: linear-gradient(180deg, #f0ce87 0%, #b9873f 100%);
+  }
+  .sticker-art.cat-box-60 {
+    background-color: #4d5c84;
+    background-image: linear-gradient(180deg, #bbd3ff 0%, #7792cc 100%);
+  }
+  .sticker-art.cat-scratcher-10 {
+    background-color: #43566b;
+    background-image: linear-gradient(180deg, #9ac8ef 0%, #5f85ad 100%);
+  }
+  .sticker-art.cat-scratcher-20 {
+    background-color: #6d4d7a;
+    background-image: linear-gradient(180deg, #ffd4ff 0%, #d08ce8 100%);
+  }
+  .sticker-art.cat-scratcher-30 {
+    background-color: #3f4e74;
+    background-image: linear-gradient(180deg, #98c9ff 0%, #5a7fc6 100%);
+  }
+  .sticker-art.yarn-ball-10 {
+    background-color: #4b6576;
+    background-image: linear-gradient(180deg, #c2efff 0%, #79b9d2 100%);
   }
   .preview-mark.accessory.red-bow {
     width: 30px;
