@@ -8,6 +8,13 @@
 - 原版: https://github.com/mpg-chong-huang/yellowrush/blob/gh-pages/game/dragUp/index.html
 - 灵感来源 / JS 参考: https://codepen.io/desandro/pen/ezNawy (by desandro on CodePen)
 
+## 游戏意见收集
+
+跟玩过游戏的小朋友收集开发意见，自动生成 issue 然后由 AI Agent 负责开发
+
+海外入口：https://drag-up-kid-idea-box.vercel.app
+中国国内入口：https://kid-idea-issues-cloudbase-d9gr8r6jkb1656853.webapps.tcloudbase.com
+
 ## 游戏玩法
 
 1. 拖动小猫(cub)沿轨道移动到终点
