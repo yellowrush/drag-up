@@ -3538,6 +3538,84 @@ function createYarnTimeMultiRouteChallenge19() {
   };
 }
 
+function createYarnTimeThreeLayerChallenge20() {
+  return {
+    id: 'yarn-time-challenge-20',
+    label: '\u6bdb\u7ebf\u7403 20\uff1a\u4e09\u5c42\u9ad8\u5854',
+    blurb: 'yarn-time',
+    instruction: '\u5730\u56fe\u5206\u4e09\u5c42\uff0c\u4e00\u9636\u4e00\u9636\u5f80\u4e0a\u722c\uff0c\u6bcf\u5c42\u90fd\u6709\u4e0d\u540c\u7684\u6311\u6218\u7b49\u4f60\u3002',
+    roomStyle: 'isometric-grid',
+    grid: {
+      tileWidth: 26,
+      tileHeight: 13,
+      tileDepth: 14,
+    },
+    rotatingBridges: [
+      {
+        id: 'ground-bridge',
+        center: { x: 3, y: 2, z: 0 },
+        length: 3,
+        initialOrientation: 'vertical',
+        duration: 460,
+      },
+    ],
+    nodes: [
+      yarnTile('start', 0, 2, 0, 'start'),
+      yarnTile('entry', 1, 2, 0, 'safe'),
+      yarnTile('rot-west', 2, 2, 0, 'rotating-bridge', { bridgeId: 'ground-bridge' }),
+      yarnTile('rot-center', 3, 2, 0, 'rotating-bridge', { bridgeId: 'ground-bridge', bridgeCenter: true }),
+      yarnTile('rot-east', 4, 2, 0, 'rotating-bridge', { bridgeId: 'ground-bridge' }),
+      yarnTile('rot-north', 3, 1, 0, 'rotating-bridge', { bridgeId: 'ground-bridge' }),
+      yarnTile('rot-south', 3, 3, 0, 'rotating-bridge', { bridgeId: 'ground-bridge' }),
+      yarnTile('ground-exit', 5, 2, 0, 'safe'),
+      yarnTile('stair-low', 6, 2, 0, 'stair', { stairDirection: 'east' }),
+
+      yarnTile('mid-land', 7, 2, 1, 'safe'),
+      yarnTile('mid-crumble', 8, 2, 1, 'crumble', {
+        initialIntegrity: 0.75,
+        safeAt: 0.45,
+        damageDuration: 7200,
+        recoverDuration: 1600,
+        bridge: true,
+      }),
+      yarnTile('mid-safe', 9, 2, 1, 'safe'),
+      yarnTile('stair-mid', 10, 2, 1, 'stair', { stairDirection: 'east' }),
+
+      yarnTile('top-land', 11, 2, 2, 'safe'),
+      yarnTile('top-spike', 12, 2, 2, 'spike', {
+        initialPhase: 0.5,
+        cycleDuration: 4000,
+        activeFrom: 0.25,
+        activeTo: 0.75,
+        bridge: true,
+      }),
+      yarnTile('goal', 13, 2, 2, 'goal'),
+    ],
+    cat: {
+      startNode: 'start',
+      visionRadius: 1.5,
+      moveSpeed: 0.0013,
+    },
+    yarn: {
+      startNode: 'start',
+      placementRadius: 99,
+    },
+    clock: {
+      actions: ['rewind'],
+      energy: 1,
+      pauseDuration: 3200,
+      rewindDuration: 3200,
+      rechargeDuration: 8000,
+    },
+    time: {
+      startAt: 0,
+    },
+    goal: {
+      nodeId: 'goal',
+    },
+  };
+}
+
 var strictYarnTimeChallengeStart = YARN_TIME_LEVELS.findIndex(function (level) {
   return level.id === 'yarn-time-challenge-12';
 });
@@ -3552,7 +3630,8 @@ if (strictYarnTimeChallengeStart >= 0) {
     createYarnTimeFloatingTutorial16(),
     createYarnTimeMultiRouteChallenge17(),
     createYarnTimeMultiRouteChallenge18(),
-    createYarnTimeMultiRouteChallenge19()
+    createYarnTimeMultiRouteChallenge19(),
+    createYarnTimeThreeLayerChallenge20()
   );
 }
 
