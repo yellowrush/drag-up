@@ -105,7 +105,7 @@ jobs:
       }}
     runs-on: ubuntu-latest
     env:
-      CODEX_AGENT_TOKEN: ${{ secrets.CODEX_AGENT_TOKEN || secrets.COPILOT_AGENT_TOKEN }}
+      CODEX_AGENT_TOKEN: ${{ secrets.COPILOT_AGENT_TOKEN }}
     steps:
       - name: Check Codex agent token
         if: env.CODEX_AGENT_TOKEN == ''
