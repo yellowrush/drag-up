@@ -6,6 +6,7 @@ const { copyProjectConfigWithEnvAppId } = require('./scripts/wechat-project-conf
 const DIST = path.resolve(__dirname, 'dist/build/minigame');
 const CLOUD_FUNCTIONS = path.resolve(__dirname, 'cloudfunctions');
 const OPEN_DATA_CONTEXT = path.resolve(__dirname, 'src/open-data-context');
+const STATIC_ASSETS = path.resolve(__dirname, 'src/static');
 
 function copyDir(src, dest) {
   if (!fs.existsSync(src)) return;
@@ -47,6 +48,7 @@ async function build() {
 
   copyDir(CLOUD_FUNCTIONS, path.join(DIST, 'cloudfunctions'));
   copyDir(OPEN_DATA_CONTEXT, path.join(DIST, 'open-data-context'));
+  copyDir(STATIC_ASSETS, path.join(DIST, 'static'));
 
   console.log('Mini-game build complete:', DIST);
 }

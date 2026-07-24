@@ -44,6 +44,7 @@ var completedLevels = []
 var rewardState = RewardStorage.getState()
 var showLevelSelect = false
 var showScoreModal = false
+var showDeveloperModal = false
 var showNext = false
 var instruction = ''
 var activePointer = null
@@ -105,6 +106,7 @@ var MODAL_GAP = 8
 var MODAL_PAD = 14
 var MODAL_TAB_H = 42
 var MODAL_TAB_GAP = 8
+var MODAL_FOOTER_H = 52
 var MODAL_VISIBLE_TABS = Math.min(3, LEVEL_WORLDS.length)
 var MODAL_TAB_W = Math.min(
   106,
@@ -116,8 +118,30 @@ var MODAL_CONTENT_ROWS = Math.max.apply(null, LEVEL_WORLDS.map(function (world) 
   return Math.ceil((world.levels || []).length / MODAL_COLS)
 }))
 var MODAL_CONTENT_H = MODAL_CONTENT_ROWS * (MODAL_CELL_H + MODAL_GAP) + MODAL_GAP
-var MODAL_INNER_H = MODAL_PAD * 2 + MODAL_TAB_H + MODAL_GAP + MODAL_CONTENT_H
+var MODAL_INNER_H = MODAL_PAD * 2 + MODAL_TAB_H + MODAL_GAP + MODAL_CONTENT_H + MODAL_FOOTER_H
 var MODAL_H = Math.min(MODAL_INNER_H, H - HEADER_H - 40)
+var DEVELOPER_MODAL_W = 320
+var DEVELOPER_MODAL_H = Math.min(390, H - 88)
+var DEVELOPER_CREDITS = [
+  {
+    id: 'huangchong',
+    name: '\u9ec4\u51b2',
+    nickname: '',
+    role: '\u6e38\u620f\u4f5c\u8005',
+    note: '\u8bbe\u8ba1\u3001\u7a0b\u5e8f\u548c\u5173\u5361\u5236\u4f5c',
+    avatar: 'static/developer-huangchong.jpg',
+    fallback: '\u9ec4',
+  },
+  {
+    id: 'douzi',
+    name: '\u96f7\u6c90\u5343',
+    nickname: '\uff08\u515c\u5b50\uff09',
+    role: '\u7279\u522b\u5c0f\u5c0f\u5236\u4f5c\u4eba',
+    note: '\u4e00\u8d77\u8bd5\u73a9\u3001\u51fa\u4e3b\u610f\u7684\u5c0f\u5c0f\u7075\u611f\u5b98',
+    avatar: 'static/developer-douzi.png',
+    fallback: '\u515c',
+  },
+]
 var SCORE_MODAL_W = 320
 var SCORE_MODAL_PAD = 14
 var SCORE_MODAL_ROW_H = 58
@@ -196,7 +220,7 @@ function getNextPlayableLevel(levelId) {
 }
 
 function getModalGridHeight() {
-  return MODAL_H - MODAL_PAD * 2 - MODAL_TAB_H - MODAL_GAP
+  return MODAL_H - MODAL_PAD * 2 - MODAL_TAB_H - MODAL_GAP - MODAL_FOOTER_H
 }
 
 function getModalContentHeight() {
@@ -251,6 +275,33 @@ function getModalLevelAt(x, y, mx, my) {
 
   var index = row * MODAL_COLS + col
   return getActiveWorldLevels()[index] || null
+}
+
+function getDeveloperEntryRect(mx, my) {
+  return {
+    x: mx + MODAL_PAD,
+    y: my + MODAL_H - MODAL_PAD - 38,
+    w: MODAL_W - MODAL_PAD * 2,
+    h: 38,
+  }
+}
+
+function getDeveloperModalRect() {
+  return {
+    x: (W - DEVELOPER_MODAL_W) / 2,
+    y: (H - DEVELOPER_MODAL_H) / 2,
+    w: DEVELOPER_MODAL_W,
+    h: DEVELOPER_MODAL_H,
+  }
+}
+
+function getDeveloperCloseRect(modal) {
+  return {
+    x: modal.x + 18,
+    y: modal.y + modal.h - 58,
+    w: modal.w - 36,
+    h: 40,
+  }
 }
 
 function refreshRewards() {
@@ -770,6 +821,7 @@ function loadLevel(id) {
   instruction = engine.maze.instruction || ''
   showLevelSelect = false
   showScoreModal = false
+  showDeveloperModal = false
   hideFriendLeaderboard()
   showNext = false
   syncStickerCamerasForCurrentLevel()
@@ -802,6 +854,21 @@ function handleTouchStart(e) {
     if (isInsideRect(x, y, getStickerCaptureActionRect())) {
       openCapturedSticker(stickerCaptureModal.stickerId)
     }
+    return
+  }
+
+  if (showDeveloperModal) {
+    var developerModal = getDeveloperModalRect()
+    if (!isInsideRect(x, y, developerModal)) {
+      showDeveloperModal = false
+      modalTouchId = null
+      modalTouchMode = ''
+      return
+    }
+    modalTouchId = t.identifier
+    modalTouchStartX = x
+    modalTouchStartY = y
+    modalTouchMode = 'developer'
     return
   }
 
@@ -886,12 +953,14 @@ function handleTouchStart(e) {
       modalScrollY = 0
       modalTabScrollX = 0
       showScoreModal = false
+      showDeveloperModal = false
       showLevelSelect = true
       return
     }
     if (isInside(x, y, bx + (bw + 18) * 2, by, bw, bh)) {
       refreshRewards()
       showLevelSelect = false
+      showDeveloperModal = false
       showScoreModal = true
       if (activeRewardTab === 'leaderboard') {
         if (activeLeaderboardScope === 'friend') {
@@ -921,6 +990,7 @@ function findTouch(list, id) {
 
 wx.onTouchMove(function (e) {
   if (stickerCaptureModal) return
+  if (showDeveloperModal) return
   if (showScoreModal) {
     var scoreTouch = findTouch(e.touches, modalTouchId)
     if (scoreTouch && modalTouchMode === 'score-list') {
@@ -959,6 +1029,21 @@ wx.onTouchMove(function (e) {
 wx.onTouchEnd(function (e) {
   if (stickerCaptureModal) {
     activePointer = null
+    modalTouchId = null
+    modalTouchMode = ''
+    return
+  }
+  if (showDeveloperModal) {
+    var dt = findTouch(e.changedTouches, modalTouchId)
+    if (dt && Math.abs(dt.clientX - modalTouchStartX) < 8 && Math.abs(dt.clientY - modalTouchStartY) < 8) {
+      var developerModal = getDeveloperModalRect()
+      if (
+        !isInsideRect(dt.clientX, dt.clientY, developerModal) ||
+        isInsideRect(dt.clientX, dt.clientY, getDeveloperCloseRect(developerModal))
+      ) {
+        showDeveloperModal = false
+      }
+    }
     modalTouchId = null
     modalTouchMode = ''
     return
@@ -1048,6 +1133,14 @@ wx.onTouchEnd(function (e) {
           }
         }
       } else if (modalTouchMode === 'grid') {
+        if (isInsideRect(t.clientX, t.clientY, getDeveloperEntryRect(mx, my))) {
+          showLevelSelect = false
+          showScoreModal = false
+          showDeveloperModal = true
+          modalTouchId = null
+          modalTouchMode = ''
+          return
+        }
         var level = getModalLevelAt(t.clientX, t.clientY, mx, my)
         if (level) {
           loadLevel(level.id)
@@ -1166,6 +1259,9 @@ function drawModernUI() {
   }
   if (showScoreModal) {
     drawScoreModal()
+  }
+  if (showDeveloperModal) {
+    drawDeveloperModal()
   }
   if (stickerCaptureModal) {
     drawStickerCaptureModal()
@@ -2850,7 +2946,178 @@ function drawModal() {
   })
 
   ctx.restore()
+  drawDeveloperEntry(ctx, getDeveloperEntryRect(mx, my))
   ctx.textBaseline = 'alphabetic'
+}
+
+function drawDeveloperEntry(r, rect) {
+  r.fillStyle = '#23233a'
+  r.strokeStyle = 'rgba(255,232,175,0.42)'
+  r.lineWidth = 1.5
+  drawRoundRect(r, rect.x, rect.y, rect.w, rect.h, 8)
+  r.fill()
+  r.stroke()
+  r.fillStyle = '#ffe8af'
+  r.font = 'bold 13px sans-serif'
+  r.textAlign = 'center'
+  r.textBaseline = 'middle'
+  r.fillText('\u5236\u4f5c\u4eba\u5458', rect.x + rect.w / 2, rect.y + rect.h / 2 + 1)
+}
+
+function drawDeveloperModal() {
+  ctx.fillStyle = 'rgba(0,0,0,0.66)'
+  ctx.fillRect(0, 0, W, H)
+  var modal = getDeveloperModalRect()
+
+  ctx.fillStyle = '#2a2a40'
+  drawRoundRect(ctx, modal.x, modal.y, modal.w, modal.h, 8)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)'
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#ffffff'
+  ctx.font = 'bold 18px sans-serif'
+  ctx.fillText('\u62d6\u4e86\u4e2a\u55b5 \u5236\u4f5c\u5c0f\u961f', modal.x + modal.w / 2, modal.y + 35)
+  ctx.fillStyle = '#c7c8dd'
+  ctx.font = 'bold 11px sans-serif'
+  ctx.fillText('\u8c22\u8c22\u4e00\u8d77\u628a\u5c0f\u732b\u5173\u5361\u53d8\u597d\u73a9\u7684\u4eba', modal.x + modal.w / 2, modal.y + 59)
+
+  var rowY = modal.y + 82
+  for (var i = 0; i < DEVELOPER_CREDITS.length; i++) {
+    drawDeveloperMember(ctx, DEVELOPER_CREDITS[i], modal.x + 18, rowY, modal.w - 36)
+    rowY += 82
+  }
+
+  var close = getDeveloperCloseRect(modal)
+  var thanksY = Math.min(rowY + 2, close.y - 50)
+  ctx.fillStyle = 'rgba(242,182,83,0.12)'
+  ctx.strokeStyle = 'rgba(255,232,175,0.48)'
+  ctx.lineWidth = 1.2
+  if (typeof ctx.setLineDash === 'function') ctx.setLineDash([5, 4])
+  drawRoundRect(ctx, modal.x + 18, thanksY, modal.w - 36, 40, 8)
+  ctx.fill()
+  ctx.stroke()
+  if (typeof ctx.setLineDash === 'function') ctx.setLineDash([])
+  ctx.fillStyle = '#e8ddc5'
+  ctx.font = 'bold 11px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('\u7279\u522b\u611f\u8c22\uff1a\u8bd5\u73a9\u3001\u63d0\u60f3\u6cd5\u7684\u670b\u53cb', modal.x + modal.w / 2, thanksY + 20)
+
+  drawDeveloperCloseButton(ctx, close)
+}
+
+function drawDeveloperCatBadge(r, cx, cy) {
+  r.save()
+  r.translate(cx, cy)
+  r.fillStyle = '#f0c47a'
+  r.strokeStyle = '#765126'
+  r.lineWidth = 2
+  r.save()
+  r.rotate(-0.42)
+  drawRoundRect(r, -29, -28, 20, 24, 6)
+  r.fill()
+  r.stroke()
+  r.restore()
+  r.save()
+  r.rotate(0.42)
+  drawRoundRect(r, 9, -28, 20, 24, 6)
+  r.fill()
+  r.stroke()
+  r.restore()
+
+  var grd = r.createLinearGradient(0, -20, 0, 28)
+  grd.addColorStop(0, '#ffe8af')
+  grd.addColorStop(1, '#f0c47a')
+  r.fillStyle = grd
+  r.strokeStyle = '#765126'
+  drawRoundRect(r, -28, -19, 56, 48, 18)
+  r.fill()
+  r.stroke()
+  r.fillStyle = '#2d241d'
+  r.beginPath()
+  r.arc(-11, 1, 4, 0, Math.PI * 2)
+  r.arc(11, 1, 4, 0, Math.PI * 2)
+  r.fill()
+  r.strokeStyle = '#765126'
+  r.lineWidth = 2
+  r.beginPath()
+  r.moveTo(-8, 15)
+  r.quadraticCurveTo(0, 21, 8, 15)
+  r.stroke()
+  r.restore()
+}
+
+function drawDeveloperMember(r, member, x, y, w) {
+  r.fillStyle = '#23233a'
+  r.strokeStyle = '#565873'
+  r.lineWidth = 1.5
+  drawRoundRect(r, x, y, w, 72, 8)
+  r.fill()
+  r.stroke()
+
+  drawDeveloperAvatar(r, member, x + 10, y + 8, 56)
+
+  var textX = x + 78
+  r.textAlign = 'left'
+  r.textBaseline = 'middle'
+  r.fillStyle = '#f7f7fb'
+  r.font = 'bold 15px sans-serif'
+  r.fillText(member.name, textX, y + 17)
+  if (member.nickname) {
+    r.fillStyle = '#88e0c0'
+    r.font = 'bold 11px sans-serif'
+    r.fillText(member.nickname, textX + 58, y + 17)
+  }
+  r.fillStyle = '#ffe8af'
+  r.font = 'bold 12px sans-serif'
+  r.fillText(member.role, textX, y + 37)
+  r.fillStyle = '#b9bad0'
+  r.font = 'bold 10px sans-serif'
+  r.fillText(truncateText(member.note, 16), textX, y + 56)
+}
+
+function drawDeveloperAvatar(r, member, x, y, size) {
+  var cached = getAvatarImage(member.avatar)
+  r.save()
+  drawRoundRect(r, x, y, size, size, 8)
+  r.clip()
+  if (cached && cached.ready) {
+    r.drawImage(cached.image, x, y, size, size)
+  } else {
+    r.fillStyle = '#333653'
+    r.fillRect(x, y, size, size)
+    r.fillStyle = '#ffe8af'
+    r.font = 'bold 24px sans-serif'
+    r.textAlign = 'center'
+    r.textBaseline = 'middle'
+    r.fillText(member.fallback || '?', x + size / 2, y + size / 2)
+  }
+  r.restore()
+  r.strokeStyle = 'rgba(255,232,175,0.72)'
+  r.lineWidth = 2
+  drawRoundRect(r, x, y, size, size, 8)
+  r.stroke()
+}
+
+function drawDeveloperCloseButton(r, rect) {
+  var grd = r.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.h)
+  grd.addColorStop(0, '#ffe1a2')
+  grd.addColorStop(1, '#f2b653')
+  r.fillStyle = grd
+  r.strokeStyle = '#98621f'
+  r.lineWidth = 2
+  drawRoundRect(r, rect.x, rect.y, rect.w, rect.h, 8)
+  r.fill()
+  r.stroke()
+  r.fillStyle = '#5f3713'
+  r.font = 'bold 15px sans-serif'
+  r.textAlign = 'center'
+  r.textBaseline = 'middle'
+  r.fillText('\u56de\u5230\u6e38\u620f', rect.x + rect.w / 2, rect.y + rect.h / 2 + 1)
 }
 
 function drawWorldTabs(r, mx, my) {

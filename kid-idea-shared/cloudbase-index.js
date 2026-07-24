@@ -33,7 +33,7 @@ function parseBody(event) {
   const raw = event.isBase64Encoded
     ? Buffer.from(event.body, 'base64').toString('utf8')
     : event.body
-  if (raw.length > 120000) {
+  if (raw.length > 180000) {
     const error = new Error('The idea is too long. Please make it shorter.')
     error.status = 413
     throw error

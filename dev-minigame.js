@@ -6,6 +6,8 @@ const { copyProjectConfigWithEnvAppId } = require('./scripts/wechat-project-conf
 const DIST = path.resolve(__dirname, 'dist/dev/minigame')
 const OPEN_DATA_CONTEXT = path.resolve(__dirname, 'src/open-data-context')
 const OPEN_DATA_CONTEXT_DIST = path.join(DIST, 'open-data-context')
+const STATIC_ASSETS = path.resolve(__dirname, 'src/static')
+const STATIC_ASSETS_DIST = path.join(DIST, 'static')
 
 function copyDir(src, dest) {
   if (!fs.existsSync(src)) return
@@ -38,6 +40,10 @@ async function dev() {
   copyDir(OPEN_DATA_CONTEXT, path.join(DIST, 'open-data-context'))
   fs.watch(OPEN_DATA_CONTEXT, { recursive: true }, function () {
     copyDir(OPEN_DATA_CONTEXT, OPEN_DATA_CONTEXT_DIST)
+  })
+  copyDir(STATIC_ASSETS, STATIC_ASSETS_DIST)
+  fs.watch(STATIC_ASSETS, { recursive: true }, function () {
+    copyDir(STATIC_ASSETS, STATIC_ASSETS_DIST)
   })
 
   const ctx = await esbuild.context({

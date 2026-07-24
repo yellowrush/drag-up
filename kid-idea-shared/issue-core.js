@@ -139,7 +139,7 @@ async function ensureLabels(labels) {
 function validImageDataUrl(value) {
   var image = String(value || '').trim()
   if (!image) return ''
-  if (image.length > 60000) return ''
+  if (image.length > 100000) return ''
   if (!/^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/i.test(image)) return ''
   return image
 }

@@ -28,7 +28,7 @@ module.exports = async function handler(req, res) {
       return
     }
     if (req.method === 'POST') {
-      const issue = await createIssue(await readBody(req, 120000))
+      const issue = await createIssue(await readBody(req, 180000))
       json(res, 201, { issue })
       return
     }

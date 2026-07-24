@@ -43,7 +43,7 @@
 
     <view class="game-area">
       <game-canvas
-        :paused="showLevelSelect || showScoreModal"
+        :paused="showLevelSelect || showScoreModal || showDeveloperModal"
         @ready="onGameReady"
         @instruction="onInstruction"
       />
@@ -86,6 +86,9 @@
             </view>
           </view>
         </scroll-view>
+        <view class="developer-entry" @tap="onDeveloperTap">
+          &#21046;&#20316;&#20154;&#21592;
+        </view>
       </view>
     </view>
 
@@ -345,6 +348,52 @@
       </view>
     </view>
 
+    <view
+      v-if="showDeveloperModal"
+      class="modal-mask"
+      @tap.self="showDeveloperModal = false"
+    >
+      <view class="modal-box developer-modal" @tap.stop>
+        <view class="developer-hero">
+          <view class="modal-title developer-title">&#25302;&#20102;&#20010;&#21941; &#21046;&#20316;&#23567;&#38431;</view>
+          <text class="developer-subtitle">&#35874;&#35874;&#19968;&#36215;&#25226;&#23567;&#29483;&#20851;&#21345;&#21464;&#22909;&#29609;&#30340;&#27599;&#20010;&#20154;</text>
+        </view>
+
+        <scroll-view scroll-y class="developer-scroll">
+          <view
+            v-for="member in developerCredits"
+            :key="member.id"
+            class="developer-member"
+          >
+            <image
+              v-if="member.avatar"
+              class="developer-avatar"
+              :src="member.avatar"
+              mode="aspectFill"
+            />
+            <view v-else class="developer-avatar developer-avatar-fallback">
+              <text>{{ member.fallback }}</text>
+            </view>
+            <view class="developer-copy">
+              <view class="developer-name-line">
+                <text class="developer-name">{{ member.name }}</text>
+                <text v-if="member.nickname" class="developer-nickname">{{ member.nickname }}</text>
+              </view>
+              <text class="developer-role">{{ member.role }}</text>
+              <text class="developer-note">{{ member.note }}</text>
+            </view>
+          </view>
+          <view class="developer-thanks">
+            &#29305;&#21035;&#24863;&#35874;&#65306;&#27599;&#19968;&#20301;&#35797;&#29609;&#12289;&#25552;&#24819;&#27861;&#30340;&#26379;&#21451;
+          </view>
+        </scroll-view>
+
+        <view class="developer-close" @tap="showDeveloperModal = false">
+          &#22238;&#21040;&#28216;&#25103;
+        </view>
+      </view>
+    </view>
+
     <view v-if="stickerCaptureModal" class="modal-mask sticker-capture-mask" @tap.stop>
       <view class="modal-box sticker-capture-modal">
         <view class="capture-title">&#25293;&#21040;&#21862;&#65281;&#33719;&#24471;&#36148;&#22270;</view>
@@ -409,6 +458,7 @@
   const instruction = ref('');
   const showLevelSelect = ref(false);
   const showScoreModal = ref(false);
+  const showDeveloperModal = ref(false);
   const showNext = ref(false);
   const activeLevelWorldId = ref('cat-box');
   const levelWorlds = [
@@ -447,6 +497,26 @@
   const leaderboardNoUserText = '\u672c\u5730\u73a9\u5bb6';
   const shareMinigameOnlyText = '\u8bf7\u5728\u5fae\u4fe1\u5c0f\u6e38\u620f\u4e2d\u5206\u4eab';
   const shareRewardClaimedText = '\u5206\u4eab\u5b8c\u6210\uff0c\u5df2\u9886\u53d6\u597d\u53cb\u7231\u5fc3';
+  const developerCredits = [
+    {
+      id: 'huangchong',
+      name: '\u9ec4\u51b2',
+      nickname: '',
+      role: '\u6e38\u620f\u4f5c\u8005',
+      note: '\u8bbe\u8ba1\u3001\u7a0b\u5e8f\u548c\u5173\u5361\u5236\u4f5c',
+      avatar: '/static/developer-huangchong.jpg',
+      fallback: '\u9ec4',
+    },
+    {
+      id: 'douzi',
+      name: '\u96f7\u6c90\u5343',
+      nickname: '\uff08\u515c\u5b50\uff09',
+      role: '\u7279\u522b\u5c0f\u5c0f\u5236\u4f5c\u4eba',
+      note: '\u4e00\u8d77\u8bd5\u73a9\u3001\u51fa\u4e3b\u610f\u7684\u5c0f\u5c0f\u7075\u611f\u5b98',
+      avatar: '/static/developer-douzi.png',
+      fallback: '\u515c',
+    },
+  ];
   const leaderboardSyncDelay = 1200;
   const leaderboardSyncMinInterval = 30000;
   const instance = getCurrentInstance();
@@ -579,16 +649,24 @@
     completedLevels.value = GameStorage.getCompletedLevels();
     syncActiveWorldForLevel(currentLevelId || (engine.value && engine.value.maze.id));
     showScoreModal.value = false;
+    showDeveloperModal.value = false;
     showLevelSelect.value = true;
   }
 
   function onScoreTap() {
     refreshRewards();
     showLevelSelect.value = false;
+    showDeveloperModal.value = false;
     showScoreModal.value = true;
     if (activeRewardTab.value === 'leaderboard') {
       loadLeaderboard();
     }
+  }
+
+  function onDeveloperTap() {
+    showLevelSelect.value = false;
+    showScoreModal.value = false;
+    showDeveloperModal.value = true;
   }
 
   function onSelectLevel(id: string) {
@@ -597,6 +675,7 @@
     currentLevelId = id;
     syncActiveWorldForLevel(id);
     showLevelSelect.value = false;
+    showDeveloperModal.value = false;
     showNext.value = false;
     instruction.value = engine.value.maze.instruction || '';
     syncStickerCamerasForCurrentLevel();
@@ -1719,6 +1798,20 @@
     font-size: 10px;
     opacity: 0.78;
   }
+  .developer-entry {
+    height: 38px;
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffe8af;
+    background: #23233a;
+    border: 1px solid rgba(255, 232, 175, 0.42);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 900;
+    box-sizing: border-box;
+  }
   .score-head {
     display: flex;
     align-items: center;
@@ -1866,6 +1959,128 @@
     font-size: 11px;
     line-height: 1.2;
     text-align: center;
+  }
+  .developer-modal {
+    width: 360px;
+    max-width: 88vw;
+    max-height: 80vh;
+    padding: 18px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .developer-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .developer-title {
+    margin-bottom: 6px;
+  }
+  .developer-subtitle {
+    max-width: 284px;
+    color: #c7c8dd;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.35;
+    text-align: center;
+  }
+  .developer-scroll {
+    max-height: 42vh;
+    min-height: 190px;
+  }
+  .developer-member {
+    min-height: 86px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    padding: 10px;
+    background: #23233a;
+    border: 1px solid #565873;
+    border-radius: 8px;
+    box-sizing: border-box;
+  }
+  .developer-avatar {
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    border: 2px solid rgba(255, 232, 175, 0.72);
+    background: #333653;
+    box-sizing: border-box;
+  }
+  .developer-avatar-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffe8af;
+    font-size: 24px;
+    font-weight: 900;
+  }
+  .developer-copy {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .developer-name-line {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    min-width: 0;
+  }
+  .developer-name {
+    color: #f7f7fb;
+    font-size: 16px;
+    font-weight: 900;
+    line-height: 1.2;
+  }
+  .developer-nickname {
+    color: #88e0c0;
+    font-size: 12px;
+    font-weight: 900;
+    line-height: 1.2;
+  }
+  .developer-role {
+    color: #ffe8af;
+    font-size: 12px;
+    font-weight: 900;
+    line-height: 1.2;
+  }
+  .developer-note {
+    color: #b9bad0;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  .developer-thanks {
+    margin: 2px 0 10px;
+    padding: 10px;
+    color: #e8ddc5;
+    background: rgba(242, 182, 83, 0.12);
+    border: 1px dashed rgba(255, 232, 175, 0.48);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.35;
+    text-align: center;
+  }
+  .developer-close {
+    height: 42px;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #5f3713;
+    background: linear-gradient(180deg, #ffe1a2 0%, #f2b653 100%);
+    border: 2px solid #98621f;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 900;
+    box-sizing: border-box;
   }
   .sticker-capture-mask {
     z-index: 1100;

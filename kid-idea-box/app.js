@@ -17,7 +17,7 @@ const issueList = document.querySelector('#issue-list')
 
 const nameStorageKey = 'drag-up-kid-idea-name'
 const activeTabStorageKey = 'drag-up-kid-idea-tab'
-const maxImageDataLength = 56000
+const maxImageDataLength = 90000
 const configuredApiUrl = String(window.KID_IDEA_API_URL || '').trim()
 const apiBase = String(window.KID_IDEA_API_BASE || '').replace(/\/$/, '')
 const issueApiUrl = configuredApiUrl || `${apiBase}/api/issues`
@@ -232,18 +232,19 @@ function readFileAsDataUrl(file) {
 
 async function compressDataUrl(dataUrl) {
   const image = await loadImage(dataUrl)
-  let quality = 0.76
-  let maxSize = 900
-  let compressed = resizeImageToDataUrl(image, maxSize, maxSize, quality)
-  while (compressed.length > maxImageDataLength && quality > 0.36) {
-    quality -= 0.1
-    maxSize = Math.max(560, maxSize - 120)
-    compressed = resizeImageToDataUrl(image, maxSize, maxSize, quality)
+  const sizes = [1000, 840, 700, 560, 440, 340, 260, 200, 160, 120]
+  const qualities = [0.82, 0.72, 0.62, 0.52, 0.42, 0.34, 0.26, 0.2, 0.14]
+  let smallest = ''
+
+  for (const maxSize of sizes) {
+    for (const quality of qualities) {
+      const compressed = resizeImageToDataUrl(image, maxSize, maxSize, quality)
+      if (!smallest || compressed.length < smallest.length) smallest = compressed
+      if (compressed.length <= maxImageDataLength) return compressed
+    }
   }
-  if (compressed.length > maxImageDataLength) {
-    throw new Error('图片有点大，请换一张简单一点的图。')
-  }
-  return compressed
+
+  return smallest
 }
 
 async function getPictureDataUrl() {
