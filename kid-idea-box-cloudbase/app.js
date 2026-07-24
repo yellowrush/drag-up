@@ -110,7 +110,12 @@ function setActiveTab(tabId) {
   if (!taskLabels[tabId]) tabId = 'new-level'
   activeTab = tabId
   localStorage.setItem(activeTabStorageKey, activeTab)
-  tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.tab === activeTab))
+  tabs.forEach(tab => {
+    const isActive = tab.dataset.tab === activeTab
+    tab.classList.toggle('active', isActive)
+    tab.setAttribute('aria-selected', isActive ? 'true' : 'false')
+    tab.tabIndex = isActive ? 0 : -1
+  })
   panels.forEach(panel => panel.classList.toggle('active', panel.dataset.panel === activeTab))
   refreshConditionalFields()
 }
