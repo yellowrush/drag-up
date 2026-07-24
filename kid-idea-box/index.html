@@ -40,26 +40,26 @@
           <section class="form-panel common-panel" aria-label="公共信息">
             <div class="field-grid two">
               <div class="field">
-                <label for="child-name">你的名字</label>
+                <label class="required-label" for="child-name">你的名字</label>
                 <input id="child-name" name="childName" maxlength="40" placeholder="比如：小星" required />
               </div>
               <div class="field">
-                <label for="title">简短标题</label>
+                <label class="required-label" for="title">简短标题</label>
                 <input id="title" name="title" maxlength="80" placeholder="比如：毛线球教学一关" required />
               </div>
             </div>
 
-            <label for="reason">为什么想要这个？</label>
+            <label class="required-label" for="reason">为什么想要这个？</label>
             <textarea id="reason" name="reason" maxlength="500" placeholder="写 1-3 句话。比如：我想先学会新机关，不然挑战关会看不懂。" required></textarea>
 
-            <label for="playtest-focus">试玩重点</label>
+            <label class="required-label" for="playtest-focus">试玩重点</label>
             <textarea id="playtest-focus" name="playtestFocus" maxlength="500" placeholder="比如：看看能不能通关，奖励是不是好看，小朋友会不会看懂。" required></textarea>
           </section>
 
           <section class="form-panel tab-panel active" data-panel="new-level">
             <div class="field-grid two">
               <div class="field">
-                <label for="new-world">游戏世界</label>
+                <label class="required-label" for="new-world">游戏世界</label>
                 <select id="new-world" data-field="gameWorld" required>
                   <option value="">请选择</option>
                   <option value="cat-box">猫箱子</option>
@@ -68,7 +68,7 @@
                 </select>
               </div>
               <div class="field">
-                <label for="level-kind">关卡类型</label>
+                <label class="required-label" for="level-kind">关卡类型</label>
                 <select id="level-kind" data-field="levelKind" required>
                   <option value="">请选择</option>
                   <option value="tutorial">教学关</option>
@@ -78,16 +78,16 @@
             </div>
 
             <div class="conditional" data-show-when="levelKind:tutorial">
-              <label for="teaching-mechanism">新增或第一次教学的机制</label>
+              <label class="required-label" for="teaching-mechanism">新增或第一次教学的机制</label>
               <input id="teaching-mechanism" data-field="teachingMechanism" maxlength="160" placeholder="比如：会升降的桥、第一次出现的虫洞" />
             </div>
 
             <div class="conditional" data-show-when="levelKind:challenge">
-              <label for="challenge-point">主要挑战点</label>
+              <label class="required-label" for="challenge-point">主要挑战点</label>
               <input id="challenge-point" data-field="challengePoint" maxlength="160" placeholder="比如：两条路都能通，但其中一条更绕" />
             </div>
 
-            <label for="level-goal">目标</label>
+            <label class="required-label" for="level-goal">目标</label>
             <textarea id="level-goal" data-field="levelGoal" maxlength="500" placeholder="小猫/毛线球要做到什么？" required></textarea>
 
             <fieldset class="check-boxes">
@@ -100,7 +100,7 @@
 
             <div class="field-grid three">
               <div class="field">
-                <label for="difficulty">难度</label>
+                <label class="required-label" for="difficulty">难度</label>
                 <select id="difficulty" data-field="difficulty" required>
                   <option value="">请选择</option>
                   <option value="简单">简单</option>
@@ -109,7 +109,7 @@
                 </select>
               </div>
               <div class="field">
-                <label for="route-requirement">路线要求</label>
+                <label class="required-label" for="route-requirement">路线要求</label>
                 <select id="route-requirement" data-field="routeRequirement" required>
                   <option value="">请选择</option>
                   <option value="一条主路">一条主路</option>
@@ -127,14 +127,14 @@
               </div>
             </div>
 
-            <label for="instruction-copy">关卡说明文案</label>
+            <label class="required-label" for="instruction-copy">关卡说明文案</label>
             <textarea id="instruction-copy" data-field="instructionCopy" maxlength="500" placeholder="进入关卡时想看到的话。" required></textarea>
           </section>
 
           <section class="form-panel tab-panel" data-panel="edit-level">
             <div class="field-grid two">
               <div class="field">
-                <label for="edit-world">游戏世界</label>
+                <label class="required-label" for="edit-world">游戏世界</label>
                 <select id="edit-world" data-field="gameWorld">
                   <option value="">请选择</option>
                   <option value="cat-box">猫箱子</option>
@@ -143,7 +143,7 @@
                 </select>
               </div>
               <div class="field">
-                <label for="change-type">修改类型</label>
+                <label class="required-label" for="change-type">修改类型</label>
                 <select id="change-type" data-field="changeType">
                   <option value="">请选择</option>
                   <option value="变简单">变简单</option>
@@ -154,11 +154,11 @@
                 </select>
               </div>
             </div>
-            <label for="target-level">目标关卡</label>
+            <label class="required-label" for="target-level">目标关卡</label>
             <input id="target-level" data-field="targetLevel" maxlength="160" placeholder="第几关、关卡名，或者上传截图说明" />
-            <label for="current-problem">现在的问题</label>
+            <label class="required-label" for="current-problem">现在的问题</label>
             <textarea id="current-problem" data-field="currentProblem" maxlength="500" placeholder="现在哪里太难、太简单、看不懂或卡住？"></textarea>
-            <label for="desired-change">想怎么改</label>
+            <label class="required-label" for="desired-change">想怎么改</label>
             <textarea id="desired-change" data-field="desiredChange" maxlength="500" placeholder="希望改成什么样？"></textarea>
             <label for="keep-unchanged">不要改变的地方</label>
             <textarea id="keep-unchanged" data-field="keepUnchanged" maxlength="400" placeholder="可以不填。比如：不要改小猫起点，不要删掉虫洞。"></textarea>
@@ -167,7 +167,7 @@
           <section class="form-panel tab-panel" data-panel="reward-task">
             <div class="field-grid two">
               <div class="field">
-                <label for="reward-task-type">任务类型</label>
+                <label class="required-label" for="reward-task-type">任务类型</label>
                 <select id="reward-task-type" data-field="rewardTaskType">
                   <option value="">请选择</option>
                   <option value="签到">签到</option>
@@ -179,7 +179,7 @@
                 </select>
               </div>
               <div class="field">
-                <label for="release-state">是否立刻开放</label>
+                <label class="required-label" for="release-state">是否立刻开放</label>
                 <select id="release-state" data-field="releaseState">
                   <option value="">请选择</option>
                   <option value="开放">开放</option>
@@ -187,16 +187,16 @@
                 </select>
               </div>
             </div>
-            <label for="completion-condition">完成条件</label>
+            <label class="required-label" for="completion-condition">完成条件</label>
             <textarea id="completion-condition" data-field="completionCondition" maxlength="500" placeholder="比如：连续 5 天签到，或者完成猫抓板全部关卡。"></textarea>
-            <label for="reward-content">奖励内容</label>
+            <label class="required-label" for="reward-content">奖励内容</label>
             <textarea id="reward-content" data-field="rewardContent" maxlength="500" placeholder="比如：+5 积分、一个表情、一个贴图。"></textarea>
           </section>
 
           <section class="form-panel tab-panel" data-panel="reward-item">
             <div class="field-grid two">
               <div class="field">
-                <label for="reward-operation">操作</label>
+                <label class="required-label" for="reward-operation">操作</label>
                 <select id="reward-operation" data-field="rewardOperation">
                   <option value="">请选择</option>
                   <option value="新建奖励品">新建奖励品</option>
@@ -204,7 +204,7 @@
                 </select>
               </div>
               <div class="field">
-                <label for="reward-item-type">奖励品类型</label>
+                <label class="required-label" for="reward-item-type">奖励品类型</label>
                 <select id="reward-item-type" data-field="rewardItemType">
                   <option value="">请选择</option>
                   <option value="accessory">饰品</option>
@@ -214,13 +214,13 @@
                 </select>
               </div>
             </div>
-            <label for="reward-name">名字</label>
+            <label class="required-label" for="reward-name">名字</label>
             <input id="reward-name" data-field="rewardName" maxlength="100" placeholder="比如：星星围巾" />
-            <label for="appearance">外观描述</label>
+            <label class="required-label" for="appearance">外观描述</label>
             <textarea id="appearance" data-field="appearance" maxlength="500" placeholder="它看起来是什么样？颜色、形状、戴在哪里。"></textarea>
             <div class="field-grid two">
               <div class="field">
-                <label for="unlock-method">解锁方式</label>
+                <label class="required-label" for="unlock-method">解锁方式</label>
                 <select id="unlock-method" data-field="unlockMethod">
                   <option value="">请选择</option>
                   <option value="分数">分数</option>
@@ -237,7 +237,7 @@
             <div class="sticker-fields">
               <div class="field-grid three">
                 <div class="field">
-                  <label for="sticker-world">贴图所属世界</label>
+                  <label class="required-label" for="sticker-world">贴图所属世界</label>
                   <select id="sticker-world" data-field="stickerWorld">
                     <option value="">请选择</option>
                     <option value="cat-box">猫箱子</option>
@@ -246,11 +246,11 @@
                   </select>
                 </div>
                 <div class="field">
-                  <label for="sticker-level">触发关卡</label>
+                  <label class="required-label" for="sticker-level">触发关卡</label>
                   <input id="sticker-level" data-field="stickerLevel" maxlength="160" placeholder="比如：猫抓板第 10 关" />
                 </div>
                 <div class="field">
-                  <label for="sticker-camera">相机/彩蛋位置</label>
+                  <label class="required-label" for="sticker-camera">相机/彩蛋位置</label>
                   <input id="sticker-camera" data-field="stickerCamera" maxlength="200" placeholder="比如：终点右上角平台" />
                 </div>
               </div>
@@ -260,7 +260,7 @@
           <section class="form-panel tab-panel" data-panel="game-system">
             <div class="field-grid two">
               <div class="field">
-                <label for="system-type">系统类型</label>
+                <label class="required-label" for="system-type">系统类型</label>
                 <select id="system-type" data-field="systemType">
                   <option value="">请选择</option>
                   <option value="排名系统">排名系统</option>

@@ -162,6 +162,11 @@ legend {
   font-weight: 800;
 }
 
+.required-label::after {
+  content: " *";
+  color: #ffcf66;
+}
+
 input,
 select,
 textarea {

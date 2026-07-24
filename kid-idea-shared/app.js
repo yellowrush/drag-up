@@ -329,9 +329,9 @@ function collectFields() {
 
 function findFirstInvalid(payload) {
   if (!payload.childName) return childNameInput
-  if (payload.title.length < 4) return titleInput
-  if (payload.reason.length < 4) return reasonInput
-  if (payload.playtestFocus.length < 4) return playtestFocusInput
+  if (!payload.title) return titleInput
+  if (!payload.reason) return reasonInput
+  if (!payload.playtestFocus) return playtestFocusInput
   const fields = payload.fields
   const panel = getActivePanel()
   const requiredByTab = {
@@ -339,7 +339,7 @@ function findFirstInvalid(payload) {
     'edit-level': ['gameWorld', 'targetLevel', 'changeType', 'currentProblem', 'desiredChange'],
     'reward-task': ['rewardTaskType', 'completionCondition', 'rewardContent', 'releaseState'],
     'reward-item': ['rewardOperation', 'rewardItemType', 'rewardName', 'appearance', 'unlockMethod'],
-    'game-system': ['systemType', 'entryPoint', 'playerAction', 'dataStorage'],
+    'game-system': ['systemType'],
   }
   const required = requiredByTab[activeTab] || []
   for (const name of required) {

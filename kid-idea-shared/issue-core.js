@@ -56,7 +56,7 @@ const REQUIRED_FIELDS = {
   ],
   'reward-task': ['rewardTaskType', 'completionCondition', 'rewardContent', 'releaseState'],
   'reward-item': ['rewardOperation', 'rewardItemType', 'rewardName', 'appearance', 'unlockMethod'],
-  'game-system': ['systemType', 'entryPoint', 'playerAction', 'dataStorage'],
+  'game-system': ['systemType'],
 }
 
 function cleanText(value, maxLength) {
@@ -226,9 +226,9 @@ function validatePayload(payload) {
   var item = normalizePayload(payload)
   if (!item.childName) return { ok: false, error: '请先写名字。', payload: item }
   if (!TASK_TABS[item.taskTab]) return { ok: false, error: '请选择任务类型。', payload: item }
-  if (item.title.length < 4) return { ok: false, error: '标题再写清楚一点，至少 4 个字。', payload: item }
-  if (item.reason.length < 4) return { ok: false, error: '请写一下为什么想要这个。', payload: item }
-  if (item.playtestFocus.length < 4) return { ok: false, error: '请写一下试玩重点。', payload: item }
+  if (!item.title) return { ok: false, error: '请写一个简短标题。', payload: item }
+  if (!item.reason) return { ok: false, error: '请写一下为什么想要这个。', payload: item }
+  if (!item.playtestFocus) return { ok: false, error: '请写一下试玩重点。', payload: item }
 
   var fields = item.fields || {}
   var required = REQUIRED_FIELDS[item.taskTab] || []
