@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "sync:version": "node scripts/sync-app-version.js",
+    "sync:kid-idea-box": "node scripts/sync-kid-idea-box.js",
     "predev:h5": "npm run sync:version",
     "prebuild:h5": "npm run sync:version",
     "predev:mp-weixin": "npm run sync:version",

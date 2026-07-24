@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Drag Up 小朋友想法箱</title>
+    <title>Drag Up 小朋友任务箱</title>
     <meta
       name="description"
-      content="给 Drag Up 小游戏提交关卡、文案和玩法想法，并查看任务进度。"
+      content="给 Drag Up 小游戏提交清楚的关卡、奖励和系统开发任务。"
     />
     <link rel="stylesheet" href="./styles.css" />
   </head>
@@ -15,34 +15,294 @@
       <section class="hero" aria-labelledby="page-title">
         <div>
           <p class="eyebrow">Drag Up</p>
-          <h1 id="page-title">小朋友想法箱</h1>
-          <p class="intro">写下你想让游戏变成什么样，发送后这里会出现任务链接和进度。</p>
+          <h1 id="page-title">小朋友任务箱</h1>
+          <p class="intro">选一个任务类型，把想法变成 Copilot/Codex 能直接开发的 GitHub Issue。</p>
         </div>
       </section>
 
       <section class="composer" aria-labelledby="form-title">
-        <h2 id="form-title">今天想改什么？</h2>
-        <form id="idea-form">
-          <label for="idea">你的想法</label>
-          <textarea
-            id="idea"
-            name="idea"
-            minlength="6"
-            maxlength="1200"
-            placeholder="比如：我想让第 5 关多一条路，这样不会卡太久。"
-            required
-          ></textarea>
+        <div class="section-heading compact">
+          <div>
+            <h2 id="form-title">今天想做什么？</h2>
+            <p>每个任务尽量只做一件事，这样更容易开发、截图和试玩。</p>
+          </div>
+        </div>
 
-          <label for="playtest">试玩时重点看哪里？</label>
-          <textarea
-            id="playtest"
-            name="playtest"
-            maxlength="600"
-            placeholder="可以不填。比如：看看能不能通关，哪里太难。"
-          ></textarea>
+        <form id="idea-form" novalidate>
+          <div class="tabs" role="tablist" aria-label="任务类型">
+            <button type="button" class="tab active" data-tab="new-level">新建关卡</button>
+            <button type="button" class="tab" data-tab="edit-level">编辑关卡</button>
+            <button type="button" class="tab" data-tab="reward-task">新建任务</button>
+            <button type="button" class="tab" data-tab="reward-item">奖励品</button>
+            <button type="button" class="tab" data-tab="game-system">游戏系统</button>
+          </div>
+
+          <section class="form-panel common-panel" aria-label="公共信息">
+            <div class="field-grid two">
+              <div class="field">
+                <label for="child-name">你的名字</label>
+                <input id="child-name" name="childName" maxlength="40" placeholder="比如：小星" required />
+              </div>
+              <div class="field">
+                <label for="title">简短标题</label>
+                <input id="title" name="title" maxlength="80" placeholder="比如：毛线球教学一关" required />
+              </div>
+            </div>
+
+            <label for="reason">为什么想要这个？</label>
+            <textarea id="reason" name="reason" maxlength="500" placeholder="写 1-3 句话。比如：我想先学会新机关，不然挑战关会看不懂。" required></textarea>
+
+            <label for="playtest-focus">试玩重点</label>
+            <textarea id="playtest-focus" name="playtestFocus" maxlength="500" placeholder="比如：看看能不能通关，奖励是不是好看，小朋友会不会看懂。" required></textarea>
+          </section>
+
+          <section class="form-panel tab-panel active" data-panel="new-level">
+            <div class="field-grid two">
+              <div class="field">
+                <label for="new-world">游戏世界</label>
+                <select id="new-world" data-field="gameWorld" required>
+                  <option value="">请选择</option>
+                  <option value="cat-box">猫箱子</option>
+                  <option value="cat-scratcher">猫抓板</option>
+                  <option value="yarn-ball">毛线球</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="level-kind">关卡类型</label>
+                <select id="level-kind" data-field="levelKind" required>
+                  <option value="">请选择</option>
+                  <option value="tutorial">教学关</option>
+                  <option value="challenge">挑战关</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="conditional" data-show-when="levelKind:tutorial">
+              <label for="teaching-mechanism">新增或第一次教学的机制</label>
+              <input id="teaching-mechanism" data-field="teachingMechanism" maxlength="160" placeholder="比如：会升降的桥、第一次出现的虫洞" />
+            </div>
+
+            <div class="conditional" data-show-when="levelKind:challenge">
+              <label for="challenge-point">主要挑战点</label>
+              <input id="challenge-point" data-field="challengePoint" maxlength="160" placeholder="比如：两条路都能通，但其中一条更绕" />
+            </div>
+
+            <label for="level-goal">目标</label>
+            <textarea id="level-goal" data-field="levelGoal" maxlength="500" placeholder="小猫/毛线球要做到什么？" required></textarea>
+
+            <fieldset class="check-boxes">
+              <legend>想用哪些机制？</legend>
+              <label><input type="checkbox" data-array-field="mechanics" value="旋转网格" />旋转网格</label>
+              <label><input type="checkbox" data-array-field="mechanics" value="固定线/固定面" />固定线/固定面</label>
+              <label><input type="checkbox" data-array-field="mechanics" value="虫洞/传送" />虫洞/传送</label>
+              <label><input type="checkbox" data-array-field="mechanics" value="时间暂停/倒退" />时间暂停/倒退</label>
+              <label><input type="checkbox" data-array-field="mechanics" value="升降/移动平台" />升降/移动平台</label>
+            </fieldset>
+            <input data-field="mechanicsOther" maxlength="200" placeholder="其他机制，比如：按钮门、彩蛋相机" />
+
+            <div class="field-grid three">
+              <div class="field">
+                <label for="difficulty">难度</label>
+                <select id="difficulty" data-field="difficulty" required>
+                  <option value="">请选择</option>
+                  <option value="简单">简单</option>
+                  <option value="中等">中等</option>
+                  <option value="困难">困难</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="route-requirement">路线要求</label>
+                <select id="route-requirement" data-field="routeRequirement" required>
+                  <option value="">请选择</option>
+                  <option value="一条主路">一条主路</option>
+                  <option value="两条可通路线">两条可通路线</option>
+                  <option value="不确定">不确定</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="yarn-multi-layer">毛线球多层？</label>
+                <select id="yarn-multi-layer" data-field="yarnMultiLayer">
+                  <option value="">不确定/不适用</option>
+                  <option value="yes">需要</option>
+                  <option value="no">不需要</option>
+                </select>
+              </div>
+            </div>
+
+            <label for="instruction-copy">关卡说明文案</label>
+            <textarea id="instruction-copy" data-field="instructionCopy" maxlength="500" placeholder="进入关卡时想看到的话。" required></textarea>
+          </section>
+
+          <section class="form-panel tab-panel" data-panel="edit-level">
+            <div class="field-grid two">
+              <div class="field">
+                <label for="edit-world">游戏世界</label>
+                <select id="edit-world" data-field="gameWorld">
+                  <option value="">请选择</option>
+                  <option value="cat-box">猫箱子</option>
+                  <option value="cat-scratcher">猫抓板</option>
+                  <option value="yarn-ball">毛线球</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="change-type">修改类型</label>
+                <select id="change-type" data-field="changeType">
+                  <option value="">请选择</option>
+                  <option value="变简单">变简单</option>
+                  <option value="变难">变难</option>
+                  <option value="更有趣">更有趣</option>
+                  <option value="修看不懂">修看不懂</option>
+                  <option value="修卡住">修卡住</option>
+                </select>
+              </div>
+            </div>
+            <label for="target-level">目标关卡</label>
+            <input id="target-level" data-field="targetLevel" maxlength="160" placeholder="第几关、关卡名，或者上传截图说明" />
+            <label for="current-problem">现在的问题</label>
+            <textarea id="current-problem" data-field="currentProblem" maxlength="500" placeholder="现在哪里太难、太简单、看不懂或卡住？"></textarea>
+            <label for="desired-change">想怎么改</label>
+            <textarea id="desired-change" data-field="desiredChange" maxlength="500" placeholder="希望改成什么样？"></textarea>
+            <label for="keep-unchanged">不要改变的地方</label>
+            <textarea id="keep-unchanged" data-field="keepUnchanged" maxlength="400" placeholder="可以不填。比如：不要改小猫起点，不要删掉虫洞。"></textarea>
+          </section>
+
+          <section class="form-panel tab-panel" data-panel="reward-task">
+            <div class="field-grid two">
+              <div class="field">
+                <label for="reward-task-type">任务类型</label>
+                <select id="reward-task-type" data-field="rewardTaskType">
+                  <option value="">请选择</option>
+                  <option value="签到">签到</option>
+                  <option value="连续天数">连续天数</option>
+                  <option value="完成某世界">完成某世界</option>
+                  <option value="分享">分享</option>
+                  <option value="找到彩蛋">找到彩蛋</option>
+                  <option value="其他">其他</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="release-state">是否立刻开放</label>
+                <select id="release-state" data-field="releaseState">
+                  <option value="">请选择</option>
+                  <option value="开放">开放</option>
+                  <option value="稍后开放">稍后开放</option>
+                </select>
+              </div>
+            </div>
+            <label for="completion-condition">完成条件</label>
+            <textarea id="completion-condition" data-field="completionCondition" maxlength="500" placeholder="比如：连续 5 天签到，或者完成猫抓板全部关卡。"></textarea>
+            <label for="reward-content">奖励内容</label>
+            <textarea id="reward-content" data-field="rewardContent" maxlength="500" placeholder="比如：+5 积分、一个表情、一个贴图。"></textarea>
+          </section>
+
+          <section class="form-panel tab-panel" data-panel="reward-item">
+            <div class="field-grid two">
+              <div class="field">
+                <label for="reward-operation">操作</label>
+                <select id="reward-operation" data-field="rewardOperation">
+                  <option value="">请选择</option>
+                  <option value="新建奖励品">新建奖励品</option>
+                  <option value="编辑奖励品">编辑奖励品</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="reward-item-type">奖励品类型</label>
+                <select id="reward-item-type" data-field="rewardItemType">
+                  <option value="">请选择</option>
+                  <option value="accessory">饰品</option>
+                  <option value="expression">表情</option>
+                  <option value="sticker">贴图</option>
+                  <option value="other">其他新奖品</option>
+                </select>
+              </div>
+            </div>
+            <label for="reward-name">名字</label>
+            <input id="reward-name" data-field="rewardName" maxlength="100" placeholder="比如：星星围巾" />
+            <label for="appearance">外观描述</label>
+            <textarea id="appearance" data-field="appearance" maxlength="500" placeholder="它看起来是什么样？颜色、形状、戴在哪里。"></textarea>
+            <div class="field-grid two">
+              <div class="field">
+                <label for="unlock-method">解锁方式</label>
+                <select id="unlock-method" data-field="unlockMethod">
+                  <option value="">请选择</option>
+                  <option value="分数">分数</option>
+                  <option value="任务">任务</option>
+                  <option value="世界完成">世界完成</option>
+                  <option value="彩蛋">彩蛋</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="success-effect">成功动画或效果</label>
+                <input id="success-effect" data-field="successEffect" maxlength="160" placeholder="可以不填。比如：星星飞出来。" />
+              </div>
+            </div>
+            <div class="sticker-fields">
+              <div class="field-grid three">
+                <div class="field">
+                  <label for="sticker-world">贴图所属世界</label>
+                  <select id="sticker-world" data-field="stickerWorld">
+                    <option value="">请选择</option>
+                    <option value="cat-box">猫箱子</option>
+                    <option value="cat-scratcher">猫抓板</option>
+                    <option value="yarn-ball">毛线球</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="sticker-level">触发关卡</label>
+                  <input id="sticker-level" data-field="stickerLevel" maxlength="160" placeholder="比如：猫抓板第 10 关" />
+                </div>
+                <div class="field">
+                  <label for="sticker-camera">相机/彩蛋位置</label>
+                  <input id="sticker-camera" data-field="stickerCamera" maxlength="200" placeholder="比如：终点右上角平台" />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="form-panel tab-panel" data-panel="game-system">
+            <div class="field-grid two">
+              <div class="field">
+                <label for="system-type">系统类型</label>
+                <select id="system-type" data-field="systemType">
+                  <option value="">请选择</option>
+                  <option value="排名系统">排名系统</option>
+                  <option value="关卡彩蛋">关卡彩蛋</option>
+                  <option value="外观系统">外观系统</option>
+                  <option value="任务系统">任务系统</option>
+                  <option value="分享系统">分享系统</option>
+                  <option value="其他">其他</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="data-storage">数据是否需要保存</label>
+                <select id="data-storage" data-field="dataStorage">
+                  <option value="">请选择</option>
+                  <option value="本地">本地</option>
+                  <option value="云端">云端</option>
+                  <option value="不确定">不确定</option>
+                </select>
+              </div>
+            </div>
+            <label for="entry-point">使用场景</label>
+            <textarea id="entry-point" data-field="entryPoint" maxlength="500" placeholder="玩家在哪里看到或点击？"></textarea>
+            <label for="player-action">玩家能做什么</label>
+            <textarea id="player-action" data-field="playerAction" maxlength="500" placeholder="玩家点了以后会发生什么？"></textarea>
+          </section>
+
+          <fieldset class="picture-box">
+            <legend>可以加一张图</legend>
+            <div class="picture-tools">
+              <label class="file-button" for="idea-image">拍照/选择图片</label>
+              <input id="idea-image" name="ideaImage" type="file" accept="image/*" capture="environment" />
+              <button type="button" id="clear-picture-button" class="secondary">清空图片</button>
+            </div>
+            <canvas id="drawing-canvas" width="640" height="420" aria-label="画想法的地方"></canvas>
+            <p class="helper">手机上可以直接拍照，也可以在这里画。图片会放进 GitHub Issue，帮助开发时截图对照。</p>
+            <img id="image-preview" class="image-preview" alt="选择的图片预览" hidden />
+          </fieldset>
 
           <div class="actions">
-            <button type="submit" id="submit-button">发送想法</button>
+            <button type="submit" id="submit-button">发送任务</button>
             <p id="form-status" role="status" aria-live="polite"></p>
           </div>
         </form>
@@ -52,7 +312,7 @@
         <div class="section-heading">
           <div>
             <h2 id="issues-title">任务进度</h2>
-            <p>这里会显示最近从想法箱生成的 GitHub Issue。</p>
+            <p>这里会显示最近从任务箱生成的 GitHub Issue。</p>
           </div>
           <button type="button" id="refresh-button" class="secondary">刷新</button>
         </div>
