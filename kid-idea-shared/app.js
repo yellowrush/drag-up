@@ -9,6 +9,7 @@ const imageInput = document.querySelector('#idea-image')
 const clearPictureButton = document.querySelector('#clear-picture-button')
 const drawingCanvas = document.querySelector('#drawing-canvas')
 const imagePreview = document.querySelector('#image-preview')
+const mechanicsOptions = document.querySelector('#mechanics-options')
 const submitButton = document.querySelector('#submit-button')
 const refreshButton = document.querySelector('#refresh-button')
 const formStatus = document.querySelector('#form-status')
@@ -33,6 +34,38 @@ const taskLabels = {
   'reward-task': '新建任务',
   'reward-item': '奖励品',
   'game-system': '游戏系统',
+}
+
+const mechanicsByWorld = {
+  'cat-box': [
+    '旋转网格',
+    '蓝色连线',
+    '橙色固定线',
+    '绿色枢轴',
+    '红色固定旋转线',
+    '综合路线',
+    '更大网格',
+  ],
+  'cat-scratcher': [
+    '魔方转面',
+    '箭头面',
+    '虫洞',
+    '猫爪确认',
+    '重力面',
+    '锁定/换面',
+    '2/3/4 阶尺寸',
+  ],
+  'yarn-ball': [
+    '时间倒退',
+    '时间暂停',
+    '裂桥',
+    '地刺',
+    '按钮门',
+    '旋转桥',
+    '升降/移动平台',
+    '多层地图',
+    '两条路线',
+  ],
 }
 
 drawingContext.lineWidth = 7
@@ -90,6 +123,7 @@ function getFieldValue(fieldName) {
 }
 
 function refreshConditionalFields() {
+  refreshMechanicsOptions()
   document.querySelectorAll('.conditional').forEach(block => {
     const rule = block.dataset.showWhen || ''
     const parts = rule.split(':')
@@ -100,6 +134,24 @@ function refreshConditionalFields() {
   document.querySelectorAll('.sticker-fields').forEach(block => {
     block.classList.toggle('active', rewardType === 'sticker')
   })
+}
+
+function refreshMechanicsOptions() {
+  if (!mechanicsOptions) return
+  const world = getFieldValue('gameWorld')
+  const allowed = mechanicsByWorld[world] || []
+  const selected = Array.from(mechanicsOptions.querySelectorAll('[data-array-field="mechanics"]:checked'))
+    .map(input => input.value)
+
+  if (!allowed.length) {
+    mechanicsOptions.innerHTML = '<p class="helper">先选择游戏世界。</p>'
+    return
+  }
+
+  mechanicsOptions.innerHTML = allowed.map(mechanic => {
+    const checked = selected.includes(mechanic) ? ' checked' : ''
+    return `<label><input type="checkbox" data-array-field="mechanics" value="${escapeHtml(mechanic)}"${checked} />${escapeHtml(mechanic)}</label>`
+  }).join('')
 }
 
 function clearDrawingCanvas() {

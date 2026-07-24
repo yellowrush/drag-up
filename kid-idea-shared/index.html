@@ -92,11 +92,9 @@
 
             <fieldset class="check-boxes">
               <legend>想用哪些机制？</legend>
-              <label><input type="checkbox" data-array-field="mechanics" value="旋转网格" />旋转网格</label>
-              <label><input type="checkbox" data-array-field="mechanics" value="固定线/固定面" />固定线/固定面</label>
-              <label><input type="checkbox" data-array-field="mechanics" value="虫洞/传送" />虫洞/传送</label>
-              <label><input type="checkbox" data-array-field="mechanics" value="时间暂停/倒退" />时间暂停/倒退</label>
-              <label><input type="checkbox" data-array-field="mechanics" value="升降/移动平台" />升降/移动平台</label>
+              <div id="mechanics-options" class="mechanics-options">
+                <p class="helper">先选择游戏世界。</p>
+              </div>
             </fieldset>
             <input data-field="mechanicsOther" maxlength="200" placeholder="其他机制，比如：按钮门、彩蛋相机" />
 

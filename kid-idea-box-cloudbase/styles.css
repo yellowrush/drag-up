@@ -128,6 +128,17 @@ form,
   background: var(--accent);
 }
 
+.tab:hover {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+  background: #edf7f5;
+}
+
+.tab.active:hover {
+  color: #fff;
+  background: var(--accent-dark);
+}
+
 .field-grid {
   display: grid;
   gap: 12px;
@@ -202,14 +213,16 @@ textarea:focus {
   background: #fbfcfe;
 }
 
-.check-boxes {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
 .check-boxes legend,
 .picture-box legend {
   grid-column: 1 / -1;
   padding: 0 6px;
+}
+
+.mechanics-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .check-boxes label {
@@ -322,6 +335,7 @@ button {
 
 button:hover,
 .file-button:hover {
+  color: #fff;
   background: var(--accent-dark);
 }
 
@@ -338,6 +352,7 @@ button:disabled {
 }
 
 .secondary:hover {
+  color: var(--accent-dark);
   background: #edf7f5;
 }
 
@@ -442,7 +457,7 @@ button:disabled {
   .tabs,
   .field-grid.two,
   .field-grid.three,
-  .check-boxes {
+  .mechanics-options {
     grid-template-columns: 1fr;
   }
 
