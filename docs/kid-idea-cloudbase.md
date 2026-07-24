@@ -2,6 +2,12 @@
 
 This is the low-risk CloudBase path for `kid-idea-box`. It keeps the current Vercel deployment unchanged.
 
+The shared source of truth is `kid-idea-shared/`. After changing shared frontend or issue logic, run:
+
+```powershell
+npm.cmd run sync:kid-idea-box
+```
+
 ## Cost Guardrails
 
 CloudBase is not an unlimited free hosting service.
@@ -20,9 +26,9 @@ Recommended first test:
 
 ## What Stays Unchanged
 
-- Existing Vercel files remain in `kid-idea-box/`.
+- Vercel deploy files remain in `kid-idea-box/`.
 - CloudBase static files live in `kid-idea-box-cloudbase/`.
-- Existing Vercel API remains in `kid-idea-box/api/issues.js`.
+- Both deployment folders are generated from `kid-idea-shared/`.
 - Existing game CloudBase config remains in `cloudbaserc.json`.
 - CloudBase migration uses a separate function config: `cloudbaserc.kid-idea-box.json`.
 
@@ -50,7 +56,7 @@ Do not put the GitHub token in any frontend file. The Contents permission is nee
 From the repository root:
 
 ```powershell
-npx --package @cloudbase/cli cloudbase --config-file cloudbaserc.kid-idea-box.json fn deploy kidIdeaIssues
+npx.cmd --package @cloudbase/cli cloudbase --config-file cloudbaserc.kid-idea-box.json fn deploy kidIdeaIssues --path /api/issues --force
 ```
 
 If using the existing project script style, keep this as a manual command first. Do not add it to the normal game deploy flow until the CloudBase version is proven.
@@ -65,7 +71,7 @@ In the CloudBase console:
 4. Test:
 
 ```powershell
-curl https://drag-meow-d8ggfohez51d8d1d7.service.tcloudbase.com/api/issues
+curl https://cloudbase-d9gr8r6jkb1656853.service.tcloudbase.com/api/issues
 ```
 
 It should return JSON with an `issues` array.
@@ -78,7 +84,7 @@ There are two valid fixes:
 2. Fallback: edit `kid-idea-box-cloudbase/config.js` and set the full API URL:
 
 ```js
-window.KID_IDEA_API_URL = 'https://drag-meow-d8ggfohez51d8d1d7.service.tcloudbase.com/api/issues'
+window.KID_IDEA_API_URL = 'https://cloudbase-d9gr8r6jkb1656853.service.tcloudbase.com/api/issues'
 ```
 
 Use an empty API URL only when the static page and `/api/issues` function share the same domain. The older `window.KID_IDEA_API_BASE = 'https://YOUR_FUNCTION_DOMAIN'` style is still supported.
