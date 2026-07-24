@@ -1,62 +1,54 @@
-# WeChat CI upload
+# 微信 CI 上传说明
 
-This project can upload a WeChat experience version from GitHub Actions without
-hard-coded appIds or private-key paths.
+这个项目可以通过 GitHub Actions 上传微信小游戏体验版，不需要把 `appId` 或私钥路径写死在代码里。
 
-## Required GitHub Actions secrets
+## 需要配置的 GitHub Secrets
 
-Add these in GitHub repository settings:
+在 GitHub 仓库设置里添加：
 
-- `WX_APPID`: the WeChat Mini Game or Mini Program appId.
-- `WX_PRIVATE_KEY`: the full miniprogram-ci private key content.
+- `WX_APPID`：微信小游戏或小程序的 `appId`。
+- `WX_PRIVATE_KEY`：`miniprogram-ci` 私钥的完整内容。
 
-`WX_PRIVATE_KEY` may contain real newlines or escaped `\n` characters.
+`WX_PRIVATE_KEY` 可以包含真实换行，也可以使用转义后的 `\n`。
 
-## GitHub Actions flow
+## GitHub Actions 流程
 
-`.github/workflows/deploy.yml` runs on pushes to `develop` and can also be
-started manually from the Actions tab. It performs:
+`.github/workflows/deploy.yml` 会在 pull request 创建、更新、重新打开或标记为 ready for review 时运行，也可以在 Actions 页面手动触发。主要流程是：
 
 1. `npm ci`
 2. `npm run build:minigame`
 3. `npm run upload:minigame:ci`
 
-During the minigame build, `WX_APPID` is also written into
-`dist/build/minigame/project.config.json`. Source config files keep an empty
-`appid` so appIds are not committed.
+上传体验版前会先构建小游戏。构建过程中，`WX_APPID` 会写入 `dist/build/minigame/project.config.json`。源码里的配置文件继续保留空 `appid`，避免把真实 `appId` 提交进仓库。
 
-The CI upload version defaults to the `package.json` `version`, and the
-description defaults to `CI: <short_commit_sha>`.
+CI 上传的版本号默认使用 `package.json` 里的 `version`，上传描述会包含来源、分支和短提交号。
 
-`package.json` is the only version value to edit by hand. Before app builds,
-`npm run sync:version` updates `src/manifest.json`
-`versionName` and derives `versionCode` from that package version.
+`package.json` 是唯一需要手动修改的版本来源。应用构建前，`npm run sync:version` 会同步更新 `src/manifest.json` 里的 `versionName`，并根据包版本生成 `versionCode`。
 
-## Local upload
+## 本地上传
 
-Set the appId before uploading:
+上传前先设置 `appId`：
 
 ```bash
 WX_APPID=wxxxxxxxxxxxxxxxxx npm run upload:minigame -- 1.1.0 "manual test"
 ```
 
-On Windows PowerShell:
+Windows PowerShell：
 
 ```powershell
 $env:WX_APPID = "wxxxxxxxxxxxxxxxxx"
 npm.cmd run upload:minigame -- 1.1.0 "manual test"
 ```
 
-By default the local script looks for `private.<WX_APPID>.key`. To use another
-file path:
+默认情况下，本地上传脚本会查找 `private.<WX_APPID>.key`。如果要指定其他私钥文件路径：
 
 ```powershell
 $env:WX_PRIVATE_KEY_PATH = "private.wxxxxxxxxxxxxxxxxx.key"
 ```
 
-## Useful log markers
+## 常用日志标记
 
-Upload scripts now print stable markers:
+上传脚本会输出稳定的日志标记，方便在 CI 日志里搜索：
 
 - `[upload] Preparing WeChat upload`
 - `[ci-upload] Preparing WeChat upload`
@@ -65,8 +57,12 @@ Upload scripts now print stable markers:
 - `[ci-upload] Upload succeeded`
 - `[ci-upload] Failed`
 
-Failures include the main message plus any available `code`, `errCode`, and
-`errMsg` fields from `miniprogram-ci`.
+失败时会输出主要错误信息，并尽量附带 `miniprogram-ci` 返回的 `code`、`errCode` 和 `errMsg`。
 
-Set `CI_UPLOAD_DEBUG=1` to print the full `miniprogram-ci` response when a CI
-run needs deeper debugging.
+如果 CI 需要更详细的调试信息，可以设置：
+
+```text
+CI_UPLOAD_DEBUG=1
+```
+
+这样会打印完整的 `miniprogram-ci` 响应。

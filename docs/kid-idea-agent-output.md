@@ -1,15 +1,13 @@
-# Kid Idea Agent Output Requirements
+# 小朋友想法任务的 PR 输出要求
 
-These requirements apply to PRs created from kid idea issues.
+这些要求适用于从“小朋友想法箱”生成的 GitHub Issue，并由 Copilot 或 Codex 创建的 PR。
 
-## Modification Tasks
+## 修改类任务
 
-If the task changes an existing level, screen, visual state, copy location, or
-gameplay behavior, the PR description must include a "Before / After" section.
+如果任务修改了已有关卡、页面、视觉状态、文案位置或玩法行为，PR 描述必须包含 `Before / After` 部分。
 
-- Put before and after images side by side whenever the changed behavior can be
-  shown visually.
-- Use a two-column Markdown table:
+- 只要变化可以用图片表达，就把修改前和修改后的截图并排展示。
+- 使用两列表格：
 
 ```markdown
 ## Before / After
@@ -19,18 +17,14 @@ gameplay behavior, the PR description must include a "Before / After" section.
 | ![Before](before-image-url) | ![After](after-image-url) |
 ```
 
-- If screenshots cannot be produced in the agent environment, include the table
-  anyway and write what should be captured manually.
-- For non-visual behavior changes, use short bullet points in the two columns
-  instead of images.
+- 如果 agent 环境无法截图，也必须保留这个表格，并写清楚需要人工补拍什么。
+- 如果是非视觉行为变化，可以在两列里写简短要点，不一定放图片。
 
-## New Level Tasks
+## 新建关卡任务
 
-If the task adds one or more levels, the PR description must include a "New
-Levels" section with a Markdown table. GitHub will allow wide tables to scroll
-horizontally when the viewport is narrow.
+如果任务新增一个或多个关卡，PR 描述必须包含 `New Levels` 部分，并附上新增关卡截图。GitHub 会在窄屏时让宽表格横向滚动。
 
-Use these columns when the data exists:
+有对应信息时，使用这些列：
 
 ```markdown
 ## New Levels
@@ -40,19 +34,57 @@ Use these columns when the data exists:
 | 20 | Yarn Time | Reach the yarn | floating tile | maxX 14 | left-bottom to right-top | yes | build passed |
 ```
 
-- Add one row per new level.
-- Keep cells short so the table is easy to scan.
-- For Yarn Time, mention `maxX` and whether the level was checked for
-  reachability.
-- If many levels are added, keep one wide table rather than a long prose list.
+- 每个新增关卡一行。
+- 单元格内容要短，方便 review 时快速扫读。
+- Yarn Time 关卡必须说明 `maxX`，以及是否检查过可达性。
+- 如果一次新增很多关卡，也优先使用一张宽表，而不是长段落。
+- 至少包含一张新增关卡截图，以及一张通关路径或关键路线截图；如果无法截图，必须写明人工补拍页面和状态。
+- 如果是教学关，要明确写出它教学的唯一新机制。
 
-## PR Checklist
+## 新建或修改游戏内任务
 
-Every kid idea PR should include:
+如果任务新增或编辑游戏内奖励任务、解锁任务，PR 描述必须包含：
 
-- Link to the source issue.
-- Summary of actual changes.
-- Before / After table for modification tasks.
-- New Levels table for added levels.
-- Playtest focus for the kid.
-- Build or validation result.
+- 奖励任务列表截图。
+- 新增或修改任务在相关状态下的截图，例如未完成、可领取或已领取。
+- 简短说明完成条件和奖励内容。
+
+## 新建或修改奖励品
+
+如果任务新增或编辑饰品、表情、贴图或其他奖励品，PR 描述必须包含：
+
+- 奖励列表中对应条目的截图。
+- 试穿、预览、贴图分享或等价展示状态的截图。
+- 锁定、已解锁或已领取状态的截图；如果无法截图，写清楚需要人工补拍的状态。
+- 如果是贴图，必须说明所属世界、触发关卡、相机或彩蛋位置。
+
+## 游戏系统任务
+
+如果任务新增或编辑排名系统、关卡彩蛋、外观系统、任务系统、分享系统或其他游戏系统，PR 描述必须包含：
+
+- 入口截图。
+- 主要交互状态截图。
+- 空状态、加载状态、错误状态或未授权状态截图；如果这些状态适用，就必须覆盖。
+- 如果改动涉及云函数、隐私、账号设置、支付、密钥或发布行为，必须写风险说明。
+
+## 无法截图时
+
+如果 agent 环境无法生成截图，也必须保留对应的 PR 证据部分，并明确写出：
+
+- 需要补拍的页面。
+- 需要补拍的状态。
+- 复现该状态需要的操作。
+
+不要只写“无法截图”。要让维护者能直接照着补拍。
+
+## PR 检查清单
+
+每个小朋友想法 PR 都应该包含：
+
+- 原始 Issue 链接。
+- 实际修改摘要。
+- 修改类任务的 `Before / After` 表。
+- 新增关卡任务的 `New Levels` 表。
+- 新关卡、游戏内任务、奖励品和游戏系统需要的截图证据。
+- 小朋友试玩重点。
+- 构建或验证结果。

@@ -1,0 +1,162 @@
+name: 发布 Kid Idea CloudBase
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - '.github/workflows/deploy-kid-idea-cloudbase.yml'
+      - 'cloudbaserc.kid-idea-box.json'
+      - 'cloudfunctions/kidIdeaIssues/**'
+      - 'docs/kid-idea-cloudbase.md'
+      - 'kid-idea-box-cloudbase/**'
+      - 'kid-idea-shared/**'
+      - 'scripts/sync-kid-idea-box.js'
+  workflow_dispatch:
+    inputs:
+      deploy_function:
+        description: 是否部署 kidIdeaIssues 云函数
+        required: false
+        default: auto
+        type: choice
+        options:
+          - auto
+          - yes
+          - no
+
+concurrency:
+  group: kid-idea-cloudbase-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+  CLOUDBASE_ENV_ID: cloudbase-d9gr8r6jkb1656853
+  CLOUDBASE_APP_NAME: kid-idea-issues
+  CLOUDBASE_API_URL: https://cloudbase-d9gr8r6jkb1656853.service.tcloudbase.com/api/issues
+
+jobs:
+  deploy-cloudbase:
+    name: 发布 CloudBase 想法箱
+    runs-on: ubuntu-latest
+    env:
+      TENCENTCLOUD_SECRET_ID: ${{ secrets.TENCENTCLOUD_SECRET_ID }}
+      TENCENTCLOUD_SECRET_KEY: ${{ secrets.TENCENTCLOUD_SECRET_KEY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: 准备 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 检查想法箱生成文件是否已同步
+        run: |
+          node scripts/sync-kid-idea-box.js
+          git diff --exit-code -- \
+            kid-idea-box \
+            kid-idea-box-cloudbase \
+            cloudfunctions/kidIdeaIssues
+
+      - name: 判断云函数是否需要部署
+        id: function_changes
+        env:
+          DEPLOY_FUNCTION_INPUT: ${{ github.event.inputs.deploy_function || 'auto' }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$DEPLOY_FUNCTION_INPUT" = "yes" ]; then
+            echo "function_changed=true" >> "$GITHUB_OUTPUT"
+            echo "手动选择部署云函数。" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [ "$DEPLOY_FUNCTION_INPUT" = "no" ]; then
+            echo "function_changed=false" >> "$GITHUB_OUTPUT"
+            echo "手动选择跳过云函数部署。" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          BASE_SHA="$BEFORE_SHA"
+          if [ -z "$BASE_SHA" ] || echo "$BASE_SHA" | grep -Eq '^0+$'; then
+            BASE_SHA="HEAD^"
+          fi
+
+          if ! git rev-parse --verify "$BASE_SHA" >/dev/null 2>&1; then
+            echo "function_changed=true" >> "$GITHUB_OUTPUT"
+            echo "找不到可比较的上一个提交，保守部署云函数。" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          CHANGED_FILES="$(git diff --name-only "$BASE_SHA" "$GITHUB_SHA")"
+          echo "$CHANGED_FILES" | grep -E '^(cloudfunctions/kidIdeaIssues/|kid-idea-shared/(issue-core|cloudbase-index)\.js$|cloudbaserc\.kid-idea-box\.json$|scripts/sync-kid-idea-box\.js$)' >/dev/null && FUNCTION_CHANGED=true || FUNCTION_CHANGED=false
+
+          echo "function_changed=$FUNCTION_CHANGED" >> "$GITHUB_OUTPUT"
+          if [ "$FUNCTION_CHANGED" = "true" ]; then
+            echo "检测到 kidIdeaIssues 云函数相关文件变化，将部署云函数。" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "没有检测到 kidIdeaIssues 云函数相关文件变化，跳过云函数部署。" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: 检查 CloudBase 发布密钥
+        if: env.TENCENTCLOUD_SECRET_ID == '' || env.TENCENTCLOUD_SECRET_KEY == ''
+        run: |
+          echo "缺少腾讯云发布密钥。" >> "$GITHUB_STEP_SUMMARY"
+          echo "请在 GitHub 仓库 Secrets 中添加 TENCENTCLOUD_SECRET_ID 和 TENCENTCLOUD_SECRET_KEY。" >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+      - name: 登录 CloudBase
+        run: |
+          npx --yes --package @cloudbase/cli cloudbase login \
+            --apiKeyId "$TENCENTCLOUD_SECRET_ID" \
+            --apiKey "$TENCENTCLOUD_SECRET_KEY"
+
+      - name: 发布 kidIdeaIssues 云函数
+        if: steps.function_changes.outputs.function_changed == 'true'
+        run: |
+          npx --yes --package @cloudbase/cli cloudbase \
+            --config-file cloudbaserc.kid-idea-box.json \
+            fn deploy kidIdeaIssues \
+            --path /api/issues \
+            --force
+
+      - name: 跳过 kidIdeaIssues 云函数发布
+        if: steps.function_changes.outputs.function_changed != 'true'
+        run: |
+          echo "kidIdeaIssues 云函数没有相关更新，本次不重新部署云函数。" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 发布 CloudBase 静态网站
+        run: |
+          npx --yes --package @cloudbase/cli tcb app deploy "$CLOUDBASE_APP_NAME" \
+            --framework static \
+            --install-command "" \
+            --build-command "" \
+            --output-dir ./kid-idea-box-cloudbase \
+            --deploy-path / \
+            --force \
+            -e "$CLOUDBASE_ENV_ID"
+
+      - name: 冒烟测试 CloudBase API
+        run: |
+          curl -fsS "$CLOUDBASE_API_URL" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{const j=JSON.parse(s);if(!Array.isArray(j.issues)){throw new Error('missing issues array')}})"
+
+      - name: 发布结果汇总
+        if: always()
+        run: |
+          echo "## Kid Idea CloudBase 发布" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 环境: $CLOUDBASE_ENV_ID" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 静态网站: $CLOUDBASE_APP_NAME" >> "$GITHUB_STEP_SUMMARY"
+          echo "- API: $CLOUDBASE_API_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 提交: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 是否部署云函数: ${{ steps.function_changes.outputs.function_changed }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "CloudBase 发布成功。" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "CloudBase 发布失败，请查看上面的步骤日志。" >> "$GITHUB_STEP_SUMMARY"
+          fi
