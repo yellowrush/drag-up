@@ -1,8 +1,8 @@
 name: Kid Idea Agent Router
 
 on:
-  issues:
-    types: [labeled]
+  issue_comment:
+    types: [created]
   workflow_dispatch:
     inputs:
       issue_number:
@@ -16,22 +16,57 @@ on:
         options:
           - copilot
           - codex
+          - opencode
 
 permissions:
   contents: read
   issues: write
+  pull-requests: write
 
 jobs:
-  assign-copilot:
-    name: Assign issue to Copilot
+  prepare:
+    name: Parse agent command
     if: >-
       ${{
-        (github.event_name == 'issues' && github.event.label.name == 'copilot-ready') ||
-        (github.event_name == 'workflow_dispatch' && inputs.agent == 'copilot')
+        github.event_name == 'workflow_dispatch' ||
+        github.event_name == 'issue_comment'
       }}
+    runs-on: ubuntu-latest
+    outputs:
+      agent: ${{ steps.parse.outputs.agent }}
+      issue_number: ${{ steps.parse.outputs.issue_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: parse
+        uses: actions/github-script@v7
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+          WD_AGENT: ${{ inputs.agent || '' }}
+        with:
+          script: |
+            const body = (context.payload.comment?.body || '').trim().split('\n')[0]
+            let agent = ''
+            if (/^\/(cp|copilot)(\s|$)/i.test(body)) agent = 'copilot'
+            else if (/^\/(cx|codex)(\s|$)/i.test(body)) agent = 'codex'
+            else if (/^\/(oc|opencode)(\s|$)/i.test(body)) agent = 'opencode'
+            if (context.eventName === 'workflow_dispatch') agent = process.env.WD_AGENT
+            if (!agent) {
+              console.log('No valid agent command found, skipping')
+              if (context.eventName === 'workflow_dispatch') {
+                core.setFailed('No agent specified')
+              }
+              return
+            }
+            core.setOutput('agent', agent)
+            core.setOutput('issue_number', process.env.ISSUE_NUMBER)
+
+  assign-copilot:
+    needs: prepare
+    if: needs.prepare.outputs.agent == 'copilot'
     runs-on: ubuntu-latest
     env:
       COPILOT_AGENT_TOKEN: ${{ secrets.COPILOT_AGENT_TOKEN }}
+      ISSUE_NUMBER: ${{ needs.prepare.outputs.issue_number }}
     steps:
       - name: Check Copilot agent token
         if: env.COPILOT_AGENT_TOKEN == ''
@@ -42,14 +77,36 @@ jobs:
 
       - name: Assign Copilot coding agent
         uses: actions/github-script@v7
-        env:
-          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
         with:
           github-token: ${{ secrets.COPILOT_AGENT_TOKEN }}
           script: |
+            function buildThread(issue, comments) {
+              const lines = [
+                `Issue #${issue.number}: ${issue.title}`,
+                '',
+                '## Issue Body',
+                issue.body || '',
+                '',
+                '## Comments',
+              ]
+              for (const c of comments) {
+                lines.push(`\n### ${c.user.login} (${c.created_at})`)
+                lines.push(c.body || '')
+              }
+              return lines.join('\n')
+            }
+
             const owner = context.repo.owner
             const repo = context.repo.repo
             const issue_number = Number(process.env.ISSUE_NUMBER)
+
+            const [issue, {data: comments}] = await Promise.all([
+              github.rest.issues.get({ owner, repo, issue_number }),
+              github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 })
+            ])
+
+            const thread = buildThread(issue.data, comments)
+
             const custom_instructions = [
               'Follow COLLABORATION-GUIDE.md.',
               'This is a kid idea task for the Drag Up game.',
@@ -61,7 +118,10 @@ jobs:
               'Use branch names like codex/kid-idea-short-topic when possible.',
               'Run npm run build:minigame before finishing.',
               'Do not publish a production release.',
-              'Do not edit secrets, account settings, cloud-function deployment settings, or private keys.'
+              'Do not edit secrets, account settings, cloud-function deployment settings, or private keys.',
+              '',
+              '--- Full Issue Thread ---',
+              thread
             ].join('\n')
 
             await github.request('POST /repos/{owner}/{repo}/issues/{issue_number}/assignees', {
@@ -97,15 +157,12 @@ jobs:
               .write()
 
   assign-codex:
-    name: Assign issue to Codex
-    if: >-
-      ${{
-        (github.event_name == 'issues' && github.event.label.name == 'codex-ready') ||
-        (github.event_name == 'workflow_dispatch' && inputs.agent == 'codex')
-      }}
+    needs: prepare
+    if: needs.prepare.outputs.agent == 'codex'
     runs-on: ubuntu-latest
     env:
       CODEX_AGENT_TOKEN: ${{ secrets.COPILOT_AGENT_TOKEN }}
+      ISSUE_NUMBER: ${{ needs.prepare.outputs.issue_number }}
     steps:
       - name: Check Codex agent token
         if: env.CODEX_AGENT_TOKEN == ''
@@ -116,14 +173,36 @@ jobs:
 
       - name: Assign Codex coding agent
         uses: actions/github-script@v7
-        env:
-          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
         with:
           github-token: ${{ env.CODEX_AGENT_TOKEN }}
           script: |
+            function buildThread(issue, comments) {
+              const lines = [
+                `Issue #${issue.number}: ${issue.title}`,
+                '',
+                '## Issue Body',
+                issue.body || '',
+                '',
+                '## Comments',
+              ]
+              for (const c of comments) {
+                lines.push(`\n### ${c.user.login} (${c.created_at})`)
+                lines.push(c.body || '')
+              }
+              return lines.join('\n')
+            }
+
             const owner = context.repo.owner
             const repo = context.repo.repo
             const issue_number = Number(process.env.ISSUE_NUMBER)
+
+            const [issue, {data: comments}] = await Promise.all([
+              github.rest.issues.get({ owner, repo, issue_number }),
+              github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 })
+            ])
+
+            const thread = buildThread(issue.data, comments)
+
             const custom_instructions = [
               'Follow COLLABORATION-GUIDE.md.',
               'This is a kid idea task for the Drag Up game.',
@@ -135,7 +214,10 @@ jobs:
               'Use branch names like codex/kid-idea-short-topic when possible.',
               'Run npm run build:minigame before finishing.',
               'Do not publish a production release.',
-              'Do not edit secrets, account settings, cloud-function deployment settings, or private keys.'
+              'Do not edit secrets, account settings, cloud-function deployment settings, or private keys.',
+              '',
+              '--- Full Issue Thread ---',
+              thread
             ].join('\n')
 
             await github.request('POST /repos/{owner}/{repo}/issues/{issue_number}/assignees', {
@@ -169,3 +251,96 @@ jobs:
               .addBreak()
               .addRaw(`Target: ${owner}/${repo}@develop`)
               .write()
+
+  assign-opencode:
+    needs: prepare
+    if: needs.prepare.outputs.agent == 'opencode'
+    runs-on: ubuntu-latest
+    env:
+      ISSUE_NUMBER: ${{ needs.prepare.outputs.issue_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build issue context
+        uses: actions/github-script@v7
+        with:
+          script: |
+            function buildThread(issue, comments) {
+              const lines = [
+                `Issue #${issue.number}: ${issue.title}`,
+                '',
+                '## Issue Body',
+                issue.body || '',
+                '',
+                '## Comments',
+              ]
+              for (const c of comments) {
+                lines.push(`\n### ${c.user.login} (${c.created_at})`)
+                lines.push(c.body || '')
+              }
+              return lines.join('\n')
+            }
+
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+            const issue_number = Number(process.env.ISSUE_NUMBER)
+
+            const [issue, {data: comments}] = await Promise.all([
+              github.rest.issues.get({ owner, repo, issue_number }),
+              github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 })
+            ])
+
+            const thread = buildThread(issue.data, comments)
+            require('fs').writeFileSync('issue-context.md', thread)
+            console.log(`Context saved (${thread.length} chars)`)
+
+      - name: Run DeepSeek V4 Flash (OpenCode agent)
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.API_KEY }}
+        run: |
+          CONTEXT=$(cat issue-context.md)
+
+          if [ -z "$DEEPSEEK_API_KEY" ]; then
+            echo "Missing DEEPSEEK_API_KEY secret." >> "$GITHUB_STEP_SUMMARY"
+            echo "Add DEEPSEEK_API_KEY to repository secrets to use the OpenCode agent." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          PAYLOAD=$(jq -n --arg content "$CONTEXT" '{
+            model: "deepseek-chat",
+            messages: [
+              {role: "system", content: "You are an AI coding agent for the Drag Up game project. Follow COLLABORATION-GUIDE.md. Analyze the issue thread above and produce a plan or implementation. You have access to the repository at C:\\app\\drag-up."},
+              {role: "user", content: $content}
+            ]
+          }')
+
+          curl -s -X POST "https://api.deepseek.com/chat/completions" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $DEEPSEEK_API_KEY" \
+            -d "$PAYLOAD" > deepseek-response.json
+
+          echo "DeepSeek response received. Posting to issue..." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post OpenCode agent result to issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            const response = JSON.parse(fs.readFileSync('deepseek-response.json', 'utf8'))
+            const content = response.choices?.[0]?.message?.content || 'No response from DeepSeek API.'
+
+            const body = [
+              '🤖 **OpenCode Agent (DeepSeek V4 Flash)**',
+              '',
+              content,
+              '',
+              '---',
+              'This response was automatically generated by the OpenCode agent using DeepSeek V4 Flash.'
+            ].join('\n')
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(process.env.ISSUE_NUMBER),
+              body
+            })
