@@ -258,11 +258,17 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ISSUE_NUMBER: ${{ needs.prepare.outputs.issue_number }}
+      API_KEY: ${{ secrets.API_KEY }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
 
       - name: Build issue context
         uses: actions/github-script@v7
+        env:
+          ISSUE_NUMBER: ${{ needs.prepare.outputs.issue_number }}
         with:
           script: |
             function buildThread(issue, comments) {
@@ -292,55 +298,148 @@ jobs:
 
             const thread = buildThread(issue.data, comments)
             require('fs').writeFileSync('issue-context.md', thread)
-            console.log(`Context saved (${thread.length} chars)`)
 
-      - name: Run DeepSeek V4 Flash (OpenCode agent)
-        env:
-          DEEPSEEK_API_KEY: ${{ secrets.API_KEY }}
+      - name: Read key project files
+        run: |
+          echo "=== Repository Structure ===" > repo-context.txt
+          find . -path './node_modules' -prune -o -path './.git' -prune -o -type f -print | sort | head -300 >> repo-context.txt
+          echo "" >> repo-context.txt
+          echo "=== COLLABORATION-GUIDE.md ===" >> repo-context.txt
+          cat COLLABORATION-GUIDE.md 2>/dev/null >> repo-context.txt || echo "(not found)" >> repo-context.txt
+
+      - name: Generate code with DeepSeek
         run: |
           CONTEXT=$(cat issue-context.md)
+          REPO=$(cat repo-context.txt)
 
-          if [ -z "$DEEPSEEK_API_KEY" ]; then
-            echo "Missing DEEPSEEK_API_KEY secret." >> "$GITHUB_STEP_SUMMARY"
-            echo "Add DEEPSEEK_API_KEY to repository secrets to use the OpenCode agent." >> "$GITHUB_STEP_SUMMARY"
+          if [ -z "$API_KEY" ]; then
+            echo "Missing API_KEY secret." >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
-          PAYLOAD=$(jq -n --arg content "$CONTEXT" '{
-            model: "deepseek-chat",
-            messages: [
-              {role: "system", content: "You are an AI coding agent for the Drag Up game project. Follow COLLABORATION-GUIDE.md. Analyze the issue thread above and produce a plan or implementation. You have access to the repository at C:\\app\\drag-up."},
-              {role: "user", content: $content}
-            ]
-          }')
+          PAYLOAD=$(jq -n \
+            --arg context "$CONTEXT" \
+            --arg repo "$REPO" \
+            '{
+              model: "deepseek-chat",
+              messages: [
+                {
+                  role: "system",
+                  content: "You are an AI coding agent for the Drag Up game. Implement the issue by outputting a unified git diff (diff --git format). Read relevant files first from the repo context, then output ONLY a valid git diff that applies cleanly. Wrap the diff in ```diff ... ``` markdown block."
+                },
+                {
+                  role: "user",
+                  content: ("Issue thread:\n" + $context + "\n\nRepository:\n" + $repo + "\n\nRead any needed files from the repo listing above, then output a unified git diff implementing this issue.")
+                }
+              ]
+            }')
 
           curl -s -X POST "https://api.deepseek.com/chat/completions" \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $DEEPSEEK_API_KEY" \
+            -H "Authorization: Bearer $API_KEY" \
             -d "$PAYLOAD" > deepseek-response.json
 
-          echo "DeepSeek response received. Posting to issue..." >> "$GITHUB_STEP_SUMMARY"
+          if jq -e '.error' deepseek-response.json > /dev/null; then
+            echo "DeepSeek API error:" >> "$GITHUB_STEP_SUMMARY"
+            jq -r '.error.message' deepseek-response.json >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
-      - name: Post OpenCode agent result to issue
+          jq -r '.choices[0].message.content // ""' deepseek-response.json > raw-output.txt
+          # Strip markdown code fences and only keep diff content
+          sed -n '/^```/,/^```/{/^```/d; p}' raw-output.txt | sed -n '/^diff --git/,$p' > changes.diff
+          if [ ! -s changes.diff ]; then
+            # No diff found, maybe raw output is just a plan; try using raw directly
+            sed -n '/^diff --git/,$p' raw-output.txt > changes.diff
+          fi
+          if [ ! -s changes.diff ]; then
+            echo "No git diff found in response." >> "$GITHUB_STEP_SUMMARY"
+            echo "Raw output preview:" >> "$GITHUB_STEP_SUMMARY"
+            head -50 raw-output.txt >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Apply diff and create PR
+        run: |
+          ISSUE_NUM="${{ needs.prepare.outputs.issue_number }}"
+          BRANCH="opencode/kid-idea-issue-${ISSUE_NUM}"
+          git config user.name "opencode-agent[bot]"
+          git config user.email "opencode-agent[bot]@users.noreply.github.com"
+
+          # Remove trailing whitespace that git apply may reject
+          sed -i 's/[[:space:]]*$//' changes.diff
+
+          if git apply --check --ignore-whitespace changes.diff 2>/dev/null; then
+            git apply --ignore-whitespace changes.diff
+            git add -A
+            if git diff --cached --quiet; then
+              echo "No changes after applying diff." >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+            git checkout -b "$BRANCH"
+            git commit -m "feat: implement issue #${ISSUE_NUM}"
+
+            # Push using GITHUB_TOKEN
+            git remote set-url origin https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+            git push origin "$BRANCH"
+
+            # Create PR using GitHub API with proper JSON
+            PR_BODY=$(jq -n \
+              --arg title "feat: implement issue #${ISSUE_NUM}" \
+              --arg head "$BRANCH" \
+              --arg base "develop" \
+              --arg body "Implemented by OpenCode agent (DeepSeek V4 Flash).\n\nCloses #${ISSUE_NUM}." \
+              '{title: $title, head: $head, base: $base, body: $body}')
+
+            PR_URL=$(curl -s -X POST \
+              -H "Authorization: Bearer ${{ github.token }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              -d "$PR_BODY" \
+              "https://api.github.com/repos/${{ github.repository }}/pulls" | jq -r '.html_url // .message')
+
+            echo "PR created: $PR_URL" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Diff does not apply cleanly. Will post as comment." >> "$GITHUB_STEP_SUMMARY"
+            git apply --ignore-whitespace --reject changes.diff 2>&1 >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+
+      - name: Post result comment
+        if: always()
         uses: actions/github-script@v7
+        env:
+          ISSUE_NUMBER: ${{ needs.prepare.outputs.issue_number }}
         with:
           script: |
             const fs = require('fs')
-            const response = JSON.parse(fs.readFileSync('deepseek-response.json', 'utf8'))
-            const content = response.choices?.[0]?.message?.content || 'No response from DeepSeek API.'
+            const body = []
 
-            const body = [
-              '🤖 **OpenCode Agent (DeepSeek V4 Flash)**',
-              '',
-              content,
-              '',
-              '---',
-              'This response was automatically generated by the OpenCode agent using DeepSeek V4 Flash.'
-            ].join('\n')
+            try {
+              const response = JSON.parse(fs.readFileSync('deepseek-response.json', 'utf8'))
+              const errorText = response.error?.message || ''
+
+              if (fs.existsSync('changes.diff') && fs.statSync('changes.diff').size > 0) {
+                const diff = fs.readFileSync('changes.diff', 'utf8').slice(0, 25000)
+                body.push('**OpenCode Agent (DeepSeek V4 Flash)**\n')
+                body.push('Generated changes:\n')
+                body.push('```diff')
+                body.push(diff)
+                body.push('```')
+                body.push('\n---\n_Generated by OpenCode agent using DeepSeek V4 Flash_')
+              } else if (errorText) {
+                body.push('**OpenCode Agent (DeepSeek V4 Flash)**\n')
+                body.push('API Error: ' + errorText)
+              } else {
+                body.push('**OpenCode Agent (DeepSeek V4 Flash)**\n')
+                body.push('No changes generated.')
+              }
+            } catch {
+              body.push('**OpenCode Agent (DeepSeek V4 Flash)**\n')
+              body.push('Failed to generate or apply changes. Check workflow logs for details.')
+            }
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: Number(process.env.ISSUE_NUMBER),
-              body
+              body: body.join('\n')
             })
