@@ -1,10 +1,10 @@
 # 小朋友微信协作开发指南
 
-这份规则用于把小朋友在微信里的游戏想法，变成一个独立的开发任务、一个 Pull Request、一次自动上传的微信体验版。小朋友负责提出想法和试玩反馈，Codex 负责按规则修改和验证，你负责最终决定 PR 是否合并到 `develop`。
+这份规则用于把小朋友在微信里的游戏想法，变成一个独立的开发任务、一个 Pull Request、一次自动上传的微信体验版。小朋友负责提出想法和试玩反馈，AI agent 负责按规则修改和验证，你负责最终决定 PR 是否合并到 `develop`。
 
 ## 一句话流程
 
-想法箱提交 -> 自动生成 GitHub Issue -> Codex 判断任务大小 -> 创建 `codex/kid-idea-*` 分支 -> 修改代码 -> 开 PR -> CI 自动上传体验版 -> 小朋友试玩 -> 你决定是否 merge。
+想法箱提交 -> 自动生成 GitHub Issue -> 选择合适的 AI agent -> 创建对应分支 -> 修改代码 -> 开 PR -> CI 自动上传体验版 -> 小朋友试玩 -> 你决定是否 merge。
 
 ## 小朋友怎么提想法
 
@@ -26,7 +26,7 @@
 
 提交后，想法箱会自动创建 GitHub Issue，并在网页里的“任务进度”区域显示链接和状态。默认不会自动开发；你审核后再给 Issue 加 `copilot-ready` 或 `codex-ready` 标签。
 
-## Codex 开始前先判断
+## Agent 开始前先判断
 
 每个微信想法先分成三类，再决定怎么做：
 
@@ -34,7 +34,7 @@
 - 需要拆分：想法很好，但要拆成多个 PR，例如同时改玩法、界面和很多关卡。
 - 暂不适合做：风险太高或需要成人先确认，例如发布、密钥、账号、云函数、支付、隐私、删除大量代码。
 
-Codex 回复任务时要用简单的话说明：
+Agent 回复任务时要用简单的话说明：
 
 - 这次准备改什么。
 - 会不会影响很多地方。
@@ -69,9 +69,11 @@ PR 描述固定包含：
 
 - 加 `copilot-ready`：GitHub Actions 会把 Issue 分配给 GitHub Copilot coding agent。
 - 加 `codex-ready`：GitHub Actions 会把 Issue 分配给 Codex coding agent。
-- 不要同时加两个 ready 标签。选择 `copilot-ready` 或 `codex-ready` 其中一个自动 PR 流程。
+- OpenCode 目前走 issue comment / 手动工作流路由：在 Issue 评论首行写 `/oc` 或 `/opencode`，或在 GitHub Actions 手动选择 `opencode`。
+- 不要同时混用多个自动派单方式；每次只选一个 agent 流程。
 
 Copilot 需要仓库 Secret `COPILOT_AGENT_TOKEN`。这个 token 需要只授权本仓库，并具备 Issues、Actions、Contents、Pull requests 的读写权限。
+OpenCode 目前依赖 `Kid Idea Agent Router` 工作流中的 `API_KEY` secret。
 
 ## 自动体验版流程
 

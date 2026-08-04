@@ -80,7 +80,7 @@ npx.cmd --package @cloudbase/cli cloudbase --config-file cloudbaserc.kid-idea-bo
 4. 可选拍照、选择图片或直接画图。
 5. 点击发送。
 6. 网页刷新任务列表，显示自动生成的 GitHub Issue 链接和状态。
-7. 你审核 Issue 后，加 `copilot-ready` 标签让 Copilot 开 PR，或加 `codex-ready` 标签让 Codex 开 PR。
+7. 你审核 Issue 后，加 `copilot-ready` 标签让 Copilot 开 PR，或加 `codex-ready` 标签让 Codex 开 PR；如果要走 OpenCode，就在 Issue 评论首行写 `/oc` 或 `/opencode`。
 
 ## Agent Label
 
@@ -88,5 +88,6 @@ npx.cmd --package @cloudbase/cli cloudbase --config-file cloudbaserc.kid-idea-bo
 
 - `copilot-ready`：把 Issue 分配给 GitHub Copilot coding agent。
 - `codex-ready`：把 Issue 分配给 Codex coding agent。
+- `/oc` 或 `/opencode`：通过 `Kid Idea Agent Router` 把 Issue 路由给 OpenCode agent。
 
-不要同时加两个 ready 标签。PR 输出要求见 `docs/kid-idea-agent-output.md`。
+不要同时混用多个 agent 触发方式。PR 输出要求见 `docs/kid-idea-agent-output.md`。
