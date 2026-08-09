@@ -1,6 +1,6 @@
 # 小朋友想法任务的 PR 输出要求
 
-这些要求适用于从“小朋友想法箱”生成的 GitHub Issue，并由 Copilot 或 Codex 创建的 PR。
+这些要求适用于从“小朋友想法箱”生成的 GitHub Issue，并由 Copilot、Codex 或 OpenCode 创建的 PR。
 
 ## 修改类任务
 
