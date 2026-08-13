@@ -454,6 +454,7 @@ function getRewardTaskContext() {
   return {
     completedLevels: completedLevels,
     levelWorlds: LEVEL_WORLDS,
+    currentLevelId: currentLevelId || (engine && engine.maze && engine.maze.id) || '',
     canShareMinigame: isShareMinigameSupported(),
   }
 }

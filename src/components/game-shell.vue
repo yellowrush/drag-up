@@ -1387,6 +1387,7 @@
     return {
       completedLevels: completedLevels.value,
       levelWorlds,
+      currentLevelId: currentLevelId || (engine.value && engine.value.maze && engine.value.maze.id) || '',
       canShareMinigame: isShareMinigameSupported(),
     };
   }

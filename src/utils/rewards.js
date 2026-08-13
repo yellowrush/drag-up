@@ -722,6 +722,18 @@ function getStickerProgress(sticker, context) {
   };
 }
 
+function isStickerCameraReachable(sticker, context) {
+  var progress = getStickerProgress(sticker, context || {});
+  if (progress.ready) return true;
+  var currentLevelId = String((context && context.currentLevelId) || '');
+  return !!(
+    currentLevelId &&
+    sticker &&
+    sticker.cameraLevelId === currentLevelId &&
+    progress.completed + 1 >= sticker.requiredCompleted
+  );
+}
+
 function createStickerCameraConfig(sticker) {
   if (!sticker || !sticker.cameraLevelId || !sticker.cameraTarget) return null;
   return {
@@ -763,8 +775,7 @@ function getActiveStickerCamerasForState(state, context, levelId) {
   STICKERS.forEach(function (sticker) {
     if (levelId && sticker.cameraLevelId !== levelId) return;
     if (state.ownedStickerIds.indexOf(sticker.id) !== -1) return;
-    var progress = getStickerProgress(sticker, context || {});
-    if (!progress.ready) return;
+    if (!isStickerCameraReachable(sticker, context || {})) return;
     var camera = createStickerCameraConfig(sticker);
     if (camera) cameras.push(camera);
   });
@@ -879,8 +890,7 @@ export const RewardStorage = {
     if (state.ownedStickerIds.indexOf(sticker.id) !== -1) {
       return { ok: true, state: cloneState(state), reason: 'owned' };
     }
-    var progress = getStickerProgress(sticker, context || {});
-    if (!progress.ready) {
+    if (!isStickerCameraReachable(sticker, context || {})) {
       return { ok: false, state: cloneState(state), reason: 'locked' };
     }
     state.ownedStickerIds.push(sticker.id);
