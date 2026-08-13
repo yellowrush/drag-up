@@ -10,7 +10,7 @@
     "minified": true,
     "bigPackageSizeSupport": true
   },
-  "compileType": "game",
+  "compileType": "minigame",
   "cloudfunctionRoot": "cloudfunctions/",
   "libVersion": "3.3.0",
   "appid": "",

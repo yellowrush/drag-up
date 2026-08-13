@@ -27,7 +27,19 @@ CI 上传的版本号默认使用 `package.json` 里的 `version`，上传描述
 
 ## 本地上传
 
-上传前先设置 `appId`：
+脚本会按以下顺序自动补全 `appId`：
+
+1. 环境变量 `WX_APPID`（或 `WECHAT_APPID`）
+2. 项目根目录 `.env` 文件里的 `WX_APPID`
+3. 本地的 `private.<appId>.key` 文件名（默认私钥文件在项目根目录，通常是 `private.wx<一串字符>.key`）
+
+只要本地已有 `private.<appId>.key`，直接运行即可，无需手动设置环境变量：
+
+```bash
+npm.cmd run upload:minigame -- 1.1.0 "manual test"
+```
+
+如果需要显式指定 `appId`，也可以手动设置（env 变量优先级最高）：
 
 ```bash
 WX_APPID=wxxxxxxxxxxxxxxxxx npm run upload:minigame -- 1.1.0 "manual test"

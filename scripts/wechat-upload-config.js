@@ -19,10 +19,50 @@ const MODES = {
   },
 }
 
-function readRequiredEnv(name, hint) {
-  const value = process.env[name]
-  if (value && value.trim()) return value.trim()
-  throw new Error(`Missing required env ${name}${hint ? `. ${hint}` : ''}`)
+function loadDotEnv() {
+  const envPath = path.join(ROOT, '.env')
+  if (!fs.existsSync(envPath)) return {}
+  const env = {}
+  fs.readFileSync(envPath, 'utf8')
+    .split(/\r?\n/)
+    .forEach(function (line) {
+      const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/)
+      if (!match) return
+      let value = match[2].trim()
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1)
+      }
+      if (value && !env[match[1]]) env[match[1]] = value
+    })
+  return env
+}
+
+function findLocalAppId() {
+  const fromEnv = process.env.WX_APPID || process.env.WECHAT_APPID
+  if (fromEnv && fromEnv.trim()) return { appid: fromEnv.trim(), source: 'env' }
+
+  const dotEnv = loadDotEnv()
+  const fromDotEnv = dotEnv.WX_APPID || dotEnv.WECHAT_APPID
+  if (fromDotEnv && fromDotEnv.trim()) return { appid: fromDotEnv.trim(), source: '.env' }
+
+  try {
+    const keyFile = fs.readdirSync(ROOT).find(function (name) {
+      return /^private\..+\.key$/.test(name)
+    })
+    if (keyFile) {
+      return {
+        appid: keyFile.slice('private.'.length, -'.key'.length),
+        source: 'local private key file name',
+      }
+    }
+  } catch (err) {
+    // Fall through to the missing-env error below.
+  }
+
+  return { appid: '', source: '' }
 }
 
 function getMode(input, fallback) {
@@ -65,14 +105,17 @@ function preparePrivateKey(options) {
 
 function loadUploadConfig(options) {
   const { mode, config } = getMode(options.mode, options.defaultMode || 'minigame')
-  const appid = readRequiredEnv(
-    'WX_APPID',
-    'Set it in GitHub Actions secrets or your local shell before uploading.',
-  )
+  const { appid, source: appidSource } = findLocalAppId()
+  if (!appid) {
+    throw new Error(
+      'Missing required env WX_APPID. Set it in GitHub Actions secrets, your local shell, or your local .env file before uploading.',
+    )
+  }
   const key = preparePrivateKey({ appid })
 
   return {
     appid,
+    appidSource,
     mode,
     label: config.label,
     type: config.type,

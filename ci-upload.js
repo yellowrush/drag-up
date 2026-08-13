@@ -35,7 +35,7 @@ async function upload() {
 
   console.log('[ci-upload] Preparing WeChat upload')
   console.log(`  Mode: ${config.mode} (${config.label})`)
-  console.log(`  AppId: ${config.appid}`)
+  console.log(`  AppId: ${config.appid} (from ${config.appidSource})`)
   console.log(`  Project: ${config.projectPath}`)
   console.log(`  Version: ${version}`)
   console.log(`  Description: ${desc}`)
