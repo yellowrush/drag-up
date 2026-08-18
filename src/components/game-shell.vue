@@ -210,6 +210,7 @@
               class="sticker-share-canvas"
             />
             <text class="sticker-share-note">&#24050;&#29983;&#25104;&#36866;&#21512;&#20998;&#20139;&#30340;&#36148;&#22270;&#30011;&#38754;</text>
+            <text v-if="canShareTimeline" class="sticker-share-note">&#28857;&#21491;&#19978;&#35282;&#33756;&#21333;&#21487;&#20998;&#20139;&#21040;&#26379;&#21451;&#22280;</text>
           </view>
           <scroll-view v-else scroll-y class="reward-scroll">
             <view
@@ -448,9 +449,11 @@
     getRewardSourceText,
     isScoreReward,
   } from '@/utils/rewards.js';
-  import {
+import {
     isShareMinigameSupported,
+    isShareTimelineSupported,
     registerShareMinigame,
+    setShareTimelineImageUrl,
     shareMinigame,
   } from '@/utils/share-minigame.js';
 
@@ -495,8 +498,9 @@
   const anonymousPlayerText = '\u533f\u540d\u73a9\u5bb6';
   const leaderboardLoadFailedText = '\u6392\u884c\u699c\u52a0\u8f7d\u5931\u8d25';
   const leaderboardNoUserText = '\u672c\u5730\u73a9\u5bb6';
-  const shareMinigameOnlyText = '\u8bf7\u5728\u5fae\u4fe1\u5c0f\u6e38\u620f\u4e2d\u5206\u4eab';
+const shareMinigameOnlyText = '\u8bf7\u5728\u5fae\u4fe1\u5c0f\u6e38\u620f\u4e2d\u5206\u4eab';
   const shareRewardClaimedText = '\u5206\u4eab\u5b8c\u6210\uff0c\u5df2\u9886\u53d6\u597d\u53cb\u7231\u5fc3';
+  const canShareTimeline = isShareTimelineSupported();
   const developerCredits = [
     {
       id: 'huangchong',
@@ -1100,7 +1104,7 @@
     }
     // #endif
 
-    // #ifdef MP-WEIXIN
+// #ifdef MP-WEIXIN
     const query = uni.createSelectorQuery().in(instance);
     query
       .select('#stickerShareCanvas')
@@ -1117,6 +1121,22 @@
           target.width || 260,
           target.height || 306,
         );
+        try {
+          const tempPath = canvasNode.toTempFilePathSync
+            ? canvasNode.toTempFilePathSync({
+                x: 0,
+                y: 0,
+                width: canvasNode.width,
+                height: canvasNode.height,
+                destWidth: canvasNode.width,
+                destHeight: canvasNode.height,
+                fileType: 'png',
+              })
+            : '';
+          if (tempPath) {
+            setShareTimelineImageUrl(tempPath);
+          }
+        } catch (e) {}
       });
     // #endif
   }
